@@ -1,29 +1,65 @@
-# General Go template repository
+# klausctl
 
-This is a general template repository containing some basic files every GitHub repo owned by Giant Swarm should have.
+CLI for managing local [klaus](https://github.com/giantswarm/klaus) instances.
 
-Note also these more specific repositories:
+klausctl is the local-mode counterpart to the Helm chart and the klaus-operator. It produces the same env vars, flags, and file mounts that the klaus Go binary expects, but through a developer-friendly CLI backed by Docker or Podman.
 
-- [template-app](https://github.com/giantswarm/template-app)
-- [gitops-template](https://github.com/giantswarm/gitops-template)
-- [python-app-template](https://github.com/giantswarm/python-app-template)
+## Features
 
-## Creating a new repository
+- **Container lifecycle management** -- start, stop, status, logs for local klaus instances
+- **Plugin fetching via ORAS** -- pull Claude Code plugins from OCI registries before container start
+- **Config rendering** -- generate `.mcp.json`, `settings.json`, `SKILL.md` files from a single config file
+- **Container runtime auto-detection** -- Docker or Podman, with preference configurable
+- **Environment variable forwarding** -- pass secrets from host to container
+- **Self-update** -- `klausctl update` to fetch the latest release
 
-Please do not use the `Use this template` function in the GitHub web UI.
+## Usage
 
-Check out the according [handbook article](https://handbook.giantswarm.io/docs/dev-and-releng/repository/go/) for better instructions.
+```
+klausctl start    # Start a klaus instance
+klausctl stop     # Stop the running instance
+klausctl status   # Show instance status (running, MCP endpoint, cost, etc.)
+klausctl logs     # Stream container logs
+klausctl config   # Manage configuration
+klausctl update   # Self-update to latest version
+```
 
-### Some suggestions for your README
+## Configuration
 
-After you have created your new repository, you may want to add some of these badges to the top of your README.
+Config file at `~/.config/klausctl/config.yaml`:
 
-- **CircleCI:** After enabling builds for this repo via [this link](https://circleci.com/setup-project/gh/giantswarm/REPOSITORY_NAME), you can find badge code on [this page](https://app.circleci.com/settings/project/github/giantswarm/REPOSITORY_NAME/status-badges).
+```yaml
+# Container runtime (auto-detected if not set)
+runtime: docker  # or: podman
 
-- **Go reference:** use [this helper](https://pkg.go.dev/badge/) to create the markdown code.
+# Klaus image
+image: ghcr.io/giantswarm/klaus:latest
 
-- **Go report card:** enter the module name on the [front page](https://goreportcard.com/) and hit "Generate report". Then use this markdown code for your badge: `[![Go report card](https://goreportcard.com/badge/github.com/giantswarm/REPOSITORY_NAME)](https://goreportcard.com/report/github.com/giantswarm/REPOSITORY_NAME)`
+# Workspace to mount
+workspace: ~/projects/my-repo
 
-- **OpenSSF Scorecard Report:** for public repos only: `[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/giantswarm/{APP-NAME}/badge)](https://securityscorecards.dev/viewer/?uri=github.com/giantswarm/{APP-NAME})`
+# Port for the MCP endpoint
+port: 8080
 
-- **Sourcegraph "used by N projects" badge**: for public Go repos only: `[![Sourcegraph](https://sourcegraph.com/github.com/giantswarm/REPOSITORY_NAME/-/badge.svg)](https://sourcegraph.com/github.com/giantswarm/REPOSITORY_NAME)`
+# Claude configuration
+claude:
+  model: sonnet
+  systemPrompt: "You are a helpful coding assistant."
+  maxBudgetUsd: 5.0
+  permissionMode: plan
+
+# OCI plugins (pulled via ORAS before container start)
+ociPlugins:
+  - repository: gsoci.azurecr.io/giantswarm/claude-plugins/gs-platform
+    tag: v1.2.0
+```
+
+See the [configuration documentation](docs/configuration.md) for the full reference.
+
+## Development
+
+See [docs/development.md](docs/development.md) for development instructions.
+
+## License
+
+Apache 2.0 -- see [LICENSE](LICENSE).
