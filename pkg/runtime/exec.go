@@ -1,0 +1,154 @@
+package runtime
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"os"
+	"os/exec"
+	"sort"
+	"strings"
+)
+
+// execRuntime implements the Runtime interface using os/exec to call
+// docker or podman CLI commands. Both CLIs share compatible interfaces.
+type execRuntime struct {
+	binary string
+}
+
+func (r *execRuntime) Name() string {
+	return r.binary
+}
+
+func (r *execRuntime) Run(opts RunOptions) (string, error) {
+	args := []string{"run"}
+
+	if opts.Detach {
+		args = append(args, "-d")
+	}
+
+	if opts.Name != "" {
+		args = append(args, "--name", opts.Name)
+	}
+
+	// Environment variables (sorted for deterministic output).
+	envKeys := make([]string, 0, len(opts.EnvVars))
+	for k := range opts.EnvVars {
+		envKeys = append(envKeys, k)
+	}
+	sort.Strings(envKeys)
+	for _, k := range envKeys {
+		args = append(args, "-e", fmt.Sprintf("%s=%s", k, opts.EnvVars[k]))
+	}
+
+	// Port mappings.
+	portKeys := make([]int, 0, len(opts.Ports))
+	for k := range opts.Ports {
+		portKeys = append(portKeys, k)
+	}
+	sort.Ints(portKeys)
+	for _, hostPort := range portKeys {
+		containerPort := opts.Ports[hostPort]
+		args = append(args, "-p", fmt.Sprintf("%d:%d", hostPort, containerPort))
+	}
+
+	// Volume mounts.
+	for _, v := range opts.Volumes {
+		mount := fmt.Sprintf("%s:%s", v.HostPath, v.ContainerPath)
+		if v.ReadOnly {
+			mount += ":ro"
+		}
+		args = append(args, "-v", mount)
+	}
+
+	args = append(args, opts.Image)
+
+	var stdout, stderr bytes.Buffer
+	cmd := exec.Command(r.binary, args...)
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("%s run failed: %s\n%s", r.binary, err, stderr.String())
+	}
+
+	return strings.TrimSpace(stdout.String()), nil
+}
+
+func (r *execRuntime) Stop(name string) error {
+	var stderr bytes.Buffer
+	cmd := exec.Command(r.binary, "stop", name)
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("%s stop failed: %s\n%s", r.binary, err, stderr.String())
+	}
+	return nil
+}
+
+func (r *execRuntime) Remove(name string) error {
+	var stderr bytes.Buffer
+	cmd := exec.Command(r.binary, "rm", "-f", name)
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("%s rm failed: %s\n%s", r.binary, err, stderr.String())
+	}
+	return nil
+}
+
+func (r *execRuntime) Status(name string) (string, error) {
+	var stdout, stderr bytes.Buffer
+	cmd := exec.Command(r.binary, "inspect", "--format", "{{.State.Status}}", name)
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		// Container doesn't exist.
+		return "", nil
+	}
+	return strings.TrimSpace(stdout.String()), nil
+}
+
+func (r *execRuntime) Inspect(name string) (*ContainerInfo, error) {
+	var stdout, stderr bytes.Buffer
+	cmd := exec.Command(r.binary, "inspect", name)
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		return nil, fmt.Errorf("%s inspect failed: %s\n%s", r.binary, err, stderr.String())
+	}
+
+	var results []inspectResult
+	if err := json.Unmarshal(stdout.Bytes(), &results); err != nil {
+		return nil, fmt.Errorf("parsing inspect output: %w", err)
+	}
+	if len(results) == 0 {
+		return nil, fmt.Errorf("no container found with name %q", name)
+	}
+
+	result := results[0]
+	return &ContainerInfo{
+		ID:        result.ID,
+		Name:      strings.TrimPrefix(result.Name, "/"),
+		Image:     result.Image,
+		Status:    result.State.Status,
+		State:     result.State.Status,
+		StartedAt: result.State.StartedAt,
+	}, nil
+}
+
+func (r *execRuntime) Logs(name string, follow bool) error {
+	args := []string{"logs"}
+	if follow {
+		args = append(args, "-f")
+	}
+	args = append(args, name)
+
+	cmd := exec.Command(r.binary, args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	return cmd.Run()
+}
