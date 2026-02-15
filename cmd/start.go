@@ -19,6 +19,8 @@ import (
 	"github.com/giantswarm/klausctl/pkg/runtime"
 )
 
+var startWorkspace string
+
 var startCmd = &cobra.Command{
 	Use:   "start",
 	Short: "Start a local klaus instance",
@@ -33,6 +35,7 @@ This command:
 }
 
 func init() {
+	startCmd.Flags().StringVar(&startWorkspace, "workspace", "", "workspace directory to mount (overrides config file)")
 	rootCmd.AddCommand(startCmd)
 }
 
@@ -46,6 +49,11 @@ func runStart(cmd *cobra.Command, _ []string) error {
 	cfg, err := config.Load(cfgFile)
 	if err != nil {
 		return err
+	}
+
+	// Override workspace from flag if provided.
+	if startWorkspace != "" {
+		cfg.Workspace = startWorkspace
 	}
 
 	// Validate that the workspace directory exists.

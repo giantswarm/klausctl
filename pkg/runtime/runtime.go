@@ -25,8 +25,9 @@ type Runtime interface {
 	// Inspect returns detailed container information.
 	Inspect(ctx context.Context, name string) (*ContainerInfo, error)
 	// Logs streams container logs to stdout/stderr. If follow is true, it
-	// streams continuously until interrupted.
-	Logs(ctx context.Context, name string, follow bool) error
+	// streams continuously until interrupted. If tail > 0, only the last N
+	// lines are shown.
+	Logs(ctx context.Context, name string, follow bool, tail int) error
 }
 
 // RunOptions configures a container run invocation.

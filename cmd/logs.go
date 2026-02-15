@@ -12,7 +12,10 @@ import (
 	"github.com/giantswarm/klausctl/pkg/runtime"
 )
 
-var logsFollow bool
+var (
+	logsFollow bool
+	logsTail   int
+)
 
 var logsCmd = &cobra.Command{
 	Use:   "logs",
@@ -23,6 +26,7 @@ var logsCmd = &cobra.Command{
 
 func init() {
 	logsCmd.Flags().BoolVarP(&logsFollow, "follow", "f", false, "follow log output")
+	logsCmd.Flags().IntVar(&logsTail, "tail", 0, "number of lines to show from the end of the logs (0 = all)")
 	rootCmd.AddCommand(logsCmd)
 }
 
@@ -45,5 +49,5 @@ func runLogs(_ *cobra.Command, _ []string) error {
 		return err
 	}
 
-	return rt.Logs(ctx, inst.ContainerName(), logsFollow)
+	return rt.Logs(ctx, inst.ContainerName(), logsFollow, logsTail)
 }

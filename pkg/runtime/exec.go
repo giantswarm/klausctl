@@ -146,10 +146,13 @@ func (r *execRuntime) Inspect(ctx context.Context, name string) (*ContainerInfo,
 	}, nil
 }
 
-func (r *execRuntime) Logs(ctx context.Context, name string, follow bool) error {
+func (r *execRuntime) Logs(ctx context.Context, name string, follow bool, tail int) error {
 	args := []string{"logs"}
 	if follow {
 		args = append(args, "-f")
+	}
+	if tail > 0 {
+		args = append(args, "--tail", fmt.Sprintf("%d", tail))
 	}
 	args = append(args, name)
 

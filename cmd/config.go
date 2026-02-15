@@ -37,10 +37,18 @@ var configPathCmd = &cobra.Command{
 	RunE:  runConfigPath,
 }
 
+var configValidateCmd = &cobra.Command{
+	Use:   "validate",
+	Short: "Validate configuration file syntax",
+	Long:  `Parse and validate the configuration file, reporting any errors.`,
+	RunE:  runConfigValidate,
+}
+
 func init() {
 	configCmd.AddCommand(configInitCmd)
 	configCmd.AddCommand(configShowCmd)
 	configCmd.AddCommand(configPathCmd)
+	configCmd.AddCommand(configValidateCmd)
 	rootCmd.AddCommand(configCmd)
 }
 
@@ -106,6 +114,23 @@ func runConfigPath(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 	fmt.Fprintln(cmd.OutOrStdout(), path)
+	return nil
+}
+
+func runConfigValidate(cmd *cobra.Command, _ []string) error {
+	path, err := resolvedConfigFile()
+	if err != nil {
+		return err
+	}
+
+	out := cmd.OutOrStdout()
+
+	_, err = config.Load(path)
+	if err != nil {
+		return fmt.Errorf("config validation failed: %w", err)
+	}
+
+	fmt.Fprintf(out, "Config file is valid: %s\n", path)
 	return nil
 }
 

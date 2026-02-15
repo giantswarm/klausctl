@@ -7,11 +7,11 @@ klausctl is the local-mode counterpart to the Helm chart and the klaus-operator.
 ## Features
 
 - **Container lifecycle management** -- start, stop, status, logs for local klaus instances
-- **Plugin fetching via ORAS** -- pull Claude Code plugins from OCI registries before container start
+- **Plugin fetching via ORAS** -- pull Claude Code plugins from OCI registries before container start (not yet implemented, see [#5](https://github.com/giantswarm/klausctl/issues/5))
 - **Config rendering** -- generate `.mcp.json`, `settings.json`, `SKILL.md` files from a single config file
 - **Container runtime auto-detection** -- Docker or Podman, with preference configurable
 - **Environment variable forwarding** -- pass secrets from host to container
-- **Self-update** -- `klausctl update` to fetch the latest release
+- **Self-update** -- `klausctl update` to fetch the latest release (not yet implemented, see [#7](https://github.com/giantswarm/klausctl/issues/7))
 
 ## Quick Start
 
@@ -41,12 +41,13 @@ klausctl stop
 ## Usage
 
 ```
-klausctl start    # Start a klaus instance
-klausctl stop     # Stop the running instance
-klausctl status   # Show instance status (running, MCP endpoint, uptime)
-klausctl logs     # Stream container logs (-f to follow)
-klausctl config   # Manage configuration (init, show, path)
-klausctl version  # Show version information
+klausctl start                # Start a klaus instance
+klausctl start --workspace .  # Start with workspace override
+klausctl stop                 # Stop the running instance
+klausctl status               # Show instance status (running, MCP endpoint, uptime)
+klausctl logs                 # Stream container logs (-f to follow, --tail N for last N lines)
+klausctl config               # Manage configuration (init, show, path, validate)
+klausctl version              # Show version information
 ```
 
 ## Configuration
@@ -126,7 +127,7 @@ The configuration intentionally mirrors the Helm chart values structure so that 
          |      Pull plugins to ~/.config/klausctl/plugins/
          |
          +-- Config renderer (pkg/renderer/)
-         |      Generate .mcp.json, settings.json, SKILL.md files
+         |      Generate mcp-config.json, settings.json, SKILL.md files
          |      in ~/.config/klausctl/rendered/
          |
          +-- Container runtime (Docker or Podman, auto-detect)
