@@ -1,11 +1,15 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
+	"os"
+	"os/signal"
 	"time"
 
 	"github.com/spf13/cobra"
 
+	"github.com/giantswarm/klausctl/pkg/config"
 	"github.com/giantswarm/klausctl/pkg/instance"
 	"github.com/giantswarm/klausctl/pkg/runtime"
 )
@@ -22,7 +26,12 @@ func init() {
 }
 
 func runStatus(_ *cobra.Command, _ []string) error {
-	inst, err := instance.Load()
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer cancel()
+
+	paths := config.DefaultPaths()
+
+	inst, err := instance.Load(paths)
 	if err != nil {
 		fmt.Println("No klaus instance found.")
 		fmt.Println("Run 'klausctl start' to start one.")
@@ -37,16 +46,13 @@ func runStatus(_ *cobra.Command, _ []string) error {
 	containerName := inst.ContainerName()
 
 	// Get container status.
-	status, err := rt.Status(containerName)
+	status, err := rt.Status(ctx, containerName)
 	if err != nil || status == "" {
 		fmt.Printf("Instance:   %s\n", inst.Name)
 		fmt.Printf("Status:     not found (stale state)\n")
 		fmt.Printf("\nThe container no longer exists. Run 'klausctl start' to start a new one.\n")
 		return nil
 	}
-
-	// Get detailed info.
-	info, err := rt.Inspect(containerName)
 
 	fmt.Printf("Instance:   %s\n", inst.Name)
 	fmt.Printf("Status:     %s\n", status)
@@ -57,9 +63,17 @@ func runStatus(_ *cobra.Command, _ []string) error {
 
 	if status == "running" {
 		fmt.Printf("MCP:        http://localhost:%d\n", inst.Port)
-		if err == nil && !info.StartedAt.IsZero() {
+
+		// Try to get detailed info from the runtime.
+		info, inspectErr := rt.Inspect(ctx, containerName)
+		if inspectErr != nil {
+			fmt.Fprintf(os.Stderr, "Warning: could not inspect container: %v\n", inspectErr)
+		}
+
+		switch {
+		case inspectErr == nil && !info.StartedAt.IsZero():
 			fmt.Printf("Uptime:     %s\n", formatDuration(time.Since(info.StartedAt)))
-		} else if !inst.StartedAt.IsZero() {
+		case !inst.StartedAt.IsZero():
 			fmt.Printf("Uptime:     %s\n", formatDuration(time.Since(inst.StartedAt)))
 		}
 	}

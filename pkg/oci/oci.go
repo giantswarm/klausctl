@@ -20,7 +20,7 @@ import (
 // Each plugin is stored at <pluginsDir>/<shortName>/.
 func PullPlugins(plugins []config.Plugin, pluginsDir string) error {
 	for _, plugin := range plugins {
-		shortName := shortPluginName(plugin.Repository)
+		shortName := ShortPluginName(plugin.Repository)
 		destDir := filepath.Join(pluginsDir, shortName)
 
 		if err := config.EnsureDir(destDir); err != nil {
@@ -42,9 +42,9 @@ func PullPlugins(plugins []config.Plugin, pluginsDir string) error {
 	return nil
 }
 
-// shortPluginName extracts the last segment of a repository path.
+// ShortPluginName extracts the last segment of a repository path.
 // e.g. "gsoci.azurecr.io/giantswarm/klaus-plugins/gs-platform" -> "gs-platform"
-func shortPluginName(repository string) string {
+func ShortPluginName(repository string) string {
 	parts := strings.Split(repository, "/")
 	if len(parts) == 0 {
 		return repository
@@ -57,7 +57,7 @@ func shortPluginName(repository string) string {
 func PluginDirs(plugins []config.Plugin) []string {
 	dirs := make([]string, 0, len(plugins))
 	for _, p := range plugins {
-		dirs = append(dirs, "/mnt/plugins/"+shortPluginName(p.Repository))
+		dirs = append(dirs, "/mnt/plugins/"+ShortPluginName(p.Repository))
 	}
 	return dirs
 }

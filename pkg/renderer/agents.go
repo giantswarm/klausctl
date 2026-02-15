@@ -3,6 +3,7 @@ package renderer
 import (
 	"fmt"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/giantswarm/klausctl/pkg/config"
@@ -12,7 +13,15 @@ import (
 // Agent files are rendered at: <extensions>/.claude/agents/<name>.md
 // This mirrors the Helm chart's agentFiles rendering.
 func (r *Renderer) renderAgentFiles(agentFiles map[string]config.AgentFile) error {
-	for name, agent := range agentFiles {
+	// Sort agent names for deterministic output.
+	names := make([]string, 0, len(agentFiles))
+	for name := range agentFiles {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	for _, name := range names {
+		agent := agentFiles[name]
 		content := agent.Content
 		// Ensure trailing newline.
 		if !strings.HasSuffix(content, "\n") {

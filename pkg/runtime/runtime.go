@@ -4,6 +4,7 @@
 package runtime
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -14,19 +15,19 @@ type Runtime interface {
 	// Name returns the runtime name ("docker" or "podman").
 	Name() string
 	// Run starts a new container and returns its ID.
-	Run(opts RunOptions) (string, error)
+	Run(ctx context.Context, opts RunOptions) (string, error)
 	// Stop stops a running container.
-	Stop(name string) error
+	Stop(ctx context.Context, name string) error
 	// Remove removes a container.
-	Remove(name string) error
+	Remove(ctx context.Context, name string) error
 	// Status returns the container status ("running", "exited", "created", etc.)
 	// or an empty string if the container doesn't exist.
-	Status(name string) (string, error)
+	Status(ctx context.Context, name string) (string, error)
 	// Inspect returns detailed container information.
-	Inspect(name string) (*ContainerInfo, error)
+	Inspect(ctx context.Context, name string) (*ContainerInfo, error)
 	// Logs streams container logs to stdout/stderr. If follow is true, it
 	// streams continuously until interrupted.
-	Logs(name string, follow bool) error
+	Logs(ctx context.Context, name string, follow bool) error
 }
 
 // RunOptions configures a container run invocation.
@@ -61,7 +62,6 @@ type ContainerInfo struct {
 	Name      string    `json:"name"`
 	Image     string    `json:"image"`
 	Status    string    `json:"status"`
-	State     string    `json:"state"`
 	StartedAt time.Time `json:"startedAt"`
 	Ports     string    `json:"ports"`
 }

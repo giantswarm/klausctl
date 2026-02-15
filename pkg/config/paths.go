@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -23,31 +24,39 @@ type Paths struct {
 }
 
 // DefaultPaths returns the default paths using XDG conventions.
+// It panics if the user home directory cannot be determined and
+// XDG_CONFIG_HOME is not set -- this is a programming environment
+// invariant that should always hold.
 func DefaultPaths() *Paths {
-	configDir := filepath.Join(configHome(), "klausctl")
+	configDir, err := configHome()
+	if err != nil {
+		panic(fmt.Sprintf("klausctl: cannot determine config directory: %v", err))
+	}
+	base := filepath.Join(configDir, "klausctl")
 	return &Paths{
-		ConfigDir:     configDir,
-		ConfigFile:    filepath.Join(configDir, "config.yaml"),
-		RenderedDir:   filepath.Join(configDir, "rendered"),
-		ExtensionsDir: filepath.Join(configDir, "rendered", "extensions"),
-		PluginsDir:    filepath.Join(configDir, "plugins"),
-		InstanceFile:  filepath.Join(configDir, "instance.json"),
+		ConfigDir:     base,
+		ConfigFile:    filepath.Join(base, "config.yaml"),
+		RenderedDir:   filepath.Join(base, "rendered"),
+		ExtensionsDir: filepath.Join(base, "rendered", "extensions"),
+		PluginsDir:    filepath.Join(base, "plugins"),
+		InstanceFile:  filepath.Join(base, "instance.json"),
 	}
 }
 
 // configHome returns the XDG config home directory.
-func configHome() string {
+func configHome() (string, error) {
 	if dir := os.Getenv("XDG_CONFIG_HOME"); dir != "" {
-		return dir
+		return dir, nil
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return filepath.Join(os.TempDir(), "klausctl")
+		return "", fmt.Errorf("determining home directory: %w", err)
 	}
-	return filepath.Join(home, ".config")
+	return filepath.Join(home, ".config"), nil
 }
 
 // ExpandPath expands ~ to the user's home directory and resolves the path.
+// Note: only ~/... and bare ~ are supported; ~user syntax is not handled.
 func ExpandPath(path string) string {
 	if strings.HasPrefix(path, "~/") || path == "~" {
 		home, err := os.UserHomeDir()

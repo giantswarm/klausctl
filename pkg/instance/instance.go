@@ -35,12 +35,11 @@ func (i *Instance) ContainerName() string {
 }
 
 // Save writes the instance state to the instance file.
-func (i *Instance) Save() error {
+func (i *Instance) Save(paths *config.Paths) error {
 	if i.StartedAt.IsZero() {
 		i.StartedAt = time.Now()
 	}
 
-	paths := config.DefaultPaths()
 	if err := config.EnsureDir(paths.ConfigDir); err != nil {
 		return fmt.Errorf("creating config directory: %w", err)
 	}
@@ -54,9 +53,7 @@ func (i *Instance) Save() error {
 }
 
 // Load reads the instance state from the instance file.
-func Load() (*Instance, error) {
-	paths := config.DefaultPaths()
-
+func Load(paths *config.Paths) (*Instance, error) {
 	data, err := os.ReadFile(paths.InstanceFile)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -74,8 +71,7 @@ func Load() (*Instance, error) {
 }
 
 // Clear removes the instance state file.
-func Clear() error {
-	paths := config.DefaultPaths()
+func Clear(paths *config.Paths) error {
 	err := os.Remove(paths.InstanceFile)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err

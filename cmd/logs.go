@@ -1,15 +1,18 @@
 package cmd
 
 import (
+	"context"
+	"os"
+	"os/signal"
+
 	"github.com/spf13/cobra"
 
+	"github.com/giantswarm/klausctl/pkg/config"
 	"github.com/giantswarm/klausctl/pkg/instance"
 	"github.com/giantswarm/klausctl/pkg/runtime"
 )
 
-var (
-	logsFollow bool
-)
+var logsFollow bool
 
 var logsCmd = &cobra.Command{
 	Use:   "logs",
@@ -24,7 +27,12 @@ func init() {
 }
 
 func runLogs(_ *cobra.Command, _ []string) error {
-	inst, err := instance.Load()
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer cancel()
+
+	paths := config.DefaultPaths()
+
+	inst, err := instance.Load(paths)
 	if err != nil {
 		return err
 	}
@@ -34,5 +42,5 @@ func runLogs(_ *cobra.Command, _ []string) error {
 		return err
 	}
 
-	return rt.Logs(inst.ContainerName(), logsFollow)
+	return rt.Logs(ctx, inst.ContainerName(), logsFollow)
 }

@@ -1,9 +1,11 @@
 package cmd
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
 
@@ -34,6 +36,9 @@ func init() {
 }
 
 func runStart(_ *cobra.Command, _ []string) error {
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer cancel()
+
 	cfg, err := config.Load(cfgFile)
 	if err != nil {
 		return err
@@ -46,23 +51,24 @@ func runStart(_ *cobra.Command, _ []string) error {
 	}
 	fmt.Printf("Using %s runtime.\n", rt.Name())
 
+	paths := config.DefaultPaths()
+
 	// Check if already running.
-	inst, err := instance.Load()
+	inst, err := instance.Load(paths)
 	if err == nil && inst.Name != "" {
-		status, sErr := rt.Status(inst.ContainerName())
+		status, sErr := rt.Status(ctx, inst.ContainerName())
 		if sErr == nil && status == "running" {
-			fmt.Fprintf(os.Stderr, "Instance %q is already running (container: %s).\n", inst.Name, inst.ContainerName())
-			fmt.Fprintf(os.Stderr, "MCP endpoint: http://localhost:%d\n", inst.Port)
-			fmt.Fprintf(os.Stderr, "\nUse 'klausctl stop' to stop it first.\n")
-			return nil
+			return fmt.Errorf(
+				"instance %q is already running (container: %s, MCP: http://localhost:%d)\nUse 'klausctl stop' to stop it first",
+				inst.Name, inst.ContainerName(), inst.Port,
+			)
 		}
 		// Clean up stale container.
-		_ = rt.Remove(inst.ContainerName())
-		_ = instance.Clear()
+		_ = rt.Remove(ctx, inst.ContainerName())
+		_ = instance.Clear(paths)
 	}
 
 	// Render configuration files.
-	paths := config.DefaultPaths()
 	r := renderer.New(paths)
 	if err := r.Render(cfg); err != nil {
 		return fmt.Errorf("rendering config: %w", err)
@@ -84,7 +90,7 @@ func runStart(_ *cobra.Command, _ []string) error {
 
 	// Start container.
 	fmt.Printf("Starting klaus container from %s...\n", cfg.Image)
-	containerID, err := rt.Run(runOpts)
+	containerID, err := rt.Run(ctx, runOpts)
 	if err != nil {
 		return fmt.Errorf("starting container: %w", err)
 	}
@@ -98,7 +104,7 @@ func runStart(_ *cobra.Command, _ []string) error {
 		Port:        cfg.Port,
 		Workspace:   config.ExpandPath(cfg.Workspace),
 	}
-	if err := inst.Save(); err != nil {
+	if err := inst.Save(paths); err != nil {
 		return fmt.Errorf("saving instance state: %w", err)
 	}
 
@@ -250,14 +256,14 @@ func buildRunOptions(cfg *config.Config, paths *config.Paths) (runtime.RunOption
 	}
 
 	// Plugin mounts and CLAUDE_PLUGIN_DIRS.
-	pluginDirs := buildPluginDirs(cfg, paths)
+	pluginDirs := buildPluginDirs(cfg)
 	if len(pluginDirs) > 0 {
 		opts.EnvVars["CLAUDE_PLUGIN_DIRS"] = strings.Join(pluginDirs, ",")
 	}
 
 	// Mount each plugin directory.
 	for _, p := range cfg.Plugins {
-		shortName := pluginShortName(p.Repository)
+		shortName := oci.ShortPluginName(p.Repository)
 		hostPath := filepath.Join(paths.PluginsDir, shortName)
 		opts.Volumes = append(opts.Volumes, runtime.Volume{
 			HostPath:      hostPath,
@@ -280,20 +286,11 @@ func buildAddDirs(cfg *config.Config) []string {
 }
 
 // buildPluginDirs aggregates CLAUDE_PLUGIN_DIRS from plugins and user config.
-func buildPluginDirs(cfg *config.Config, _ *config.Paths) []string {
-	dirs := make([]string, 0)
+func buildPluginDirs(cfg *config.Config) []string {
+	var dirs []string
 	dirs = append(dirs, cfg.Claude.PluginDirs...)
 	dirs = append(dirs, oci.PluginDirs(cfg.Plugins)...)
 	return dirs
-}
-
-// pluginShortName extracts the last segment of a repository path.
-func pluginShortName(repository string) string {
-	parts := strings.Split(repository, "/")
-	if len(parts) == 0 {
-		return repository
-	}
-	return parts[len(parts)-1]
 }
 
 func setEnvIfNotEmpty(env map[string]string, key, value string) {

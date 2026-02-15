@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -20,7 +21,7 @@ func (r *execRuntime) Name() string {
 	return r.binary
 }
 
-func (r *execRuntime) Run(opts RunOptions) (string, error) {
+func (r *execRuntime) Run(ctx context.Context, opts RunOptions) (string, error) {
 	args := []string{"run"}
 
 	if opts.Detach {
@@ -41,7 +42,7 @@ func (r *execRuntime) Run(opts RunOptions) (string, error) {
 		args = append(args, "-e", fmt.Sprintf("%s=%s", k, opts.EnvVars[k]))
 	}
 
-	// Port mappings.
+	// Port mappings (sorted for deterministic output).
 	portKeys := make([]int, 0, len(opts.Ports))
 	for k := range opts.Ports {
 		portKeys = append(portKeys, k)
@@ -64,7 +65,7 @@ func (r *execRuntime) Run(opts RunOptions) (string, error) {
 	args = append(args, opts.Image)
 
 	var stdout, stderr bytes.Buffer
-	cmd := exec.Command(r.binary, args...)
+	cmd := exec.CommandContext(ctx, r.binary, args...)
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
@@ -75,9 +76,9 @@ func (r *execRuntime) Run(opts RunOptions) (string, error) {
 	return strings.TrimSpace(stdout.String()), nil
 }
 
-func (r *execRuntime) Stop(name string) error {
+func (r *execRuntime) Stop(ctx context.Context, name string) error {
 	var stderr bytes.Buffer
-	cmd := exec.Command(r.binary, "stop", name)
+	cmd := exec.CommandContext(ctx, r.binary, "stop", name)
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
@@ -86,9 +87,9 @@ func (r *execRuntime) Stop(name string) error {
 	return nil
 }
 
-func (r *execRuntime) Remove(name string) error {
+func (r *execRuntime) Remove(ctx context.Context, name string) error {
 	var stderr bytes.Buffer
-	cmd := exec.Command(r.binary, "rm", "-f", name)
+	cmd := exec.CommandContext(ctx, r.binary, "rm", "-f", name)
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
@@ -97,9 +98,9 @@ func (r *execRuntime) Remove(name string) error {
 	return nil
 }
 
-func (r *execRuntime) Status(name string) (string, error) {
+func (r *execRuntime) Status(ctx context.Context, name string) (string, error) {
 	var stdout, stderr bytes.Buffer
-	cmd := exec.Command(r.binary, "inspect", "--format", "{{.State.Status}}", name)
+	cmd := exec.CommandContext(ctx, r.binary, "inspect", "--format", "{{.State.Status}}", name)
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
@@ -110,9 +111,9 @@ func (r *execRuntime) Status(name string) (string, error) {
 	return strings.TrimSpace(stdout.String()), nil
 }
 
-func (r *execRuntime) Inspect(name string) (*ContainerInfo, error) {
+func (r *execRuntime) Inspect(ctx context.Context, name string) (*ContainerInfo, error) {
 	var stdout, stderr bytes.Buffer
-	cmd := exec.Command(r.binary, "inspect", name)
+	cmd := exec.CommandContext(ctx, r.binary, "inspect", name)
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
@@ -134,19 +135,18 @@ func (r *execRuntime) Inspect(name string) (*ContainerInfo, error) {
 		Name:      strings.TrimPrefix(result.Name, "/"),
 		Image:     result.Image,
 		Status:    result.State.Status,
-		State:     result.State.Status,
 		StartedAt: result.State.StartedAt,
 	}, nil
 }
 
-func (r *execRuntime) Logs(name string, follow bool) error {
+func (r *execRuntime) Logs(ctx context.Context, name string, follow bool) error {
 	args := []string{"logs"}
 	if follow {
 		args = append(args, "-f")
 	}
 	args = append(args, name)
 
-	cmd := exec.Command(r.binary, args...)
+	cmd := exec.CommandContext(ctx, r.binary, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 

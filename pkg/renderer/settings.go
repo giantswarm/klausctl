@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"sort"
 
 	"github.com/giantswarm/klausctl/pkg/config"
 )
@@ -28,7 +29,15 @@ func (r *Renderer) renderSettings(hooks map[string][]config.HookMatcher) error {
 // Scripts are rendered at: <rendered>/hooks/<name>
 // They are mounted to /etc/klaus/hooks/<name> in the container.
 func (r *Renderer) renderHookScripts(scripts map[string]string) error {
-	for name, content := range scripts {
+	// Sort script names for deterministic output.
+	names := make([]string, 0, len(scripts))
+	for name := range scripts {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	for _, name := range names {
+		content := scripts[name]
 		path := filepath.Join(r.paths.RenderedDir, "hooks", name)
 		// Hook scripts need to be executable.
 		if err := writeFile(path, []byte(content), 0o755); err != nil {
