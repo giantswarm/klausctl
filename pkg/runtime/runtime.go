@@ -37,6 +37,10 @@ type RunOptions struct {
 	Image string
 	// Detach runs the container in background.
 	Detach bool
+	// User overrides the container user (e.g. "1000:1000").
+	// This is essential for bind mounts so the container process matches
+	// the host UID that owns the mounted files.
+	User string
 	// EnvVars are environment variables to set.
 	EnvVars map[string]string
 	// Volumes are bind mount specifications.

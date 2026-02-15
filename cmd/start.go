@@ -136,6 +136,7 @@ func buildRunOptions(cfg *config.Config, paths *config.Paths, instanceName strin
 		Name:    "klausctl-" + instanceName,
 		Image:   cfg.Image,
 		Detach:  true,
+		User:    fmt.Sprintf("%d:%d", os.Getuid(), os.Getgid()),
 		EnvVars: make(map[string]string),
 		Ports:   map[int]int{cfg.Port: 8080},
 	}

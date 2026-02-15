@@ -32,6 +32,10 @@ func (r *execRuntime) Run(ctx context.Context, opts RunOptions) (string, error) 
 		args = append(args, "--name", opts.Name)
 	}
 
+	if opts.User != "" {
+		args = append(args, "--user", opts.User)
+	}
+
 	// Environment variables (sorted for deterministic output).
 	envKeys := make([]string, 0, len(opts.EnvVars))
 	for k := range opts.EnvVars {

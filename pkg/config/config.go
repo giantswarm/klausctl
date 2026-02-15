@@ -203,7 +203,7 @@ func Load(path string) (*Config, error) {
 // applyDefaults fills in default values for unset fields.
 func (c *Config) applyDefaults() {
 	if c.Image == "" {
-		c.Image = "ghcr.io/giantswarm/klaus:latest"
+		c.Image = "gsoci.azurecr.io/giantswarm/klaus:latest"
 	}
 	if c.Port == 0 {
 		c.Port = 8080

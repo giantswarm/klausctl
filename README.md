@@ -58,7 +58,7 @@ Config file at `~/.config/klausctl/config.yaml`:
 runtime: docker  # or: podman
 
 # Klaus image
-image: ghcr.io/giantswarm/klaus:latest
+image: gsoci.azurecr.io/giantswarm/klaus:latest
 
 # Workspace to mount
 workspace: ~/projects/my-repo
@@ -139,7 +139,7 @@ The configuration intentionally mirrors the Helm chart values structure so that 
                   -v ~/.config/klausctl/rendered/extensions:/etc/klaus/extensions
                   -v ~/workspace:/workspace
                   -p 8080:8080
-                  ghcr.io/giantswarm/klaus:latest
+                  gsoci.azurecr.io/giantswarm/klaus:latest
 ```
 
 ## Development

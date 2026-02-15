@@ -104,7 +104,7 @@ func defaultConfigTemplate() string {
 # runtime: docker  # or: podman
 
 # Klaus container image
-image: ghcr.io/giantswarm/klaus:latest
+image: gsoci.azurecr.io/giantswarm/klaus:latest
 
 # Workspace directory to mount into the container
 workspace: ~/projects

@@ -71,8 +71,8 @@ func TestLoadAppliesDefaults(t *testing.T) {
 		t.Fatalf("Load() returned error: %v", err)
 	}
 
-	if cfg.Image != "ghcr.io/giantswarm/klaus:latest" {
-		t.Errorf("default Image = %q, want %q", cfg.Image, "ghcr.io/giantswarm/klaus:latest")
+	if cfg.Image != "gsoci.azurecr.io/giantswarm/klaus:latest" {
+		t.Errorf("default Image = %q, want %q", cfg.Image, "gsoci.azurecr.io/giantswarm/klaus:latest")
 	}
 	if cfg.Port != 8080 {
 		t.Errorf("default Port = %d, want %d", cfg.Port, 8080)
