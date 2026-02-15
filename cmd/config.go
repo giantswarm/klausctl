@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 
@@ -43,11 +44,22 @@ func init() {
 	rootCmd.AddCommand(configCmd)
 }
 
-func runConfigInit(_ *cobra.Command, _ []string) error {
-	paths := config.DefaultPaths()
-	path := paths.ConfigFile
+// resolvedConfigFile returns the config file path, respecting the --config flag.
+func resolvedConfigFile() (string, error) {
 	if cfgFile != "" {
-		path = config.ExpandPath(cfgFile)
+		return config.ExpandPath(cfgFile), nil
+	}
+	paths, err := config.DefaultPaths()
+	if err != nil {
+		return "", err
+	}
+	return paths.ConfigFile, nil
+}
+
+func runConfigInit(cmd *cobra.Command, _ []string) error {
+	path, err := resolvedConfigFile()
+	if err != nil {
+		return err
 	}
 
 	// Check if config already exists.
@@ -55,7 +67,7 @@ func runConfigInit(_ *cobra.Command, _ []string) error {
 		return fmt.Errorf("config file already exists: %s\nUse 'klausctl config show' to view it", path)
 	}
 
-	if err := config.EnsureDir(paths.ConfigDir); err != nil {
+	if err := config.EnsureDir(filepath.Dir(path)); err != nil {
 		return fmt.Errorf("creating config directory: %w", err)
 	}
 
@@ -64,15 +76,16 @@ func runConfigInit(_ *cobra.Command, _ []string) error {
 		return fmt.Errorf("writing config file: %w", err)
 	}
 
-	fmt.Printf("Config file created: %s\n", path)
-	fmt.Println("Edit the file to configure your workspace and preferences.")
+	out := cmd.OutOrStdout()
+	fmt.Fprintf(out, "Config file created: %s\n", path)
+	fmt.Fprintln(out, "Edit the file to configure your workspace and preferences.")
 	return nil
 }
 
-func runConfigShow(_ *cobra.Command, _ []string) error {
-	path := config.DefaultPaths().ConfigFile
-	if cfgFile != "" {
-		path = config.ExpandPath(cfgFile)
+func runConfigShow(cmd *cobra.Command, _ []string) error {
+	path, err := resolvedConfigFile()
+	if err != nil {
+		return err
 	}
 
 	data, err := os.ReadFile(path)
@@ -83,16 +96,16 @@ func runConfigShow(_ *cobra.Command, _ []string) error {
 		return fmt.Errorf("reading config: %w", err)
 	}
 
-	fmt.Print(string(data))
+	fmt.Fprint(cmd.OutOrStdout(), string(data))
 	return nil
 }
 
-func runConfigPath(_ *cobra.Command, _ []string) error {
-	path := config.DefaultPaths().ConfigFile
-	if cfgFile != "" {
-		path = config.ExpandPath(cfgFile)
+func runConfigPath(cmd *cobra.Command, _ []string) error {
+	path, err := resolvedConfigFile()
+	if err != nil {
+		return err
 	}
-	fmt.Println(path)
+	fmt.Fprintln(cmd.OutOrStdout(), path)
 	return nil
 }
 

@@ -17,8 +17,9 @@ func init() {
 	rootCmd.AddCommand(versionCmd)
 }
 
-func runVersion(_ *cobra.Command, _ []string) {
-	fmt.Printf("klausctl %s\n", buildVersion)
-	fmt.Printf("  commit: %s\n", buildCommit)
-	fmt.Printf("  built:  %s\n", buildDate)
+func runVersion(cmd *cobra.Command, _ []string) {
+	out := cmd.OutOrStdout()
+	fmt.Fprintf(out, "klausctl %s\n", buildVersion)
+	fmt.Fprintf(out, "  commit: %s\n", buildCommit)
+	fmt.Fprintf(out, "  built:  %s\n", buildDate)
 }

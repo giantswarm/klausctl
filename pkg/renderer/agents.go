@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"sort"
-	"strings"
 
 	"github.com/giantswarm/klausctl/pkg/config"
 )
@@ -22,11 +21,7 @@ func (r *Renderer) renderAgentFiles(agentFiles map[string]config.AgentFile) erro
 
 	for _, name := range names {
 		agent := agentFiles[name]
-		content := agent.Content
-		// Ensure trailing newline.
-		if !strings.HasSuffix(content, "\n") {
-			content += "\n"
-		}
+		content := ensureTrailingNewline(agent.Content)
 
 		path := filepath.Join(r.paths.ExtensionsDir, ".claude", "agents", name+".md")
 		if err := writeFile(path, []byte(content), 0o644); err != nil {

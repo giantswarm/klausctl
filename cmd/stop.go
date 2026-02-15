@@ -24,11 +24,16 @@ func init() {
 	rootCmd.AddCommand(stopCmd)
 }
 
-func runStop(_ *cobra.Command, _ []string) error {
+func runStop(cmd *cobra.Command, _ []string) error {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
-	paths := config.DefaultPaths()
+	out := cmd.OutOrStdout()
+
+	paths, err := config.DefaultPaths()
+	if err != nil {
+		return err
+	}
 
 	inst, err := instance.Load(paths)
 	if err != nil {
@@ -45,21 +50,21 @@ func runStop(_ *cobra.Command, _ []string) error {
 	// Check current status.
 	status, err := rt.Status(ctx, containerName)
 	if err != nil || status == "" {
-		fmt.Printf("Container %s does not exist.\n", containerName)
+		fmt.Fprintf(out, "Container %s does not exist.\n", containerName)
 		_ = instance.Clear(paths)
 		return nil
 	}
 
 	// Stop the container if running.
 	if status == "running" {
-		fmt.Printf("Stopping %s...\n", containerName)
+		fmt.Fprintf(out, "Stopping %s...\n", containerName)
 		if err := rt.Stop(ctx, containerName); err != nil {
 			return fmt.Errorf("stopping container: %w", err)
 		}
 	}
 
 	// Remove the container.
-	fmt.Printf("Removing %s...\n", containerName)
+	fmt.Fprintf(out, "Removing %s...\n", containerName)
 	if err := rt.Remove(ctx, containerName); err != nil {
 		return fmt.Errorf("removing container: %w", err)
 	}
@@ -69,6 +74,6 @@ func runStop(_ *cobra.Command, _ []string) error {
 		return fmt.Errorf("clearing instance state: %w", err)
 	}
 
-	fmt.Println("Klaus instance stopped.")
+	fmt.Fprintln(out, "Klaus instance stopped.")
 	return nil
 }

@@ -1,6 +1,7 @@
 package oci
 
 import (
+	"io"
 	"testing"
 
 	"github.com/giantswarm/klausctl/pkg/config"
@@ -72,7 +73,7 @@ func TestPullPluginsCreatesDirectories(t *testing.T) {
 		{Repository: "example.com/org/test-plugin", Tag: "v1.0.0"},
 	}
 
-	if err := PullPlugins(plugins, dir); err != nil {
+	if err := PullPlugins(plugins, dir, io.Discard); err != nil {
 		t.Fatalf("PullPlugins() returned error: %v", err)
 	}
 }

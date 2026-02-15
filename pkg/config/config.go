@@ -174,7 +174,11 @@ var validEffortLevels = []string{"low", "medium", "high"}
 // path (~/.config/klausctl/config.yaml) is used.
 func Load(path string) (*Config, error) {
 	if path == "" {
-		path = DefaultPaths().ConfigFile
+		paths, err := DefaultPaths()
+		if err != nil {
+			return nil, err
+		}
+		path = paths.ConfigFile
 	}
 	path = ExpandPath(path)
 

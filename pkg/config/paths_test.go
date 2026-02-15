@@ -7,7 +7,10 @@ import (
 )
 
 func TestDefaultPaths(t *testing.T) {
-	paths := DefaultPaths()
+	paths, err := DefaultPaths()
+	if err != nil {
+		t.Fatalf("DefaultPaths() returned error: %v", err)
+	}
 
 	if paths.ConfigDir == "" {
 		t.Error("ConfigDir should not be empty")
@@ -27,7 +30,10 @@ func TestDefaultPathsRespectsXDG(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", dir)
 
-	paths := DefaultPaths()
+	paths, err := DefaultPaths()
+	if err != nil {
+		t.Fatalf("DefaultPaths() returned error: %v", err)
+	}
 
 	expected := filepath.Join(dir, "klausctl")
 	if paths.ConfigDir != expected {

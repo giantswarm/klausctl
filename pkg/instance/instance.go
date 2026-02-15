@@ -29,9 +29,17 @@ type Instance struct {
 	StartedAt time.Time `json:"startedAt"`
 }
 
+// containerPrefix is the prefix used for all klausctl container names.
+const containerPrefix = "klausctl-"
+
+// ContainerName returns the container name for a given instance name.
+func ContainerName(name string) string {
+	return containerPrefix + name
+}
+
 // ContainerName returns the container name used by the runtime.
 func (i *Instance) ContainerName() string {
-	return "klausctl-" + i.Name
+	return ContainerName(i.Name)
 }
 
 // Save writes the instance state to the instance file.

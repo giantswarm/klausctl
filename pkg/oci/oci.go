@@ -10,6 +10,7 @@ package oci
 
 import (
 	"fmt"
+	"io"
 	"path/filepath"
 	"strings"
 
@@ -18,7 +19,8 @@ import (
 
 // PullPlugins pulls all configured plugins to the local plugins directory.
 // Each plugin is stored at <pluginsDir>/<shortName>/.
-func PullPlugins(plugins []config.Plugin, pluginsDir string) error {
+// Progress messages are written to w.
+func PullPlugins(plugins []config.Plugin, pluginsDir string, w io.Writer) error {
 	for _, plugin := range plugins {
 		shortName := ShortPluginName(plugin.Repository)
 		destDir := filepath.Join(pluginsDir, shortName)
@@ -36,7 +38,7 @@ func PullPlugins(plugins []config.Plugin, pluginsDir string) error {
 
 		// TODO: Implement actual ORAS pull.
 		// For now, log the intent.
-		fmt.Printf("  Plugin: %s -> %s (ORAS pull not yet implemented)\n", ref, destDir)
+		fmt.Fprintf(w, "  Plugin: %s -> %s (ORAS pull not yet implemented)\n", ref, destDir)
 	}
 
 	return nil

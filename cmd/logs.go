@@ -30,7 +30,10 @@ func runLogs(_ *cobra.Command, _ []string) error {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
-	paths := config.DefaultPaths()
+	paths, err := config.DefaultPaths()
+	if err != nil {
+		return err
+	}
 
 	inst, err := instance.Load(paths)
 	if err != nil {

@@ -71,12 +71,7 @@ func renderSkillContent(skill config.Skill) (string, error) {
 	buf.WriteString("---\n")
 	buf.Write(fmBytes)
 	buf.WriteString("---\n")
-	buf.WriteString(skill.Content)
-
-	// Ensure trailing newline.
-	if !strings.HasSuffix(skill.Content, "\n") {
-		buf.WriteString("\n")
-	}
+	buf.WriteString(ensureTrailingNewline(skill.Content))
 
 	return buf.String(), nil
 }

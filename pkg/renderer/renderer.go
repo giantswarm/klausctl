@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/giantswarm/klausctl/pkg/config"
 )
@@ -82,4 +83,12 @@ func writeFile(path string, data []byte, mode os.FileMode) error {
 		return err
 	}
 	return os.WriteFile(path, data, mode)
+}
+
+// ensureTrailingNewline returns s with a trailing newline appended if missing.
+func ensureTrailingNewline(s string) string {
+	if !strings.HasSuffix(s, "\n") {
+		return s + "\n"
+	}
+	return s
 }

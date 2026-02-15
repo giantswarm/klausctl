@@ -109,8 +109,11 @@ func (r *execRuntime) Status(ctx context.Context, name string) (string, error) {
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
-		// Container doesn't exist.
-		return "", nil
+		// Docker prints "No such object", Podman prints "no such container".
+		if strings.Contains(strings.ToLower(stderr.String()), "no such") {
+			return "", nil
+		}
+		return "", fmt.Errorf("%s inspect failed: %w\n%s", r.binary, err, stderr.String())
 	}
 	return strings.TrimSpace(stdout.String()), nil
 }

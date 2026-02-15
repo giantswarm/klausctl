@@ -24,13 +24,12 @@ type Paths struct {
 }
 
 // DefaultPaths returns the default paths using XDG conventions.
-// It panics if the user home directory cannot be determined and
-// XDG_CONFIG_HOME is not set -- this is a programming environment
-// invariant that should always hold.
-func DefaultPaths() *Paths {
+// It returns an error if the user home directory cannot be determined
+// and XDG_CONFIG_HOME is not set.
+func DefaultPaths() (*Paths, error) {
 	configDir, err := configHome()
 	if err != nil {
-		panic(fmt.Sprintf("klausctl: cannot determine config directory: %v", err))
+		return nil, fmt.Errorf("determining config directory: %w", err)
 	}
 	base := filepath.Join(configDir, "klausctl")
 	return &Paths{
@@ -40,7 +39,7 @@ func DefaultPaths() *Paths {
 		ExtensionsDir: filepath.Join(base, "rendered", "extensions"),
 		PluginsDir:    filepath.Join(base, "plugins"),
 		InstanceFile:  filepath.Join(base, "instance.json"),
-	}
+	}, nil
 }
 
 // configHome returns the XDG config home directory.

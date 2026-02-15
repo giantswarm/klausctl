@@ -36,13 +36,25 @@ func init() {
 	rootCmd.AddCommand(startCmd)
 }
 
-func runStart(_ *cobra.Command, _ []string) error {
+func runStart(cmd *cobra.Command, _ []string) error {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
+
+	out := cmd.OutOrStdout()
+	errOut := cmd.ErrOrStderr()
 
 	cfg, err := config.Load(cfgFile)
 	if err != nil {
 		return err
+	}
+
+	// Validate that the workspace directory exists.
+	workspace := config.ExpandPath(cfg.Workspace)
+	if _, err := os.Stat(workspace); err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("workspace directory does not exist: %s", workspace)
+		}
+		return fmt.Errorf("checking workspace directory: %w", err)
 	}
 
 	// Detect or validate container runtime.
@@ -50,9 +62,16 @@ func runStart(_ *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Using %s runtime.\n", rt.Name())
+	fmt.Fprintf(out, "Using %s runtime.\n", rt.Name())
 
-	paths := config.DefaultPaths()
+	paths, err := config.DefaultPaths()
+	if err != nil {
+		return err
+	}
+
+	// Derive the instance name and container name consistently.
+	const instanceName = "default"
+	containerName := instance.ContainerName(instanceName)
 
 	// Check if already running.
 	inst, err := instance.Load(paths)
@@ -77,28 +96,25 @@ func runStart(_ *cobra.Command, _ []string) error {
 
 	// Pull OCI plugins.
 	if len(cfg.Plugins) > 0 {
-		fmt.Println("Pulling plugins...")
-		if err := oci.PullPlugins(cfg.Plugins, paths.PluginsDir); err != nil {
+		fmt.Fprintln(out, "Pulling plugins...")
+		if err := oci.PullPlugins(cfg.Plugins, paths.PluginsDir, out); err != nil {
 			return fmt.Errorf("pulling plugins: %w", err)
 		}
 	}
 
-	// Derive the instance name and container name consistently.
-	const instanceName = "default"
-
 	// Build container run options.
-	runOpts, err := buildRunOptions(cfg, paths, instanceName)
+	runOpts, err := buildRunOptions(cfg, paths, containerName)
 	if err != nil {
 		return fmt.Errorf("building run options: %w", err)
 	}
 
 	// Warn if ANTHROPIC_API_KEY is not set -- the agent will likely fail without it.
 	if os.Getenv("ANTHROPIC_API_KEY") == "" {
-		fmt.Fprintln(os.Stderr, "Warning: ANTHROPIC_API_KEY is not set; the claude agent may fail to authenticate.")
+		fmt.Fprintln(errOut, "Warning: ANTHROPIC_API_KEY is not set; the claude agent may fail to authenticate.")
 	}
 
 	// Start container.
-	fmt.Printf("Starting klaus container from %s...\n", cfg.Image)
+	fmt.Fprintf(out, "Starting klaus container from %s...\n", cfg.Image)
 	containerID, err := rt.Run(ctx, runOpts)
 	if err != nil {
 		return fmt.Errorf("starting container: %w", err)
@@ -111,139 +127,161 @@ func runStart(_ *cobra.Command, _ []string) error {
 		Runtime:     rt.Name(),
 		Image:       cfg.Image,
 		Port:        cfg.Port,
-		Workspace:   config.ExpandPath(cfg.Workspace),
+		Workspace:   workspace,
 		StartedAt:   time.Now(),
 	}
 	if err := inst.Save(paths); err != nil {
 		return fmt.Errorf("saving instance state: %w", err)
 	}
 
-	fmt.Println()
-	fmt.Println("Klaus instance started.")
-	fmt.Printf("  Container:  %s\n", inst.ContainerName())
-	fmt.Printf("  Image:      %s\n", cfg.Image)
-	fmt.Printf("  Workspace:  %s\n", inst.Workspace)
-	fmt.Printf("  MCP:        http://localhost:%d\n", cfg.Port)
-	fmt.Printf("\nUse 'klausctl logs' to view output, 'klausctl stop' to stop.\n")
+	fmt.Fprintln(out)
+	fmt.Fprintln(out, "Klaus instance started.")
+	fmt.Fprintf(out, "  Container:  %s\n", containerName)
+	fmt.Fprintf(out, "  Image:      %s\n", cfg.Image)
+	fmt.Fprintf(out, "  Workspace:  %s\n", inst.Workspace)
+	fmt.Fprintf(out, "  MCP:        http://localhost:%d\n", cfg.Port)
+	fmt.Fprintf(out, "\nUse 'klausctl logs' to view output, 'klausctl stop' to stop.\n")
 	return nil
 }
 
 // buildRunOptions constructs the container runtime options from config.
 // This mirrors the Helm deployment.yaml template, producing the same
 // env vars and volume mounts.
-func buildRunOptions(cfg *config.Config, paths *config.Paths, instanceName string) (runtime.RunOptions, error) {
-	opts := runtime.RunOptions{
-		Name:    "klausctl-" + instanceName,
+func buildRunOptions(cfg *config.Config, paths *config.Paths, containerName string) (runtime.RunOptions, error) {
+	env, err := buildEnvVars(cfg, paths)
+	if err != nil {
+		return runtime.RunOptions{}, err
+	}
+
+	volumes := buildVolumes(cfg, paths, env)
+
+	return runtime.RunOptions{
+		Name:    containerName,
 		Image:   cfg.Image,
 		Detach:  true,
 		User:    fmt.Sprintf("%d:%d", os.Getuid(), os.Getgid()),
-		EnvVars: make(map[string]string),
+		EnvVars: env,
+		Volumes: volumes,
 		Ports:   map[int]int{cfg.Port: 8080},
-	}
+	}, nil
+}
 
-	// --- Environment Variables ---
-	// These mirror the Helm deployment.yaml env section.
+// buildEnvVars constructs all container environment variables from config.
+// These mirror the Helm deployment.yaml env section.
+func buildEnvVars(cfg *config.Config, paths *config.Paths) (map[string]string, error) {
+	env := make(map[string]string)
 
 	// Internal port (always 8080 inside the container).
-	opts.EnvVars["PORT"] = "8080"
+	env["PORT"] = "8080"
 
 	// Forward ANTHROPIC_API_KEY from host (always).
 	if key := os.Getenv("ANTHROPIC_API_KEY"); key != "" {
-		opts.EnvVars["ANTHROPIC_API_KEY"] = key
+		env["ANTHROPIC_API_KEY"] = key
 	}
 
 	// Forward user-configured env vars from host.
 	for _, name := range cfg.EnvForward {
 		if val := os.Getenv(name); val != "" {
-			opts.EnvVars[name] = val
+			env[name] = val
 		}
 	}
 
 	// Set explicit env var overrides.
 	for k, v := range cfg.EnvVars {
-		opts.EnvVars[k] = v
+		env[k] = v
 	}
 
 	// Claude configuration.
-	setEnvIfNotEmpty(opts.EnvVars, "CLAUDE_MODEL", cfg.Claude.Model)
-	setEnvIfNotEmpty(opts.EnvVars, "CLAUDE_SYSTEM_PROMPT", cfg.Claude.SystemPrompt)
-	setEnvIfNotEmpty(opts.EnvVars, "CLAUDE_APPEND_SYSTEM_PROMPT", cfg.Claude.AppendSystemPrompt)
-	setEnvIfNotEmpty(opts.EnvVars, "CLAUDE_PERMISSION_MODE", cfg.Claude.PermissionMode)
-	setEnvIfNotEmpty(opts.EnvVars, "CLAUDE_EFFORT", cfg.Claude.Effort)
-	setEnvIfNotEmpty(opts.EnvVars, "CLAUDE_FALLBACK_MODEL", cfg.Claude.FallbackModel)
-	setEnvIfNotEmpty(opts.EnvVars, "CLAUDE_ACTIVE_AGENT", cfg.Claude.ActiveAgent)
-
-	if cfg.Claude.MaxTurns > 0 {
-		opts.EnvVars["CLAUDE_MAX_TURNS"] = fmt.Sprintf("%d", cfg.Claude.MaxTurns)
-	}
-	if cfg.Claude.MaxBudgetUSD > 0 {
-		opts.EnvVars["CLAUDE_MAX_BUDGET_USD"] = fmt.Sprintf("%.2f", cfg.Claude.MaxBudgetUSD)
-	}
-	if cfg.Claude.StrictMcpConfig {
-		opts.EnvVars["CLAUDE_STRICT_MCP_CONFIG"] = "true"
-	}
-	if cfg.Claude.PersistentMode {
-		opts.EnvVars["CLAUDE_PERSISTENT_MODE"] = "true"
-	}
-	if cfg.Claude.NoSessionPersistence != nil && *cfg.Claude.NoSessionPersistence {
-		opts.EnvVars["CLAUDE_NO_SESSION_PERSISTENCE"] = "true"
-	}
-
-	if len(cfg.Claude.Tools) > 0 {
-		opts.EnvVars["CLAUDE_TOOLS"] = strings.Join(cfg.Claude.Tools, ",")
-	}
-	if len(cfg.Claude.AllowedTools) > 0 {
-		opts.EnvVars["CLAUDE_ALLOWED_TOOLS"] = strings.Join(cfg.Claude.AllowedTools, ",")
-	}
-	if len(cfg.Claude.DisallowedTools) > 0 {
-		opts.EnvVars["CLAUDE_DISALLOWED_TOOLS"] = strings.Join(cfg.Claude.DisallowedTools, ",")
-	}
+	setClaudeEnvVars(env, &cfg.Claude)
 
 	// Agents (JSON format via CLAUDE_AGENTS env var).
 	if len(cfg.Agents) > 0 {
 		agentsJSON, err := json.Marshal(cfg.Agents)
 		if err != nil {
-			return opts, fmt.Errorf("marshaling agents: %w", err)
+			return nil, fmt.Errorf("marshaling agents: %w", err)
 		}
-		opts.EnvVars["CLAUDE_AGENTS"] = string(agentsJSON)
+		env["CLAUDE_AGENTS"] = string(agentsJSON)
 	}
 
-	// --- Volume Mounts ---
+	return env, nil
+}
+
+// setClaudeEnvVars populates Claude Code agent env vars from the config.
+func setClaudeEnvVars(env map[string]string, claude *config.ClaudeConfig) {
+	setEnvIfNotEmpty(env, "CLAUDE_MODEL", claude.Model)
+	setEnvIfNotEmpty(env, "CLAUDE_SYSTEM_PROMPT", claude.SystemPrompt)
+	setEnvIfNotEmpty(env, "CLAUDE_APPEND_SYSTEM_PROMPT", claude.AppendSystemPrompt)
+	setEnvIfNotEmpty(env, "CLAUDE_PERMISSION_MODE", claude.PermissionMode)
+	setEnvIfNotEmpty(env, "CLAUDE_EFFORT", claude.Effort)
+	setEnvIfNotEmpty(env, "CLAUDE_FALLBACK_MODEL", claude.FallbackModel)
+	setEnvIfNotEmpty(env, "CLAUDE_ACTIVE_AGENT", claude.ActiveAgent)
+
+	if claude.MaxTurns > 0 {
+		env["CLAUDE_MAX_TURNS"] = fmt.Sprintf("%d", claude.MaxTurns)
+	}
+	if claude.MaxBudgetUSD > 0 {
+		env["CLAUDE_MAX_BUDGET_USD"] = fmt.Sprintf("%.2f", claude.MaxBudgetUSD)
+	}
+	if claude.StrictMcpConfig {
+		env["CLAUDE_STRICT_MCP_CONFIG"] = "true"
+	}
+	if claude.PersistentMode {
+		env["CLAUDE_PERSISTENT_MODE"] = "true"
+	}
+	if claude.NoSessionPersistence != nil && *claude.NoSessionPersistence {
+		env["CLAUDE_NO_SESSION_PERSISTENCE"] = "true"
+	}
+
+	if len(claude.Tools) > 0 {
+		env["CLAUDE_TOOLS"] = strings.Join(claude.Tools, ",")
+	}
+	if len(claude.AllowedTools) > 0 {
+		env["CLAUDE_ALLOWED_TOOLS"] = strings.Join(claude.AllowedTools, ",")
+	}
+	if len(claude.DisallowedTools) > 0 {
+		env["CLAUDE_DISALLOWED_TOOLS"] = strings.Join(claude.DisallowedTools, ",")
+	}
+}
+
+// buildVolumes constructs the container volume mounts and sets related env vars.
+// The env map is mutated to add mount-dependent env vars (CLAUDE_WORKSPACE, etc.).
+func buildVolumes(cfg *config.Config, paths *config.Paths, env map[string]string) []runtime.Volume {
+	var vols []runtime.Volume
 
 	// Workspace mount.
 	workspace := config.ExpandPath(cfg.Workspace)
-	opts.Volumes = append(opts.Volumes, runtime.Volume{
+	vols = append(vols, runtime.Volume{
 		HostPath:      workspace,
 		ContainerPath: "/workspace",
 	})
-	opts.EnvVars["CLAUDE_WORKSPACE"] = "/workspace"
+	env["CLAUDE_WORKSPACE"] = "/workspace"
 
 	// MCP config mount.
 	if len(cfg.McpServers) > 0 {
 		mcpConfigPath := filepath.Join(paths.RenderedDir, "mcp-config.json")
-		opts.Volumes = append(opts.Volumes, runtime.Volume{
+		vols = append(vols, runtime.Volume{
 			HostPath:      mcpConfigPath,
 			ContainerPath: "/etc/klaus/mcp-config.json",
 			ReadOnly:      true,
 		})
-		opts.EnvVars["CLAUDE_MCP_CONFIG"] = "/etc/klaus/mcp-config.json"
+		env["CLAUDE_MCP_CONFIG"] = "/etc/klaus/mcp-config.json"
 	}
 
 	// Settings mount (hooks).
 	if len(cfg.Hooks) > 0 {
 		settingsPath := filepath.Join(paths.RenderedDir, "settings.json")
-		opts.Volumes = append(opts.Volumes, runtime.Volume{
+		vols = append(vols, runtime.Volume{
 			HostPath:      settingsPath,
 			ContainerPath: "/etc/klaus/settings.json",
 			ReadOnly:      true,
 		})
-		opts.EnvVars["CLAUDE_SETTINGS_FILE"] = "/etc/klaus/settings.json"
+		env["CLAUDE_SETTINGS_FILE"] = "/etc/klaus/settings.json"
 	}
 
 	// Hook scripts mount.
 	for name := range cfg.HookScripts {
 		hostPath := filepath.Join(paths.RenderedDir, "hooks", name)
-		opts.Volumes = append(opts.Volumes, runtime.Volume{
+		vols = append(vols, runtime.Volume{
 			HostPath:      hostPath,
 			ContainerPath: "/etc/klaus/hooks/" + name,
 			ReadOnly:      true,
@@ -252,7 +290,7 @@ func buildRunOptions(cfg *config.Config, paths *config.Paths, instanceName strin
 
 	// Extensions mount (skills and agent files).
 	if renderer.HasExtensions(cfg) {
-		opts.Volumes = append(opts.Volumes, runtime.Volume{
+		vols = append(vols, runtime.Volume{
 			HostPath:      paths.ExtensionsDir,
 			ContainerPath: "/etc/klaus/extensions",
 			ReadOnly:      true,
@@ -262,28 +300,28 @@ func buildRunOptions(cfg *config.Config, paths *config.Paths, instanceName strin
 	// CLAUDE_ADD_DIRS: aggregate extensions dir + user addDirs.
 	addDirs := buildAddDirs(cfg)
 	if len(addDirs) > 0 {
-		opts.EnvVars["CLAUDE_ADD_DIRS"] = strings.Join(addDirs, ",")
-		opts.EnvVars["CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD"] = "true"
+		env["CLAUDE_ADD_DIRS"] = strings.Join(addDirs, ",")
+		env["CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD"] = "true"
 	}
 
 	// Plugin mounts and CLAUDE_PLUGIN_DIRS.
 	pluginDirs := buildPluginDirs(cfg)
 	if len(pluginDirs) > 0 {
-		opts.EnvVars["CLAUDE_PLUGIN_DIRS"] = strings.Join(pluginDirs, ",")
+		env["CLAUDE_PLUGIN_DIRS"] = strings.Join(pluginDirs, ",")
 	}
 
 	// Mount each plugin directory.
 	for _, p := range cfg.Plugins {
 		shortName := oci.ShortPluginName(p.Repository)
 		hostPath := filepath.Join(paths.PluginsDir, shortName)
-		opts.Volumes = append(opts.Volumes, runtime.Volume{
+		vols = append(vols, runtime.Volume{
 			HostPath:      hostPath,
 			ContainerPath: "/mnt/plugins/" + shortName,
 			ReadOnly:      true,
 		})
 	}
 
-	return opts, nil
+	return vols
 }
 
 // buildAddDirs aggregates CLAUDE_ADD_DIRS from extensions and user config.
