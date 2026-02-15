@@ -83,6 +83,9 @@ func TestLoadAppliesDefaults(t *testing.T) {
 	if cfg.Claude.NoSessionPersistence == nil || !*cfg.Claude.NoSessionPersistence {
 		t.Error("default NoSessionPersistence should be true")
 	}
+	if cfg.Claude.LoadAdditionalDirsMemory == nil || !*cfg.Claude.LoadAdditionalDirsMemory {
+		t.Error("default LoadAdditionalDirsMemory should be true")
+	}
 }
 
 func TestLoadMissingFile(t *testing.T) {
@@ -176,6 +179,18 @@ func TestValidate(t *testing.T) {
 			},
 			wantErr: true,
 			errMsg:  "plugin repository is required",
+		},
+		{
+			name: "hooks and settingsFile mutually exclusive",
+			cfg: Config{
+				Workspace: "/tmp", Port: 8080,
+				Hooks: map[string][]HookMatcher{
+					"PreToolUse": {{Matcher: "Bash", Hooks: []Hook{{Type: "command", Command: "/bin/true"}}}},
+				},
+				Claude: ClaudeConfig{SettingsFile: "/path/to/settings.json"},
+			},
+			wantErr: true,
+			errMsg:  "mutually exclusive",
 		},
 		{
 			name: "valid minimal config",

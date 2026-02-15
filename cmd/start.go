@@ -233,6 +233,17 @@ func setClaudeEnvVars(env map[string]string, claude *config.ClaudeConfig) {
 	if claude.StrictMcpConfig {
 		env["CLAUDE_STRICT_MCP_CONFIG"] = "true"
 	}
+	if claude.McpTimeout > 0 {
+		env["MCP_TIMEOUT"] = fmt.Sprintf("%d", claude.McpTimeout)
+	}
+	if claude.MaxMcpOutputTokens > 0 {
+		env["MAX_MCP_OUTPUT_TOKENS"] = fmt.Sprintf("%d", claude.MaxMcpOutputTokens)
+	}
+	if claude.IncludePartialMessages {
+		env["CLAUDE_INCLUDE_PARTIAL_MESSAGES"] = "true"
+	}
+	setEnvIfNotEmpty(env, "CLAUDE_JSON_SCHEMA", claude.JsonSchema)
+	setEnvIfNotEmpty(env, "CLAUDE_SETTING_SOURCES", claude.SettingSources)
 	if claude.PersistentMode {
 		env["CLAUDE_PERSISTENT_MODE"] = "true"
 	}
@@ -275,7 +286,7 @@ func buildVolumes(cfg *config.Config, paths *config.Paths, env map[string]string
 		env["CLAUDE_MCP_CONFIG"] = "/etc/klaus/mcp-config.json"
 	}
 
-	// Settings mount (hooks).
+	// Settings mount (hooks or settingsFile -- mutually exclusive, validated in config).
 	if len(cfg.Hooks) > 0 {
 		settingsPath := filepath.Join(paths.RenderedDir, "settings.json")
 		vols = append(vols, runtime.Volume{
@@ -284,6 +295,8 @@ func buildVolumes(cfg *config.Config, paths *config.Paths, env map[string]string
 			ReadOnly:      true,
 		})
 		env["CLAUDE_SETTINGS_FILE"] = "/etc/klaus/settings.json"
+	} else if cfg.Claude.SettingsFile != "" {
+		env["CLAUDE_SETTINGS_FILE"] = cfg.Claude.SettingsFile
 	}
 
 	// Hook scripts mount.
@@ -309,7 +322,9 @@ func buildVolumes(cfg *config.Config, paths *config.Paths, env map[string]string
 	addDirs := buildAddDirs(cfg)
 	if len(addDirs) > 0 {
 		env["CLAUDE_ADD_DIRS"] = strings.Join(addDirs, ",")
-		env["CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD"] = "true"
+		if cfg.Claude.LoadAdditionalDirsMemory == nil || *cfg.Claude.LoadAdditionalDirsMemory {
+			env["CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD"] = "true"
+		}
 	}
 
 	// Plugin mounts and CLAUDE_PLUGIN_DIRS.
@@ -324,7 +339,7 @@ func buildVolumes(cfg *config.Config, paths *config.Paths, env map[string]string
 		hostPath := filepath.Join(paths.PluginsDir, shortName)
 		vols = append(vols, runtime.Volume{
 			HostPath:      hostPath,
-			ContainerPath: "/mnt/plugins/" + shortName,
+			ContainerPath: "/var/lib/klaus/plugins/" + shortName,
 			ReadOnly:      true,
 		})
 	}

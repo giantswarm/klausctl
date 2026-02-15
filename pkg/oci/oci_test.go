@@ -51,11 +51,11 @@ func TestPluginDirs(t *testing.T) {
 		t.Fatalf("PluginDirs() returned %d dirs, want 2", len(dirs))
 	}
 
-	if dirs[0] != "/mnt/plugins/plugin-a" {
-		t.Errorf("dirs[0] = %q, want %q", dirs[0], "/mnt/plugins/plugin-a")
+	if dirs[0] != "/var/lib/klaus/plugins/plugin-a" {
+		t.Errorf("dirs[0] = %q, want %q", dirs[0], "/var/lib/klaus/plugins/plugin-a")
 	}
-	if dirs[1] != "/mnt/plugins/plugin-b" {
-		t.Errorf("dirs[1] = %q, want %q", dirs[1], "/mnt/plugins/plugin-b")
+	if dirs[1] != "/var/lib/klaus/plugins/plugin-b" {
+		t.Errorf("dirs[1] = %q, want %q", dirs[1], "/var/lib/klaus/plugins/plugin-b")
 	}
 }
 

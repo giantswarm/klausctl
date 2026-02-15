@@ -58,11 +58,11 @@ func ShortPluginName(repository string) string {
 }
 
 // PluginDirs returns the container-internal mount paths for the given plugins.
-// Each plugin is mounted at /mnt/plugins/<shortName>.
+// Each plugin is mounted at /var/lib/klaus/plugins/<shortName>.
 func PluginDirs(plugins []config.Plugin) []string {
 	dirs := make([]string, 0, len(plugins))
 	for _, p := range plugins {
-		dirs = append(dirs, "/mnt/plugins/"+ShortPluginName(p.Repository))
+		dirs = append(dirs, "/var/lib/klaus/plugins/"+ShortPluginName(p.Repository))
 	}
 	return dirs
 }

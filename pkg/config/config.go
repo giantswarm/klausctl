@@ -87,12 +87,28 @@ type ClaudeConfig struct {
 	DisallowedTools []string `yaml:"disallowedTools,omitempty"`
 	// StrictMcpConfig when true only uses MCP servers from config.
 	StrictMcpConfig bool `yaml:"strictMcpConfig,omitempty"`
+	// McpTimeout sets the MCP call timeout in milliseconds.
+	McpTimeout int `yaml:"mcpTimeout,omitempty"`
+	// MaxMcpOutputTokens limits MCP server output token count.
+	MaxMcpOutputTokens int `yaml:"maxMcpOutputTokens,omitempty"`
 	// ActiveAgent selects which agent runs as the top-level agent.
 	ActiveAgent string `yaml:"activeAgent,omitempty"`
 	// PersistentMode enables bidirectional stream-json mode.
 	PersistentMode bool `yaml:"persistentMode,omitempty"`
 	// NoSessionPersistence disables saving sessions to disk.
 	NoSessionPersistence *bool `yaml:"noSessionPersistence,omitempty"`
+	// IncludePartialMessages enables streaming of partial messages.
+	IncludePartialMessages bool `yaml:"includePartialMessages,omitempty"`
+	// JsonSchema provides a JSON schema for structured output.
+	JsonSchema string `yaml:"jsonSchema,omitempty"`
+	// SettingsFile is an alternative to inline hooks -- a path to a settings.json.
+	// Mutually exclusive with Hooks.
+	SettingsFile string `yaml:"settingsFile,omitempty"`
+	// SettingSources controls setting source precedence.
+	SettingSources string `yaml:"settingSources,omitempty"`
+	// LoadAdditionalDirsMemory enables loading CLAUDE.md memory files from
+	// additional directories. Defaults to true, matching the Helm chart default.
+	LoadAdditionalDirsMemory *bool `yaml:"loadAdditionalDirsMemory,omitempty"`
 	// AddDirs are additional directories for skills and agents.
 	AddDirs []string `yaml:"addDirs,omitempty"`
 	// PluginDirs are directories to load plugins from.
@@ -153,6 +169,7 @@ type HookMatcher struct {
 type Hook struct {
 	Type    string `yaml:"type" json:"type"`
 	Command string `yaml:"command" json:"command"`
+	Timeout int    `yaml:"timeout,omitempty" json:"timeout,omitempty"`
 }
 
 // Plugin references an OCI plugin artifact.
@@ -219,6 +236,10 @@ func (c *Config) applyDefaults() {
 		t := true
 		c.Claude.NoSessionPersistence = &t
 	}
+	if c.Claude.LoadAdditionalDirsMemory == nil {
+		t := true
+		c.Claude.LoadAdditionalDirsMemory = &t
+	}
 }
 
 // Validate checks the configuration for errors.
@@ -249,6 +270,10 @@ func (c *Config) Validate() error {
 
 	if c.Claude.MaxTurns < 0 {
 		return fmt.Errorf("maxTurns must be >= 0, got %d", c.Claude.MaxTurns)
+	}
+
+	if len(c.Hooks) > 0 && c.Claude.SettingsFile != "" {
+		return fmt.Errorf("hooks and claude.settingsFile are mutually exclusive; use one or the other")
 	}
 
 	if c.Claude.MaxBudgetUSD < 0 {

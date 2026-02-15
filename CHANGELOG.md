@@ -28,4 +28,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Environment variable forwarding (ANTHROPIC_API_KEY auto-forwarded, custom vars configurable).
 - OCI plugin directory structure (ORAS pull is a placeholder for now).
 
+### Fixed
+
+- Align plugin container mount path with Helm chart (`/var/lib/klaus/plugins/` instead of `/mnt/plugins/`).
+- Preserve hook `timeout` field in rendered `settings.json` (was silently dropped).
+- Add `loadAdditionalDirsMemory` toggle to control `CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD` (defaults to `true`, matching Helm chart).
+- Validate that `hooks` and `claude.settingsFile` are mutually exclusive.
+
+### Added
+
+- Support for additional Claude config fields to match Helm chart parity:
+  `jsonSchema`, `settingsFile`, `settingSources`, `includePartialMessages`,
+  `mcpTimeout`, `maxMcpOutputTokens`.
+
 [Unreleased]: https://github.com/giantswarm/klausctl/tree/main

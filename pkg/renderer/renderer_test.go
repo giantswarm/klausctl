@@ -182,7 +182,7 @@ func TestRenderSettings(t *testing.T) {
 				{
 					Matcher: "Bash",
 					Hooks: []config.Hook{
-						{Type: "command", Command: "/etc/klaus/hooks/check.sh"},
+						{Type: "command", Command: "/etc/klaus/hooks/check.sh", Timeout: 5000},
 					},
 				},
 			},
@@ -206,6 +206,15 @@ func TestRenderSettings(t *testing.T) {
 
 	if _, ok := result["hooks"]; !ok {
 		t.Error("missing hooks key")
+	}
+
+	// Verify timeout is preserved in rendered JSON.
+	content := string(data)
+	if !strings.Contains(content, `"timeout"`) {
+		t.Error("settings.json should contain timeout field")
+	}
+	if !strings.Contains(content, "5000") {
+		t.Error("settings.json should contain timeout value 5000")
 	}
 }
 
