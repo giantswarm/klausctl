@@ -35,11 +35,8 @@ func (i *Instance) ContainerName() string {
 }
 
 // Save writes the instance state to the instance file.
+// The caller is responsible for setting StartedAt before calling Save.
 func (i *Instance) Save(paths *config.Paths) error {
-	if i.StartedAt.IsZero() {
-		i.StartedAt = time.Now()
-	}
-
 	if err := config.EnsureDir(paths.ConfigDir); err != nil {
 		return fmt.Errorf("creating config directory: %w", err)
 	}

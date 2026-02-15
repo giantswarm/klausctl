@@ -90,7 +90,7 @@ func runConfigShow(_ *cobra.Command, _ []string) error {
 func runConfigPath(_ *cobra.Command, _ []string) error {
 	path := config.DefaultPaths().ConfigFile
 	if cfgFile != "" {
-		path = cfgFile
+		path = config.ExpandPath(cfgFile)
 	}
 	fmt.Println(path)
 	return nil

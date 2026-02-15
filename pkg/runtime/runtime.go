@@ -5,7 +5,6 @@ package runtime
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 )
@@ -63,7 +62,6 @@ type ContainerInfo struct {
 	Image     string    `json:"image"`
 	Status    string    `json:"status"`
 	StartedAt time.Time `json:"startedAt"`
-	Ports     string    `json:"ports"`
 }
 
 // New creates a runtime for the given name ("docker" or "podman").
@@ -95,7 +93,4 @@ type inspectResult struct {
 		Running   bool      `json:"Running"`
 		StartedAt time.Time `json:"StartedAt"`
 	} `json:"State"`
-	NetworkSettings struct {
-		Ports json.RawMessage `json:"Ports"`
-	} `json:"NetworkSettings"`
 }

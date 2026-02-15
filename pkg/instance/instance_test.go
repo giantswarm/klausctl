@@ -3,6 +3,7 @@ package instance
 import (
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/giantswarm/klausctl/pkg/config"
 )
@@ -19,6 +20,7 @@ func testPaths(t *testing.T) *config.Paths {
 func TestSaveAndLoad(t *testing.T) {
 	paths := testPaths(t)
 
+	now := time.Now()
 	inst := &Instance{
 		Name:        "test",
 		ContainerID: "abc123",
@@ -26,6 +28,7 @@ func TestSaveAndLoad(t *testing.T) {
 		Image:       "ghcr.io/giantswarm/klaus:latest",
 		Port:        8080,
 		Workspace:   "/tmp/test",
+		StartedAt:   now,
 	}
 
 	if err := inst.Save(paths); err != nil {
@@ -79,6 +82,7 @@ func TestClear(t *testing.T) {
 		Image:       "test:latest",
 		Port:        8080,
 		Workspace:   "/tmp",
+		StartedAt:   time.Now(),
 	}
 
 	if err := inst.Save(paths); err != nil {

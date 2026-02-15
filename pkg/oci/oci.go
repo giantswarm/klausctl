@@ -46,9 +46,6 @@ func PullPlugins(plugins []config.Plugin, pluginsDir string) error {
 // e.g. "gsoci.azurecr.io/giantswarm/klaus-plugins/gs-platform" -> "gs-platform"
 func ShortPluginName(repository string) string {
 	parts := strings.Split(repository, "/")
-	if len(parts) == 0 {
-		return repository
-	}
 	return parts[len(parts)-1]
 }
 

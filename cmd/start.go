@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -82,10 +83,18 @@ func runStart(_ *cobra.Command, _ []string) error {
 		}
 	}
 
+	// Derive the instance name and container name consistently.
+	const instanceName = "default"
+
 	// Build container run options.
-	runOpts, err := buildRunOptions(cfg, paths)
+	runOpts, err := buildRunOptions(cfg, paths, instanceName)
 	if err != nil {
 		return fmt.Errorf("building run options: %w", err)
+	}
+
+	// Warn if ANTHROPIC_API_KEY is not set -- the agent will likely fail without it.
+	if os.Getenv("ANTHROPIC_API_KEY") == "" {
+		fmt.Fprintln(os.Stderr, "Warning: ANTHROPIC_API_KEY is not set; the claude agent may fail to authenticate.")
 	}
 
 	// Start container.
@@ -97,12 +106,13 @@ func runStart(_ *cobra.Command, _ []string) error {
 
 	// Save instance state.
 	inst = &instance.Instance{
-		Name:        "default",
+		Name:        instanceName,
 		ContainerID: containerID,
 		Runtime:     rt.Name(),
 		Image:       cfg.Image,
 		Port:        cfg.Port,
 		Workspace:   config.ExpandPath(cfg.Workspace),
+		StartedAt:   time.Now(),
 	}
 	if err := inst.Save(paths); err != nil {
 		return fmt.Errorf("saving instance state: %w", err)
@@ -121,9 +131,9 @@ func runStart(_ *cobra.Command, _ []string) error {
 // buildRunOptions constructs the container runtime options from config.
 // This mirrors the Helm deployment.yaml template, producing the same
 // env vars and volume mounts.
-func buildRunOptions(cfg *config.Config, paths *config.Paths) (runtime.RunOptions, error) {
+func buildRunOptions(cfg *config.Config, paths *config.Paths, instanceName string) (runtime.RunOptions, error) {
 	opts := runtime.RunOptions{
-		Name:    "klausctl-default",
+		Name:    "klausctl-" + instanceName,
 		Image:   cfg.Image,
 		Detach:  true,
 		EnvVars: make(map[string]string),

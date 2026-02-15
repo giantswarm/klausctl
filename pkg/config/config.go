@@ -263,17 +263,12 @@ func (c *Config) Validate() error {
 	return nil
 }
 
-// DefaultConfig returns a minimal default configuration.
+// DefaultConfig returns a minimal default configuration with all defaults applied.
+// Note: Workspace must be set by the caller before the config can pass Validate().
 func DefaultConfig() *Config {
-	t := true
-	return &Config{
-		Image: "ghcr.io/giantswarm/klaus:latest",
-		Port:  8080,
-		Claude: ClaudeConfig{
-			PermissionMode:       "bypassPermissions",
-			NoSessionPersistence: &t,
-		},
-	}
+	cfg := &Config{}
+	cfg.applyDefaults()
+	return cfg
 }
 
 // Marshal serializes the config to YAML.

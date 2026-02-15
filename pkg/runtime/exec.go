@@ -150,5 +150,11 @@ func (r *execRuntime) Logs(ctx context.Context, name string, follow bool) error 
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
-	return cmd.Run()
+	err := cmd.Run()
+	// Swallow context-cancellation errors -- the user interrupted with Ctrl+C,
+	// which is the normal way to stop "logs -f".
+	if ctx.Err() != nil {
+		return nil
+	}
+	return err
 }
