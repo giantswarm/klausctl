@@ -87,7 +87,7 @@ func (c *Client) Pull(ctx context.Context, ref string, destDir string) (*PullRes
 	}
 
 	// Write cache metadata so subsequent pulls with the same digest are skipped.
-	if err := WriteCacheEntry(destDir, &CacheEntry{Digest: digest, Ref: ref}); err != nil {
+	if err := WriteCacheEntry(destDir, CacheEntry{Digest: digest, Ref: ref}); err != nil {
 		return nil, fmt.Errorf("writing cache entry: %w", err)
 	}
 
@@ -140,7 +140,7 @@ func extractTarGz(r io.Reader, destDir string) error {
 				return fmt.Errorf("creating parent directory for %s: %w", target, err)
 			}
 
-			mode := os.FileMode(header.Mode)
+			mode := os.FileMode(header.Mode) & 0o777
 			if mode == 0 {
 				mode = 0o644
 			}
@@ -150,11 +150,16 @@ func extractTarGz(r io.Reader, destDir string) error {
 				return fmt.Errorf("creating file %s: %w", target, err)
 			}
 
-			if _, err := io.Copy(f, io.LimitReader(tr, maxExtractFileSize)); err != nil {
+			n, err := io.Copy(f, io.LimitReader(tr, maxExtractFileSize+1))
+			if err != nil {
 				f.Close()
 				return fmt.Errorf("extracting file %s: %w", target, err)
 			}
 			f.Close()
+
+			if n > maxExtractFileSize {
+				return fmt.Errorf("file %s exceeds max size (%d bytes)", header.Name, maxExtractFileSize)
+			}
 
 		default:
 			// Skip symlinks and other types for security.

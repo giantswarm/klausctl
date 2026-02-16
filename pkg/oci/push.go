@@ -63,30 +63,26 @@ func (c *Client) Push(ctx context.Context, pluginDir string, ref string, meta Pl
 	}
 
 	// Build and push manifest.
-	annotations := map[string]string{
-		ocispec.AnnotationTitle:       meta.Name,
-		ocispec.AnnotationVersion:     meta.Version,
-		ocispec.AnnotationDescription: meta.Description,
+	annotations := make(map[string]string)
+	if meta.Name != "" {
+		annotations[ocispec.AnnotationTitle] = meta.Name
+	}
+	if meta.Version != "" {
+		annotations[ocispec.AnnotationVersion] = meta.Version
+	}
+	if meta.Description != "" {
+		annotations[ocispec.AnnotationDescription] = meta.Description
+	}
+	if len(annotations) == 0 {
+		annotations = nil
 	}
 
 	manifest := ocispec.Manifest{
-		Versioned: specs.Versioned{SchemaVersion: 2},
-		MediaType: ocispec.MediaTypeImageManifest,
-		Config:    configDesc,
-		Layers:    []ocispec.Descriptor{layerDesc},
-		Annotations: func() map[string]string {
-			// Filter out empty annotations.
-			clean := make(map[string]string)
-			for k, v := range annotations {
-				if v != "" {
-					clean[k] = v
-				}
-			}
-			if len(clean) == 0 {
-				return nil
-			}
-			return clean
-		}(),
+		Versioned:   specs.Versioned{SchemaVersion: 2},
+		MediaType:   ocispec.MediaTypeImageManifest,
+		Config:      configDesc,
+		Layers:      []ocispec.Descriptor{layerDesc},
+		Annotations: annotations,
 	}
 
 	manifestJSON, err := json.Marshal(manifest)
@@ -135,6 +131,11 @@ func createTarGz(sourceDir string) ([]byte, error) {
 
 		// Skip cache metadata files.
 		if strings.HasPrefix(filepath.Base(relPath), ".klausctl-") {
+			return nil
+		}
+
+		// Skip symlinks and other non-regular, non-directory entries.
+		if !d.IsDir() && !d.Type().IsRegular() {
 			return nil
 		}
 

@@ -46,7 +46,8 @@ func ReadCacheEntry(pluginDir string) (*CacheEntry, error) {
 }
 
 // WriteCacheEntry writes cache metadata to a plugin directory.
-func WriteCacheEntry(pluginDir string, entry *CacheEntry) error {
+// The PulledAt timestamp is always set to the current time.
+func WriteCacheEntry(pluginDir string, entry CacheEntry) error {
 	entry.PulledAt = time.Now()
 
 	data, err := json.MarshalIndent(entry, "", "  ")

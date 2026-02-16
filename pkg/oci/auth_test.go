@@ -1,6 +1,7 @@
 package oci
 
 import (
+	"context"
 	"encoding/base64"
 	"os"
 	"path/filepath"
@@ -147,7 +148,7 @@ func TestResolveCredentialAnonymousFallback(t *testing.T) {
 	// Unset the env var to ensure fallback to anonymous.
 	t.Setenv("KLAUSCTL_REGISTRY_AUTH", "")
 
-	cred, err := resolveCredential(nil, "unknown-registry.example.com")
+	cred, err := resolveCredential(context.Background(), "unknown-registry.example.com")
 	if err != nil {
 		t.Fatalf("resolveCredential() error = %v", err)
 	}

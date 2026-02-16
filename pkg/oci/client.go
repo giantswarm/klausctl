@@ -10,6 +10,7 @@ import (
 	"fmt"
 
 	"oras.land/oras-go/v2/registry/remote"
+	"oras.land/oras-go/v2/registry/remote/auth"
 )
 
 const (
@@ -47,7 +48,8 @@ type PushResult struct {
 
 // Client is an ORAS-based client for interacting with OCI registries.
 type Client struct {
-	plainHTTP bool
+	plainHTTP  bool
+	authClient *auth.Client
 }
 
 // ClientOption configures the OCI client.
@@ -61,7 +63,9 @@ func WithPlainHTTP(plain bool) ClientOption {
 
 // NewClient creates a new OCI client.
 func NewClient(opts ...ClientOption) *Client {
-	c := &Client{}
+	c := &Client{
+		authClient: newAuthClient(),
+	}
 	for _, o := range opts {
 		o(c)
 	}
@@ -73,6 +77,10 @@ func (c *Client) Resolve(ctx context.Context, ref string) (string, error) {
 	repo, tag, err := c.newRepository(ref)
 	if err != nil {
 		return "", err
+	}
+
+	if tag == "" {
+		return "", fmt.Errorf("reference %q must include a tag or digest", ref)
 	}
 
 	desc, err := repo.Resolve(ctx, tag)
@@ -113,7 +121,7 @@ func (c *Client) newRepository(ref string) (*remote.Repository, string, error) {
 
 	tag := repo.Reference.Reference
 	repo.PlainHTTP = c.plainHTTP
-	repo.Client = newAuthClient()
+	repo.Client = c.authClient
 
 	return repo, tag, nil
 }
@@ -127,7 +135,7 @@ func (c *Client) newRepositoryFromName(name string) (*remote.Repository, error) 
 	}
 
 	repo.PlainHTTP = c.plainHTTP
-	repo.Client = newAuthClient()
+	repo.Client = c.authClient
 
 	return repo, nil
 }

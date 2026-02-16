@@ -9,7 +9,7 @@ import (
 func TestWriteAndReadCacheEntry(t *testing.T) {
 	dir := t.TempDir()
 
-	entry := &CacheEntry{
+	entry := CacheEntry{
 		Digest: "sha256:abc123def456",
 		Ref:    "example.com/plugin:v1.0.0",
 	}
@@ -68,7 +68,7 @@ func TestIsCached(t *testing.T) {
 	}
 
 	// Write cache entry.
-	if err := WriteCacheEntry(dir, &CacheEntry{Digest: digest, Ref: "example.com/p:v1"}); err != nil {
+	if err := WriteCacheEntry(dir, CacheEntry{Digest: digest, Ref: "example.com/p:v1"}); err != nil {
 		t.Fatal(err)
 	}
 
