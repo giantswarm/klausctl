@@ -29,7 +29,7 @@ type Runtime interface {
 	// lines are shown.
 	Logs(ctx context.Context, name string, follow bool, tail int) error
 	// BuildImage builds a container image from a Dockerfile.
-	// Returns the built image ID.
+	// Returns the image tag on success.
 	BuildImage(ctx context.Context, opts BuildOptions) (string, error)
 	// ImageExists checks if an image tag exists locally.
 	ImageExists(ctx context.Context, tag string) (bool, error)

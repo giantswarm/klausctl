@@ -147,6 +147,13 @@ func (r *execRuntime) Inspect(ctx context.Context, name string) (*ContainerInfo,
 }
 
 func (r *execRuntime) BuildImage(ctx context.Context, opts BuildOptions) (string, error) {
+	if opts.Tag == "" {
+		return "", fmt.Errorf("build tag is required")
+	}
+	if opts.Context == "" {
+		return "", fmt.Errorf("build context is required")
+	}
+
 	args := []string{"build", "-t", opts.Tag}
 
 	if opts.Dockerfile != "" {
@@ -169,7 +176,6 @@ func (r *execRuntime) BuildImage(ctx context.Context, opts BuildOptions) (string
 func (r *execRuntime) ImageExists(ctx context.Context, tag string) (bool, error) {
 	var stderr bytes.Buffer
 	cmd := exec.CommandContext(ctx, r.binary, "image", "inspect", tag)
-	cmd.Stdout = nil
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {

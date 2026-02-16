@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -27,14 +26,6 @@ func TestBuildImageArgs(t *testing.T) {
 	// Create a fake docker binary that records its arguments.
 	argsFile := filepath.Join(binDir, "args.txt")
 	writeScript(t, binDir, "docker", fmt.Sprintf(`printf '%%s\n' "$@" > %s`, argsFile))
-
-	// Prepend our fake binary to PATH.
-	t.Setenv("PATH", binDir+":"+os.Getenv("PATH"))
-
-	// Verify our fake binary is found.
-	if _, err := exec.LookPath("docker"); err != nil {
-		t.Fatalf("fake docker not found: %v", err)
-	}
 
 	rt := &execRuntime{binary: filepath.Join(binDir, "docker")}
 	ctx := context.Background()
@@ -169,5 +160,39 @@ func TestImageExistsReturnsErrorOnUnexpectedFailure(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "image inspect failed") {
 		t.Errorf("error = %q, want substring %q", err.Error(), "image inspect failed")
+	}
+}
+
+func TestBuildImageValidation(t *testing.T) {
+	rt := &execRuntime{binary: "docker"}
+	ctx := context.Background()
+
+	tests := []struct {
+		name   string
+		opts   BuildOptions
+		errMsg string
+	}{
+		{
+			name:   "missing tag",
+			opts:   BuildOptions{Context: "/tmp/context"},
+			errMsg: "build tag is required",
+		},
+		{
+			name:   "missing context",
+			opts:   BuildOptions{Tag: "test:latest"},
+			errMsg: "build context is required",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := rt.BuildImage(ctx, tt.opts)
+			if err == nil {
+				t.Fatal("BuildImage() should return error")
+			}
+			if !strings.Contains(err.Error(), tt.errMsg) {
+				t.Errorf("error = %q, want substring %q", err.Error(), tt.errMsg)
+			}
+		})
 	}
 }
