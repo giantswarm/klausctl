@@ -19,6 +19,12 @@ func SetBuildInfo(version, commit, date string) {
 	buildVersion = version
 	buildCommit = commit
 	buildDate = date
+	rootCmd.Version = version
+}
+
+// GetVersion returns the current version of the application.
+func GetVersion() string {
+	return rootCmd.Version
 }
 
 var rootCmd = &cobra.Command{
@@ -40,4 +46,5 @@ func Execute() error {
 
 func init() {
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default: ~/.config/klausctl/config.yaml)")
+	rootCmd.AddCommand(newSelfUpdateCmd())
 }
