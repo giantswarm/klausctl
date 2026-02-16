@@ -7,7 +7,7 @@ klausctl is the local-mode counterpart to the Helm chart and the klaus-operator.
 ## Features
 
 - **Container lifecycle management** -- start, stop, status, logs for local klaus instances
-- **Plugin fetching via ORAS** -- pull Claude Code plugins from OCI registries before container start (not yet implemented, see [#5](https://github.com/giantswarm/klausctl/issues/5))
+- **Plugin fetching via ORAS** -- pull Claude Code plugins from OCI registries before container start, with digest-based caching
 - **Config rendering** -- generate `.mcp.json`, `settings.json`, `SKILL.md` files from a single config file
 - **Container runtime auto-detection** -- Docker or Podman, with preference configurable
 - **Environment variable forwarding** -- pass secrets from host to container

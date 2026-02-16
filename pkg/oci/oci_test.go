@@ -1,7 +1,6 @@
 package oci
 
 import (
-	"io"
 	"testing"
 
 	"github.com/giantswarm/klausctl/pkg/config"
@@ -66,14 +65,73 @@ func TestPluginDirsEmpty(t *testing.T) {
 	}
 }
 
-func TestPullPluginsCreatesDirectories(t *testing.T) {
-	dir := t.TempDir()
-
-	plugins := []config.Plugin{
-		{Repository: "example.com/org/test-plugin", Tag: "v1.0.0"},
+func TestBuildRef(t *testing.T) {
+	tests := []struct {
+		name   string
+		plugin config.Plugin
+		want   string
+	}{
+		{
+			name:   "tag",
+			plugin: config.Plugin{Repository: "example.com/plugin", Tag: "v1.0.0"},
+			want:   "example.com/plugin:v1.0.0",
+		},
+		{
+			name:   "digest",
+			plugin: config.Plugin{Repository: "example.com/plugin", Digest: "sha256:abc123"},
+			want:   "example.com/plugin@sha256:abc123",
+		},
+		{
+			name:   "digest takes precedence over tag",
+			plugin: config.Plugin{Repository: "example.com/plugin", Tag: "v1.0.0", Digest: "sha256:abc123"},
+			want:   "example.com/plugin@sha256:abc123",
+		},
+		{
+			name:   "no tag or digest",
+			plugin: config.Plugin{Repository: "example.com/plugin"},
+			want:   "example.com/plugin",
+		},
 	}
 
-	if err := PullPlugins(plugins, dir, io.Discard); err != nil {
-		t.Fatalf("PullPlugins() returned error: %v", err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := buildRef(tt.plugin)
+			if got != tt.want {
+				t.Errorf("buildRef() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestTruncateDigest(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{
+			input: "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+			want:  "sha256:abcdef123456",
+		},
+		{
+			input: "sha256:short",
+			want:  "sha256:short",
+		},
+		{
+			input: "noprefix",
+			want:  "noprefix",
+		},
+		{
+			input: "",
+			want:  "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			got := truncateDigest(tt.input)
+			if got != tt.want {
+				t.Errorf("truncateDigest(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
 	}
 }

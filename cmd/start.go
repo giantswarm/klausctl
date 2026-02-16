@@ -105,7 +105,7 @@ func runStart(cmd *cobra.Command, _ []string) error {
 	// Pull OCI plugins.
 	if len(cfg.Plugins) > 0 {
 		fmt.Fprintln(out, "Pulling plugins...")
-		if err := oci.PullPlugins(cfg.Plugins, paths.PluginsDir, out); err != nil {
+		if err := oci.PullPlugins(ctx, cfg.Plugins, paths.PluginsDir, out); err != nil {
 			return fmt.Errorf("pulling plugins: %w", err)
 		}
 	}
