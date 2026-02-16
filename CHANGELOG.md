@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Implement OCI plugin pulling via ORAS for `klausctl start`. ([#5](https://github.com/giantswarm/klausctl/issues/5))
+  - ORAS-based client (`pkg/oci/`) with Pull, Push, Resolve, and List operations.
+  - Registry auth from Docker config, Podman auth, or `KLAUSCTL_REGISTRY_AUTH` env var.
+  - Digest-based caching -- unchanged plugins are skipped on subsequent pulls.
+  - OCI artifact format with custom media types for plugin config and content layers.
 - Add `klausctl self-update` command for self-updating to the latest GitHub release. ([#7](https://github.com/giantswarm/klausctl/issues/7))
 - Implement klausctl CLI for managing local klaus instances. ([#3](https://github.com/giantswarm/klausctl/issues/3))
   - `klausctl start` -- start a local klaus container with configured settings.
@@ -27,7 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Container runtime auto-detection (Podman preferred over Docker when both available).
 - Config rendering: generate `mcp-config.json`, `settings.json`, `SKILL.md` files from config.
 - Environment variable forwarding (ANTHROPIC_API_KEY auto-forwarded, custom vars configurable).
-- OCI plugin directory structure (ORAS pull is a placeholder for now).
+- OCI plugin directory structure for container mounts.
 
 ### Fixed
 

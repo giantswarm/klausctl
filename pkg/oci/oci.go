@@ -1,14 +1,7 @@
-// Package oci handles pulling OCI plugin artifacts from registries using ORAS.
-//
-// Plugins are OCI artifacts containing skills, hooks, agents, and MCP server
-// configurations. They are pulled to the local plugins directory before
-// the klaus container is started, then bind-mounted into the container.
-//
-// TODO(klausctl#4): Implement ORAS-based plugin pulling.
-// This is currently a placeholder that creates the plugin directory structure.
 package oci
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -18,33 +11,28 @@ import (
 )
 
 // PullPlugins pulls all configured plugins to the local plugins directory.
-// Each plugin is stored at <pluginsDir>/<shortName>/.
-// Progress messages are written to w.
-//
-// TODO(klausctl#5): Implement actual ORAS-based pulling. Currently this is a
-// placeholder that only creates the directory structure and prints a warning.
-// Plugins will not be available until ORAS pulling is implemented.
-func PullPlugins(plugins []config.Plugin, pluginsDir string, w io.Writer) error {
-	fmt.Fprintln(w, "Warning: OCI plugin pulling is not yet implemented (see klausctl#5).")
-	fmt.Fprintln(w, "Configured plugins will not be available in the container.")
-	fmt.Fprintln(w)
+// Each plugin is stored at <pluginsDir>/<shortName>/. Plugins are cached by
+// digest and skipped if already up-to-date. Progress messages are written to w.
+func PullPlugins(ctx context.Context, plugins []config.Plugin, pluginsDir string, w io.Writer) error {
+	client := NewClient()
 
 	for _, plugin := range plugins {
 		shortName := ShortPluginName(plugin.Repository)
 		destDir := filepath.Join(pluginsDir, shortName)
+		ref := buildRef(plugin)
 
-		if err := config.EnsureDir(destDir); err != nil {
-			return fmt.Errorf("creating plugin directory %q: %w", destDir, err)
+		fmt.Fprintf(w, "  Pulling %s...\n", ref)
+
+		result, err := client.Pull(ctx, ref, destDir)
+		if err != nil {
+			return fmt.Errorf("pulling plugin %s: %w", ref, err)
 		}
 
-		ref := plugin.Repository
-		if plugin.Digest != "" {
-			ref += "@" + plugin.Digest
-		} else if plugin.Tag != "" {
-			ref += ":" + plugin.Tag
+		if result.Cached {
+			fmt.Fprintf(w, "  %s: up-to-date (%s)\n", shortName, truncateDigest(result.Digest))
+		} else {
+			fmt.Fprintf(w, "  %s: pulled (%s)\n", shortName, truncateDigest(result.Digest))
 		}
-
-		fmt.Fprintf(w, "  Skipped: %s (ORAS pull not yet implemented)\n", ref)
 	}
 
 	return nil
@@ -65,4 +53,26 @@ func PluginDirs(plugins []config.Plugin) []string {
 		dirs = append(dirs, "/var/lib/klaus/plugins/"+ShortPluginName(p.Repository))
 	}
 	return dirs
+}
+
+// buildRef constructs a full OCI reference from a Plugin spec.
+func buildRef(p config.Plugin) string {
+	ref := p.Repository
+	if p.Digest != "" {
+		ref += "@" + p.Digest
+	} else if p.Tag != "" {
+		ref += ":" + p.Tag
+	}
+	return ref
+}
+
+// truncateDigest shortens a digest string for display (e.g. "sha256:abc123...").
+func truncateDigest(d string) string {
+	if idx := strings.Index(d, ":"); idx >= 0 {
+		suffix := d[idx+1:]
+		if len(suffix) > 12 {
+			return d[:idx+1] + suffix[:12]
+		}
+	}
+	return d
 }
