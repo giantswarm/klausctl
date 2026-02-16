@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add toolchain configuration support for specifying a base language image, prebuilt flag, and extra apt packages. ([#16](https://github.com/giantswarm/klausctl/issues/16))
+- Add `BuildImage` and `ImageExists` methods to the `Runtime` interface for composite image building. ([#18](https://github.com/giantswarm/klausctl/issues/18))
 - Implement OCI plugin pulling via ORAS for `klausctl start`. ([#5](https://github.com/giantswarm/klausctl/issues/5))
   - ORAS-based client (`pkg/oci/`) with Pull, Push, Resolve, and List operations.
   - Registry auth from Docker config, Podman auth, or `KLAUSCTL_REGISTRY_AUTH` env var.
