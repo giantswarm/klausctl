@@ -11,7 +11,7 @@ klausctl is the local-mode counterpart to the Helm chart and the klaus-operator.
 - **Config rendering** -- generate `.mcp.json`, `settings.json`, `SKILL.md` files from a single config file
 - **Container runtime auto-detection** -- Docker or Podman, with preference configurable
 - **Environment variable forwarding** -- pass secrets from host to container
-- **Self-update** -- `klausctl update` to fetch the latest release (not yet implemented, see [#7](https://github.com/giantswarm/klausctl/issues/7))
+- **Self-update** -- `klausctl update` to fetch the latest release from GitHub
 
 ## Quick Start
 
@@ -47,6 +47,7 @@ klausctl stop                 # Stop the running instance
 klausctl status               # Show instance status (running, MCP endpoint, uptime)
 klausctl logs                 # Stream container logs (-f to follow, --tail N for last N lines)
 klausctl config               # Manage configuration (init, show, path, validate)
+klausctl self-update           # Update klausctl to the latest release (--yes to skip prompt)
 klausctl version              # Show version information
 ```
 

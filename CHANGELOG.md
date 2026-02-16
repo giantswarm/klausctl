@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add `klausctl self-update` command for self-updating to the latest GitHub release. ([#7](https://github.com/giantswarm/klausctl/issues/7))
 - Implement klausctl CLI for managing local klaus instances. ([#3](https://github.com/giantswarm/klausctl/issues/3))
   - `klausctl start` -- start a local klaus container with configured settings.
   - `klausctl start --workspace` -- override workspace directory from CLI.
