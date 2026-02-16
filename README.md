@@ -47,7 +47,7 @@ klausctl stop                 # Stop the running instance
 klausctl status               # Show instance status (running, MCP endpoint, uptime)
 klausctl logs                 # Stream container logs (-f to follow, --tail N for last N lines)
 klausctl config               # Manage configuration (init, show, path, validate)
-klausctl self-update           # Update klausctl to the latest release
+klausctl self-update           # Update klausctl to the latest release (--yes to skip prompt)
 klausctl version              # Show version information
 ```
 

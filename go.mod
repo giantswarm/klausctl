@@ -3,6 +3,7 @@ module github.com/giantswarm/klausctl
 go 1.25
 
 require (
+	github.com/creativeprojects/go-selfupdate v1.5.2
 	github.com/spf13/cobra v1.10.2
 	gopkg.in/yaml.v3 v3.0.1
 )
@@ -11,7 +12,6 @@ require (
 	code.gitea.io/sdk/gitea v0.22.1 // indirect
 	github.com/42wim/httpsig v1.2.3 // indirect
 	github.com/Masterminds/semver/v3 v3.4.0 // indirect
-	github.com/creativeprojects/go-selfupdate v1.5.2 // indirect
 	github.com/davidmz/go-pageant v1.0.2 // indirect
 	github.com/go-fed/httpsig v1.1.0 // indirect
 	github.com/google/go-github/v74 v74.0.0 // indirect
