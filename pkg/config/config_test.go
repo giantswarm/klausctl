@@ -193,6 +193,50 @@ func TestValidate(t *testing.T) {
 			errMsg:  "mutually exclusive",
 		},
 		{
+			name: "toolchain missing image",
+			cfg: Config{
+				Workspace: "/tmp", Port: 8080,
+				Toolchain: &Toolchain{},
+			},
+			wantErr: true,
+			errMsg:  "toolchain.image is required",
+		},
+		{
+			name: "toolchain prebuilt with packages",
+			cfg: Config{
+				Workspace: "/tmp", Port: 8080,
+				Toolchain: &Toolchain{
+					Image:    "my-custom-image:latest",
+					Prebuilt: true,
+					Packages: []string{"curl"},
+				},
+			},
+			wantErr: true,
+			errMsg:  "toolchain.packages must be empty when toolchain.prebuilt is true",
+		},
+		{
+			name: "valid toolchain",
+			cfg: Config{
+				Workspace: "/tmp", Port: 8080,
+				Toolchain: &Toolchain{
+					Image:    "golang:1.25",
+					Packages: []string{"protobuf-compiler"},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid toolchain prebuilt",
+			cfg: Config{
+				Workspace: "/tmp", Port: 8080,
+				Toolchain: &Toolchain{
+					Image:    "my-custom-image:latest",
+					Prebuilt: true,
+				},
+			},
+			wantErr: false,
+		},
+		{
 			name: "valid minimal config",
 			cfg: Config{
 				Workspace: "/tmp",
@@ -236,6 +280,101 @@ func TestValidate(t *testing.T) {
 				t.Fatalf("Validate() returned unexpected error: %v", err)
 			}
 		})
+	}
+}
+
+func TestLoadToolchainConfig(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+
+	content := `
+workspace: /tmp/test-workspace
+toolchain:
+  image: golang:1.25
+  packages:
+    - protobuf-compiler
+    - build-essential
+claude:
+  model: sonnet
+`
+	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("Load() returned error: %v", err)
+	}
+
+	if cfg.Toolchain == nil {
+		t.Fatal("Toolchain should not be nil")
+	}
+	if cfg.Toolchain.Image != "golang:1.25" {
+		t.Errorf("Toolchain.Image = %q, want %q", cfg.Toolchain.Image, "golang:1.25")
+	}
+	if cfg.Toolchain.Prebuilt {
+		t.Error("Toolchain.Prebuilt should be false")
+	}
+	if len(cfg.Toolchain.Packages) != 2 {
+		t.Fatalf("Toolchain.Packages length = %d, want 2", len(cfg.Toolchain.Packages))
+	}
+	if cfg.Toolchain.Packages[0] != "protobuf-compiler" {
+		t.Errorf("Toolchain.Packages[0] = %q, want %q", cfg.Toolchain.Packages[0], "protobuf-compiler")
+	}
+	if cfg.Toolchain.Packages[1] != "build-essential" {
+		t.Errorf("Toolchain.Packages[1] = %q, want %q", cfg.Toolchain.Packages[1], "build-essential")
+	}
+}
+
+func TestLoadToolchainPrebuiltConfig(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+
+	content := `
+workspace: /tmp/test-workspace
+toolchain:
+  image: my-custom-image:latest
+  prebuilt: true
+`
+	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("Load() returned error: %v", err)
+	}
+
+	if cfg.Toolchain == nil {
+		t.Fatal("Toolchain should not be nil")
+	}
+	if cfg.Toolchain.Image != "my-custom-image:latest" {
+		t.Errorf("Toolchain.Image = %q, want %q", cfg.Toolchain.Image, "my-custom-image:latest")
+	}
+	if !cfg.Toolchain.Prebuilt {
+		t.Error("Toolchain.Prebuilt should be true")
+	}
+	if len(cfg.Toolchain.Packages) != 0 {
+		t.Errorf("Toolchain.Packages should be empty, got %v", cfg.Toolchain.Packages)
+	}
+}
+
+func TestLoadWithoutToolchain(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+
+	content := `workspace: /tmp/test`
+	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("Load() returned error: %v", err)
+	}
+
+	if cfg.Toolchain != nil {
+		t.Error("Toolchain should be nil when not set in config")
 	}
 }
 

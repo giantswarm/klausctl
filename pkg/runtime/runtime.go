@@ -28,6 +28,11 @@ type Runtime interface {
 	// streams continuously until interrupted. If tail > 0, only the last N
 	// lines are shown.
 	Logs(ctx context.Context, name string, follow bool, tail int) error
+	// BuildImage builds a container image from a Dockerfile.
+	// Returns the built image ID.
+	BuildImage(ctx context.Context, opts BuildOptions) (string, error)
+	// ImageExists checks if an image tag exists locally.
+	ImageExists(ctx context.Context, tag string) (bool, error)
 }
 
 // RunOptions configures a container run invocation.
@@ -48,6 +53,16 @@ type RunOptions struct {
 	Volumes []Volume
 	// Ports maps host ports to container ports.
 	Ports map[int]int
+}
+
+// BuildOptions configures an image build invocation.
+type BuildOptions struct {
+	// Tag is the image tag to build.
+	Tag string
+	// Dockerfile is the path to the Dockerfile.
+	Dockerfile string
+	// Context is the build context directory.
+	Context string
 }
 
 // Volume represents a bind mount.

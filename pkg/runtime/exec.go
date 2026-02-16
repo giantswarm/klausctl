@@ -146,6 +146,44 @@ func (r *execRuntime) Inspect(ctx context.Context, name string) (*ContainerInfo,
 	}, nil
 }
 
+func (r *execRuntime) BuildImage(ctx context.Context, opts BuildOptions) (string, error) {
+	args := []string{"build", "-t", opts.Tag}
+
+	if opts.Dockerfile != "" {
+		args = append(args, "-f", opts.Dockerfile)
+	}
+
+	args = append(args, opts.Context)
+
+	cmd := exec.CommandContext(ctx, r.binary, args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("%s build failed: %w", r.binary, err)
+	}
+
+	return opts.Tag, nil
+}
+
+func (r *execRuntime) ImageExists(ctx context.Context, tag string) (bool, error) {
+	var stderr bytes.Buffer
+	cmd := exec.CommandContext(ctx, r.binary, "image", "inspect", tag)
+	cmd.Stdout = nil
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		errMsg := strings.ToLower(stderr.String())
+		if strings.Contains(errMsg, "no such image") ||
+			strings.Contains(errMsg, "image not known") {
+			return false, nil
+		}
+		return false, fmt.Errorf("%s image inspect failed: %w\n%s", r.binary, err, stderr.String())
+	}
+
+	return true, nil
+}
+
 func (r *execRuntime) Logs(ctx context.Context, name string, follow bool, tail int) error {
 	args := []string{"logs"}
 	if follow {
