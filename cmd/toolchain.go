@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"sort"
+	"strings"
 	"text/tabwriter"
 
 	"github.com/spf13/cobra"
@@ -16,9 +17,11 @@ import (
 	"github.com/giantswarm/klausctl/pkg/runtime"
 )
 
-// toolchainImageFilter is the reference filter for klaus toolchain images.
-// It matches images with "klaus-" in the repository name across any registry path.
-const toolchainImageFilter = "*klaus-*"
+// toolchainImageSubstring is the substring matched against repository names
+// to identify klaus toolchain images. Docker's reference filter does not
+// support wildcards across path separators, so we fetch all images and filter
+// client-side.
+const toolchainImageSubstring = "klaus-"
 
 var (
 	toolchainInitName string
@@ -87,9 +90,19 @@ func runToolchainList(cmd *cobra.Command, _ []string) error {
 
 // toolchainList lists locally cached toolchain images using the given runtime.
 func toolchainList(ctx context.Context, out io.Writer, rt runtime.Runtime) error {
-	images, err := rt.Images(ctx, toolchainImageFilter)
+	// Fetch all images and filter client-side. Docker's reference filter
+	// does not support wildcards across path separators, so server-side
+	// filtering misses registry-qualified names like gsoci.azurecr.io/giantswarm/klaus-go.
+	all, err := rt.Images(ctx, "")
 	if err != nil {
 		return fmt.Errorf("listing images: %w", err)
+	}
+
+	var images []runtime.ImageInfo
+	for _, img := range all {
+		if strings.Contains(img.Repository, toolchainImageSubstring) {
+			images = append(images, img)
+		}
 	}
 
 	if len(images) == 0 {

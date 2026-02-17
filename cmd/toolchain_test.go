@@ -227,6 +227,8 @@ func TestToolchainListWithImages(t *testing.T) {
 		images: []runtime.ImageInfo{
 			{Repository: "gsoci.azurecr.io/giantswarm/klaus-go", Tag: "1.0.0", CreatedSince: "2 hours ago"},
 			{Repository: "gsoci.azurecr.io/giantswarm/klaus-python", Tag: "2.1.0", CreatedSince: "1 day ago"},
+			{Repository: "gsoci.azurecr.io/giantswarm/klaus", Tag: "latest", CreatedSince: "3 days ago"},
+			{Repository: "docker.io/library/alpine", Tag: "3.19", CreatedSince: "4 weeks ago"},
 		},
 	}
 
@@ -245,6 +247,14 @@ func TestToolchainListWithImages(t *testing.T) {
 	}
 	if !strings.Contains(output, "2.1.0") {
 		t.Error("expected output to contain '2.1.0'")
+	}
+	// Non-toolchain images should be filtered out.
+	if strings.Contains(output, "alpine") {
+		t.Error("expected non-toolchain image 'alpine' to be filtered out")
+	}
+	// Base klaus image (no suffix after "klaus") should be filtered out.
+	if strings.Contains(output, "3 days ago") {
+		t.Error("expected base 'klaus' image to be filtered out")
 	}
 }
 
