@@ -146,6 +146,58 @@ func (r *execRuntime) Inspect(ctx context.Context, name string) (*ContainerInfo,
 	}, nil
 }
 
+func (r *execRuntime) Images(ctx context.Context, filter string) ([]ImageInfo, error) {
+	args := []string{"images"}
+	if filter != "" {
+		args = append(args, "--filter", "reference="+filter)
+	}
+	args = append(args, "--format", "{{json .}}")
+
+	var stdout, stderr bytes.Buffer
+	cmd := exec.CommandContext(ctx, r.binary, args...)
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		return nil, fmt.Errorf("%s images failed: %s\n%s", r.binary, err, stderr.String())
+	}
+
+	output := strings.TrimSpace(stdout.String())
+	if output == "" {
+		return nil, nil
+	}
+
+	var images []ImageInfo
+	for _, line := range strings.Split(output, "\n") {
+		if line == "" {
+			continue
+		}
+		var raw struct {
+			Repository   string `json:"Repository"`
+			Tag          string `json:"Tag"`
+			ID           string `json:"ID"`
+			CreatedSince string `json:"CreatedSince"`
+			Size         string `json:"Size"`
+		}
+		if err := json.Unmarshal([]byte(line), &raw); err != nil {
+			continue
+		}
+		// Skip untagged images.
+		if raw.Tag == "<none>" || raw.Repository == "<none>" {
+			continue
+		}
+		images = append(images, ImageInfo{
+			Repository: raw.Repository,
+			Tag:        raw.Tag,
+			ID:         raw.ID,
+			CreatedSince: raw.CreatedSince,
+			Size:       raw.Size,
+		})
+	}
+
+	return images, nil
+}
+
 func (r *execRuntime) Logs(ctx context.Context, name string, follow bool, tail int) error {
 	args := []string{"logs"}
 	if follow {

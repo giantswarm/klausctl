@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add `klausctl toolchain list` to list locally cached toolchain images with tabular output. ([#20](https://github.com/giantswarm/klausctl/issues/20))
+- Add `klausctl toolchain init --name <name>` to scaffold a new toolchain image repository with Dockerfiles, Makefile, CI config, and README. ([#20](https://github.com/giantswarm/klausctl/issues/20))
+- Add `Images()` method to `Runtime` interface for listing container images by reference filter. ([#20](https://github.com/giantswarm/klausctl/issues/20))
 - Integrate toolchain image into `klausctl start`: when a toolchain image (e.g., `giantswarm/klaus-go:1.0.0`) is configured via the `image` field, it is used directly for container run, tracked in instance state, and displayed in `klausctl status`. ([#19](https://github.com/giantswarm/klausctl/issues/19))
 - Implement OCI plugin pulling via ORAS for `klausctl start`. ([#5](https://github.com/giantswarm/klausctl/issues/5))
   - ORAS-based client (`pkg/oci/`) with Pull, Push, Resolve, and List operations.
