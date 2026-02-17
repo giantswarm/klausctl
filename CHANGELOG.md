@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add composite image builder for toolchains (`pkg/devenv/`): generates a Dockerfile layering Klaus agent capabilities on a language base image, computes deterministic image tags, and orchestrates builds with local cache fast-path. ([#17](https://github.com/giantswarm/klausctl/issues/17))
 - Add toolchain configuration support for specifying a base language image, prebuilt flag, and extra apt packages. ([#16](https://github.com/giantswarm/klausctl/issues/16))
 - Add `BuildImage` and `ImageExists` methods to the `Runtime` interface for composite image building. ([#18](https://github.com/giantswarm/klausctl/issues/18))
 - Implement OCI plugin pulling via ORAS for `klausctl start`. ([#5](https://github.com/giantswarm/klausctl/issues/5))
