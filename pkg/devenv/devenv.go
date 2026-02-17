@@ -9,6 +9,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -69,6 +70,9 @@ ENTRYPOINT ["klaus"]
 // binary and Claude Code CLI from the klaus image into the base image,
 // installs system dependencies and Node.js, and optionally installs
 // additional apt packages.
+//
+// The base image must be Debian/Ubuntu-based (apt-get is used for package
+// installation). Alpine or RHEL-based images are not supported.
 func GenerateDockerfile(klausImage, baseImage string, packages []string) string {
 	var buf bytes.Buffer
 	data := dockerfileData{
@@ -86,14 +90,16 @@ func GenerateDockerfile(klausImage, baseImage string, packages []string) string 
 
 // CompositeTag computes a deterministic image tag from the build inputs.
 // The tag format is "klausctl-toolchain:<content-hash>" where the hash is
-// derived from the Klaus image ref, base image ref, and sorted package list.
-// Package order does not affect the resulting tag.
+// derived from the Dockerfile template, Klaus image ref, base image ref,
+// and sorted package list. Template changes automatically invalidate cached
+// images. Package order does not affect the resulting tag.
 func CompositeTag(klausImage, baseImage string, packages []string) string {
 	sorted := make([]string, len(packages))
 	copy(sorted, packages)
 	sort.Strings(sorted)
 
 	h := sha256.New()
+	fmt.Fprintf(h, "template=%s\n", dockerfileContent)
 	fmt.Fprintf(h, "klaus=%s\n", klausImage)
 	fmt.Fprintf(h, "base=%s\n", baseImage)
 	for _, p := range sorted {
@@ -107,7 +113,7 @@ func CompositeTag(klausImage, baseImage string, packages []string) string {
 // and builds it if necessary. The Dockerfile is written to the rendered
 // directory for debugging. Docker layer caching makes subsequent builds
 // instant after the first run.
-func Build(ctx context.Context, rt runtime.Runtime, klausImage string, toolchain *config.Toolchain, renderedDir string) (string, error) {
+func Build(ctx context.Context, rt runtime.Runtime, klausImage string, toolchain *config.Toolchain, renderedDir string, out io.Writer) (string, error) {
 	dockerfile := GenerateDockerfile(klausImage, toolchain.Image, toolchain.Packages)
 
 	// Write the Dockerfile to the rendered directory for debugging.
@@ -128,6 +134,7 @@ func Build(ctx context.Context, rt runtime.Runtime, klausImage string, toolchain
 	}
 
 	// Build the composite image.
+	fmt.Fprintf(out, "Building toolchain image from %s...\n", toolchain.Image)
 	if _, err := rt.BuildImage(ctx, runtime.BuildOptions{
 		Tag:        tag,
 		Dockerfile: dfPath,

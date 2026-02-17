@@ -3,6 +3,7 @@ package devenv
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -198,7 +199,7 @@ func TestBuild(t *testing.T) {
 		rt := &mockRuntime{name: "docker", imageExists: true}
 		tc := &config.Toolchain{Image: "golang:1.25"}
 
-		tag, err := Build(context.Background(), rt, "klaus:v1", tc, dir)
+		tag, err := Build(context.Background(), rt, "klaus:v1", tc, dir, io.Discard)
 		if err != nil {
 			t.Fatalf("Build() returned error: %v", err)
 		}
@@ -224,7 +225,7 @@ func TestBuild(t *testing.T) {
 			Packages: []string{"make"},
 		}
 
-		tag, err := Build(context.Background(), rt, "klaus:v1", tc, dir)
+		tag, err := Build(context.Background(), rt, "klaus:v1", tc, dir, io.Discard)
 		if err != nil {
 			t.Fatalf("Build() returned error: %v", err)
 		}
@@ -254,13 +255,13 @@ func TestBuild(t *testing.T) {
 		tc := &config.Toolchain{Image: "golang:1.25"}
 
 		rt1 := &mockRuntime{name: "docker", imageExists: true}
-		tag1, err := Build(context.Background(), rt1, "klaus:v1", tc, dir1)
+		tag1, err := Build(context.Background(), rt1, "klaus:v1", tc, dir1, io.Discard)
 		if err != nil {
 			t.Fatalf("first Build() returned error: %v", err)
 		}
 
 		rt2 := &mockRuntime{name: "docker", imageExists: true}
-		tag2, err := Build(context.Background(), rt2, "klaus:v1", tc, dir2)
+		tag2, err := Build(context.Background(), rt2, "klaus:v1", tc, dir2, io.Discard)
 		if err != nil {
 			t.Fatalf("second Build() returned error: %v", err)
 		}
@@ -278,7 +279,7 @@ func TestBuild(t *testing.T) {
 			Packages: []string{"make", "gcc"},
 		}
 
-		_, err := Build(context.Background(), rt, "klaus:v1", tc, dir)
+		_, err := Build(context.Background(), rt, "klaus:v1", tc, dir, io.Discard)
 		if err != nil {
 			t.Fatalf("Build() returned error: %v", err)
 		}
@@ -310,7 +311,7 @@ func TestBuild(t *testing.T) {
 		}
 		tc := &config.Toolchain{Image: "golang:1.25"}
 
-		_, err := Build(context.Background(), rt, "klaus:v1", tc, dir)
+		_, err := Build(context.Background(), rt, "klaus:v1", tc, dir, io.Discard)
 		if err == nil {
 			t.Fatal("Build() should return error on build failure")
 		}
@@ -327,7 +328,7 @@ func TestBuild(t *testing.T) {
 		}
 		tc := &config.Toolchain{Image: "golang:1.25"}
 
-		_, err := Build(context.Background(), rt, "klaus:v1", tc, dir)
+		_, err := Build(context.Background(), rt, "klaus:v1", tc, dir, io.Discard)
 		if err == nil {
 			t.Fatal("Build() should return error on ImageExists failure")
 		}
