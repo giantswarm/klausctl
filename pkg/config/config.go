@@ -22,11 +22,6 @@ type Config struct {
 	// Image is the klaus container image reference.
 	Image string `yaml:"image"`
 
-	// Toolchain configures the container environment.
-	// When set, klausctl builds a composite image layering Klaus agent
-	// capabilities on top of the toolchain base image.
-	Toolchain *Toolchain `yaml:"toolchain,omitempty"`
-
 	// Workspace is the host directory to mount into the container at /workspace.
 	Workspace string `yaml:"workspace"`
 
@@ -177,22 +172,6 @@ type Hook struct {
 	Timeout int    `yaml:"timeout,omitempty" json:"timeout,omitempty"`
 }
 
-// Toolchain configures the container development environment.
-// When set, klausctl builds a composite image layering Klaus agent
-// capabilities on top of the toolchain base image.
-type Toolchain struct {
-	// Image is the base devenv image (e.g., "golang:1.25") or a pre-built
-	// composite image (when Prebuilt is true).
-	Image string `yaml:"image"`
-
-	// Prebuilt indicates the image already contains Klaus agent capabilities.
-	// When true, klausctl skips the composite build and uses the image directly.
-	Prebuilt bool `yaml:"prebuilt,omitempty"`
-
-	// Packages are additional apt packages to install in the composite image.
-	Packages []string `yaml:"packages,omitempty"`
-}
-
 // Plugin references an OCI plugin artifact.
 type Plugin struct {
 	Repository string `yaml:"repository"`
@@ -299,15 +278,6 @@ func (c *Config) Validate() error {
 
 	if c.Claude.MaxBudgetUSD < 0 {
 		return fmt.Errorf("maxBudgetUsd must be >= 0, got %f", c.Claude.MaxBudgetUSD)
-	}
-
-	if c.Toolchain != nil {
-		if c.Toolchain.Image == "" {
-			return fmt.Errorf("toolchain.image is required when toolchain is set")
-		}
-		if c.Toolchain.Prebuilt && len(c.Toolchain.Packages) > 0 {
-			return fmt.Errorf("toolchain.packages must be empty when toolchain.prebuilt is true")
-		}
 	}
 
 	for _, p := range c.Plugins {

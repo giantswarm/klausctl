@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -14,7 +13,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/giantswarm/klausctl/pkg/config"
-	"github.com/giantswarm/klausctl/pkg/devenv"
 	"github.com/giantswarm/klausctl/pkg/instance"
 	"github.com/giantswarm/klausctl/pkg/oci"
 	"github.com/giantswarm/klausctl/pkg/renderer"
@@ -98,12 +96,9 @@ func runStart(cmd *cobra.Command, _ []string) error {
 		_ = instance.Clear(paths)
 	}
 
-	// Resolve the container image to use. Toolchain images (prebuilt or
-	// composite) take precedence over the default Klaus image.
-	image, err := resolveImage(ctx, cfg, rt, paths.RenderedDir, out)
-	if err != nil {
-		return err
-	}
+	// The image to use is cfg.Image (which defaults to the standard Klaus
+	// image if not overridden by the user, e.g. with a toolchain image).
+	image := cfg.Image
 
 	// Render configuration files.
 	r := renderer.New(paths)
@@ -131,9 +126,7 @@ func runStart(cmd *cobra.Command, _ []string) error {
 	}
 
 	// Start container.
-	if cfg.Toolchain == nil || cfg.Toolchain.Prebuilt {
-		fmt.Fprintf(out, "Pulling %s...\n", image)
-	}
+	fmt.Fprintf(out, "Pulling %s...\n", image)
 	fmt.Fprintln(out, "Starting klaus container...")
 	containerID, err := rt.Run(ctx, runOpts)
 	if err != nil {
@@ -166,8 +159,7 @@ func runStart(cmd *cobra.Command, _ []string) error {
 
 // buildRunOptions constructs the container runtime options from config.
 // This mirrors the Helm deployment.yaml template, producing the same
-// env vars and volume mounts. The image parameter is the resolved image
-// from resolveImage (which may differ from cfg.Image when a toolchain is configured).
+// env vars and volume mounts.
 func buildRunOptions(cfg *config.Config, paths *config.Paths, containerName, image string) (runtime.RunOptions, error) {
 	env, err := buildEnvVars(cfg, paths)
 	if err != nil {
@@ -376,31 +368,6 @@ func buildPluginDirs(cfg *config.Config) []string {
 	dirs = append(dirs, cfg.Claude.PluginDirs...)
 	dirs = append(dirs, oci.PluginDirs(cfg.Plugins)...)
 	return dirs
-}
-
-// resolveImage determines the container image to use based on config.
-//
-// Resolution order:
-//  1. If a toolchain is configured with prebuilt=true, use the toolchain image
-//     directly (it's a CI-published image like giantswarm/klaus-go:1.0.0).
-//  2. If a toolchain is configured without prebuilt, build a composite image
-//     layering Klaus agent capabilities on the base toolchain image.
-//  3. Otherwise, use the default Klaus image from cfg.Image.
-func resolveImage(ctx context.Context, cfg *config.Config, rt runtime.Runtime, renderedDir string, out io.Writer) (string, error) {
-	if cfg.Toolchain == nil {
-		return cfg.Image, nil
-	}
-
-	if cfg.Toolchain.Prebuilt {
-		return cfg.Toolchain.Image, nil
-	}
-
-	// Build composite image layering Klaus agent on the base toolchain image.
-	tag, err := devenv.Build(ctx, rt, cfg.Image, cfg.Toolchain, renderedDir, out)
-	if err != nil {
-		return "", err
-	}
-	return tag, nil
 }
 
 func setEnvIfNotEmpty(env map[string]string, key, value string) {

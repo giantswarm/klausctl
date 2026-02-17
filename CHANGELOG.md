@@ -11,10 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Integrate toolchain image resolution into `klausctl start`: prebuilt toolchain images (e.g., `giantswarm/klaus-go:1.0.0`) are used directly, non-prebuilt toolchain configs trigger a composite image build, and the resolved image is tracked in instance state and displayed in `klausctl status`. ([#19](https://github.com/giantswarm/klausctl/issues/19))
-- Add composite image builder for toolchains (`pkg/devenv/`): generates a Dockerfile layering Klaus agent capabilities on a language base image, computes deterministic image tags, and orchestrates builds with local cache fast-path. ([#17](https://github.com/giantswarm/klausctl/issues/17))
-- Add toolchain configuration support for specifying a base language image, prebuilt flag, and extra apt packages. ([#16](https://github.com/giantswarm/klausctl/issues/16))
-- Add `BuildImage` and `ImageExists` methods to the `Runtime` interface for composite image building. ([#18](https://github.com/giantswarm/klausctl/issues/18))
+- Integrate toolchain image into `klausctl start`: when a toolchain image (e.g., `giantswarm/klaus-go:1.0.0`) is configured via the `image` field, it is used directly for container run, tracked in instance state, and displayed in `klausctl status`. ([#19](https://github.com/giantswarm/klausctl/issues/19))
 - Implement OCI plugin pulling via ORAS for `klausctl start`. ([#5](https://github.com/giantswarm/klausctl/issues/5))
   - ORAS-based client (`pkg/oci/`) with Pull, Push, Resolve, and List operations.
   - Registry auth from Docker config, Podman auth, or `KLAUSCTL_REGISTRY_AUTH` env var.
