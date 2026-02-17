@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/signal"
@@ -14,15 +15,34 @@ import (
 	"github.com/giantswarm/klausctl/pkg/runtime"
 )
 
+var statusOutput string
+
 var statusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Show instance status",
-	Long:  `Show the status of the running klaus instance.`,
-	RunE:  runStatus,
+	Long: `Show the status of the running klaus instance.
+
+Returns exit code 1 when no instance is running, making it usable in scripts:
+
+  if klausctl status >/dev/null 2>&1; then echo "running"; fi`,
+	RunE: runStatus,
 }
 
 func init() {
+	statusCmd.Flags().StringVarP(&statusOutput, "output", "o", "text", "output format: text, json")
 	rootCmd.AddCommand(statusCmd)
+}
+
+// statusInfo holds all status fields for both text and JSON rendering.
+type statusInfo struct {
+	Instance  string `json:"instance"`
+	Status    string `json:"status"`
+	Container string `json:"container"`
+	Runtime   string `json:"runtime"`
+	Image     string `json:"image"`
+	Workspace string `json:"workspace"`
+	MCP       string `json:"mcp,omitempty"`
+	Uptime    string `json:"uptime,omitempty"`
 }
 
 func runStatus(cmd *cobra.Command, _ []string) error {
@@ -38,9 +58,7 @@ func runStatus(cmd *cobra.Command, _ []string) error {
 
 	inst, err := instance.Load(paths)
 	if err != nil {
-		fmt.Fprintln(out, "No klaus instance found.")
-		fmt.Fprintln(out, "Run 'klausctl start' to start one.")
-		return nil
+		return fmt.Errorf("no klaus instance found; run 'klausctl start' to start one")
 	}
 
 	rt, err := runtime.New(inst.Runtime)
@@ -53,33 +71,60 @@ func runStatus(cmd *cobra.Command, _ []string) error {
 	// Get container status.
 	status, err := rt.Status(ctx, containerName)
 	if err != nil || status == "" {
-		fmt.Fprintf(out, "Instance:   %s\n", inst.Name)
-		fmt.Fprintf(out, "Status:     not found (stale state)\n")
-		fmt.Fprintf(out, "\nThe container no longer exists. Run 'klausctl start' to start a new one.\n")
-		return nil
+		return fmt.Errorf("instance %q has stale state (container no longer exists); run 'klausctl start' to start a new one", inst.Name)
+	}
+
+	info := statusInfo{
+		Instance:  inst.Name,
+		Status:    status,
+		Container: containerName,
+		Runtime:   inst.Runtime,
+		Image:     inst.Image,
+		Workspace: inst.Workspace,
+	}
+
+	if status == "running" {
+		info.MCP = fmt.Sprintf("http://localhost:%d", inst.Port)
+
+		// Try to get uptime from the runtime, fall back to saved state.
+		cInfo, inspectErr := rt.Inspect(ctx, containerName)
+		if inspectErr != nil {
+			fmt.Fprintf(cmd.ErrOrStderr(), "%s could not inspect container: %v\n", yellow("Warning:"), inspectErr)
+		}
+
+		switch {
+		case inspectErr == nil && !cInfo.StartedAt.IsZero():
+			info.Uptime = formatDuration(time.Since(cInfo.StartedAt))
+		case !inst.StartedAt.IsZero():
+			info.Uptime = formatDuration(time.Since(inst.StartedAt))
+		}
+	}
+
+	if statusOutput == "json" {
+		enc := json.NewEncoder(out)
+		enc.SetIndent("", "  ")
+		return enc.Encode(info)
+	}
+
+	// Text output.
+	statusColor := status
+	if status == "running" {
+		statusColor = green(status)
+	} else {
+		statusColor = yellow(status)
 	}
 
 	fmt.Fprintf(out, "Instance:   %s\n", inst.Name)
-	fmt.Fprintf(out, "Status:     %s\n", status)
+	fmt.Fprintf(out, "Status:     %s\n", statusColor)
 	fmt.Fprintf(out, "Container:  %s\n", containerName)
 	fmt.Fprintf(out, "Runtime:    %s\n", inst.Runtime)
 	fmt.Fprintf(out, "Image:      %s\n", inst.Image)
 	fmt.Fprintf(out, "Workspace:  %s\n", inst.Workspace)
 
 	if status == "running" {
-		fmt.Fprintf(out, "MCP:        http://localhost:%d\n", inst.Port)
-
-		// Try to get detailed info from the runtime.
-		info, inspectErr := rt.Inspect(ctx, containerName)
-		if inspectErr != nil {
-			fmt.Fprintf(cmd.ErrOrStderr(), "Warning: could not inspect container: %v\n", inspectErr)
-		}
-
-		switch {
-		case inspectErr == nil && !info.StartedAt.IsZero():
-			fmt.Fprintf(out, "Uptime:     %s\n", formatDuration(time.Since(info.StartedAt)))
-		case !inst.StartedAt.IsZero():
-			fmt.Fprintf(out, "Uptime:     %s\n", formatDuration(time.Since(inst.StartedAt)))
+		fmt.Fprintf(out, "MCP:        %s\n", info.MCP)
+		if info.Uptime != "" {
+			fmt.Fprintf(out, "Uptime:     %s\n", info.Uptime)
 		}
 	}
 

@@ -23,11 +23,15 @@ var configInitCmd = &cobra.Command{
 	RunE:  runConfigInit,
 }
 
+var configShowEffective bool
+
 var configShowCmd = &cobra.Command{
 	Use:   "show",
 	Short: "Show current configuration",
-	Long:  `Display the current configuration file contents.`,
-	RunE:  runConfigShow,
+	Long: `Display the current configuration file contents.
+
+Use --effective to show the resolved configuration with all defaults applied.`,
+	RunE: runConfigShow,
 }
 
 var configPathCmd = &cobra.Command{
@@ -45,6 +49,8 @@ var configValidateCmd = &cobra.Command{
 }
 
 func init() {
+	configShowCmd.Flags().BoolVar(&configShowEffective, "effective", false, "show resolved config with defaults applied")
+
 	configCmd.AddCommand(configInitCmd)
 	configCmd.AddCommand(configShowCmd)
 	configCmd.AddCommand(configPathCmd)
@@ -94,6 +100,19 @@ func runConfigShow(cmd *cobra.Command, _ []string) error {
 	path, err := resolvedConfigFile()
 	if err != nil {
 		return err
+	}
+
+	if configShowEffective {
+		cfg, err := config.Load(path)
+		if err != nil {
+			return err
+		}
+		data, err := cfg.Marshal()
+		if err != nil {
+			return fmt.Errorf("marshaling config: %w", err)
+		}
+		fmt.Fprint(cmd.OutOrStdout(), string(data))
+		return nil
 	}
 
 	data, err := os.ReadFile(path)

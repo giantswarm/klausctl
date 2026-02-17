@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -28,6 +29,7 @@ func (m *mockRuntime) Status(_ context.Context, _ string) (string, error)       
 func (m *mockRuntime) Inspect(_ context.Context, _ string) (*runtime.ContainerInfo, error) {
 	return nil, nil
 }
+func (m *mockRuntime) Pull(_ context.Context, _ string, _ io.Writer) error  { return nil }
 func (m *mockRuntime) Logs(_ context.Context, _ string, _ bool, _ int) error { return nil }
 func (m *mockRuntime) Images(_ context.Context, _ string) ([]runtime.ImageInfo, error) {
 	return m.images, m.err
@@ -40,6 +42,7 @@ func TestSubcommandsRegistered(t *testing.T) {
 		sub    string
 	}{
 		{"toolchain on root", rootCmd, "toolchain"},
+		{"completion on root", rootCmd, "completion"},
 		{"list on toolchain", toolchainCmd, "list"},
 		{"init on toolchain", toolchainCmd, "init"},
 	}
@@ -194,7 +197,7 @@ func TestPrintImageTable(t *testing.T) {
 		},
 	}
 
-	if err := printImageTable(&buf, images); err != nil {
+	if err := printImageTable(&buf, images, false); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	output := buf.String()
@@ -233,7 +236,7 @@ func TestToolchainListWithImages(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	err := toolchainList(context.Background(), &buf, rt)
+	err := toolchainList(context.Background(), &buf, rt, toolchainListOptions{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -262,7 +265,7 @@ func TestToolchainListEmpty(t *testing.T) {
 	rt := &mockRuntime{}
 
 	var buf bytes.Buffer
-	err := toolchainList(context.Background(), &buf, rt)
+	err := toolchainList(context.Background(), &buf, rt, toolchainListOptions{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -277,11 +280,73 @@ func TestToolchainListError(t *testing.T) {
 	rt := &mockRuntime{err: fmt.Errorf("connection refused")}
 
 	var buf bytes.Buffer
-	err := toolchainList(context.Background(), &buf, rt)
+	err := toolchainList(context.Background(), &buf, rt, toolchainListOptions{})
 	if err == nil {
 		t.Fatal("expected error")
 	}
 	if !strings.Contains(err.Error(), "listing images") {
 		t.Errorf("expected wrapped error, got: %v", err)
+	}
+}
+
+func TestToolchainListJSON(t *testing.T) {
+	rt := &mockRuntime{
+		images: []runtime.ImageInfo{
+			{Repository: "gsoci.azurecr.io/giantswarm/klaus-go", Tag: "1.0.0", Size: "500MB"},
+		},
+	}
+
+	var buf bytes.Buffer
+	err := toolchainList(context.Background(), &buf, rt, toolchainListOptions{output: "json"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, `"repository"`) {
+		t.Error("expected JSON output to contain 'repository' key")
+	}
+	if !strings.Contains(output, "klaus-go") {
+		t.Error("expected JSON output to contain 'klaus-go'")
+	}
+}
+
+func TestToolchainListJSONEmpty(t *testing.T) {
+	rt := &mockRuntime{}
+
+	var buf bytes.Buffer
+	err := toolchainList(context.Background(), &buf, rt, toolchainListOptions{output: "json"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := strings.TrimSpace(buf.String())
+	if output != "[]" {
+		t.Errorf("expected empty JSON array, got: %s", output)
+	}
+}
+
+func TestToolchainListWide(t *testing.T) {
+	rt := &mockRuntime{
+		images: []runtime.ImageInfo{
+			{Repository: "gsoci.azurecr.io/giantswarm/klaus-go", Tag: "1.0.0", ID: "abc123", Size: "500MB", CreatedSince: "2h ago"},
+		},
+	}
+
+	var buf bytes.Buffer
+	err := toolchainList(context.Background(), &buf, rt, toolchainListOptions{wide: true})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "ID") {
+		t.Error("expected wide output to contain ID column")
+	}
+	if !strings.Contains(output, "abc123") {
+		t.Error("expected wide output to contain image ID")
+	}
+	if !strings.Contains(output, "500MB") {
+		t.Error("expected wide output to contain image size")
 	}
 }

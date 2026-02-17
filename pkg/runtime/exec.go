@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"sort"
@@ -196,6 +197,17 @@ func (r *execRuntime) Images(ctx context.Context, filter string) ([]ImageInfo, e
 	}
 
 	return images, nil
+}
+
+func (r *execRuntime) Pull(ctx context.Context, image string, w io.Writer) error {
+	cmd := exec.CommandContext(ctx, r.binary, "pull", image)
+	cmd.Stdout = w
+	cmd.Stderr = w
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("%s pull failed: %w", r.binary, err)
+	}
+	return nil
 }
 
 func (r *execRuntime) Logs(ctx context.Context, name string, follow bool, tail int) error {

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -24,8 +25,10 @@ import (
 const toolchainImageSubstring = "klaus-"
 
 var (
-	toolchainInitName string
-	toolchainInitDir  string
+	toolchainInitName  string
+	toolchainInitDir   string
+	toolchainListOut   string
+	toolchainListWide  bool
 )
 
 var toolchainCmd = &cobra.Command{
@@ -60,6 +63,9 @@ klausctl is not involved in ongoing builds.`,
 }
 
 func init() {
+	toolchainListCmd.Flags().StringVarP(&toolchainListOut, "output", "o", "text", "output format: text, json")
+	toolchainListCmd.Flags().BoolVar(&toolchainListWide, "wide", false, "show additional columns (ID, size)")
+
 	toolchainInitCmd.Flags().StringVar(&toolchainInitName, "name", "", "toolchain name (required)")
 	toolchainInitCmd.Flags().StringVar(&toolchainInitDir, "dir", "", "output directory (default: ./klaus-<name>)")
 	_ = toolchainInitCmd.MarkFlagRequired("name")
@@ -85,11 +91,20 @@ func runToolchainList(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	return toolchainList(ctx, cmd.OutOrStdout(), rt)
+	return toolchainList(ctx, cmd.OutOrStdout(), rt, toolchainListOptions{
+		output: toolchainListOut,
+		wide:   toolchainListWide,
+	})
+}
+
+// toolchainListOptions controls output formatting for the toolchain list.
+type toolchainListOptions struct {
+	output string
+	wide   bool
 }
 
 // toolchainList lists locally cached toolchain images using the given runtime.
-func toolchainList(ctx context.Context, out io.Writer, rt runtime.Runtime) error {
+func toolchainList(ctx context.Context, out io.Writer, rt runtime.Runtime, opts toolchainListOptions) error {
 	// Fetch all images and filter client-side. Docker's reference filter
 	// does not support wildcards across path separators, so server-side
 	// filtering misses registry-qualified names like gsoci.azurecr.io/giantswarm/klaus-go.
@@ -106,19 +121,36 @@ func toolchainList(ctx context.Context, out io.Writer, rt runtime.Runtime) error
 	}
 
 	if len(images) == 0 {
+		if opts.output == "json" {
+			fmt.Fprintln(out, "[]")
+			return nil
+		}
 		fmt.Fprintln(out, "No toolchain images found locally.")
 		fmt.Fprintln(out, "Toolchain images are built and tagged by CI in the toolchain repository.")
 		return nil
 	}
 
-	return printImageTable(out, images)
+	if opts.output == "json" {
+		enc := json.NewEncoder(out)
+		enc.SetIndent("", "  ")
+		return enc.Encode(images)
+	}
+
+	return printImageTable(out, images, opts.wide)
 }
 
-func printImageTable(out io.Writer, images []runtime.ImageInfo) error {
+func printImageTable(out io.Writer, images []runtime.ImageInfo, wide bool) error {
 	w := tabwriter.NewWriter(out, 0, 0, 3, ' ', 0)
-	fmt.Fprintln(w, "IMAGE\tTAG\tCREATED")
-	for _, img := range images {
-		fmt.Fprintf(w, "%s\t%s\t%s\n", img.Repository, img.Tag, img.CreatedSince)
+	if wide {
+		fmt.Fprintln(w, "IMAGE\tTAG\tID\tCREATED\tSIZE")
+		for _, img := range images {
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", img.Repository, img.Tag, img.ID, img.CreatedSince, img.Size)
+		}
+	} else {
+		fmt.Fprintln(w, "IMAGE\tTAG\tSIZE\tCREATED")
+		for _, img := range images {
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", img.Repository, img.Tag, img.Size, img.CreatedSince)
+		}
 	}
 	return w.Flush()
 }

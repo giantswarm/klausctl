@@ -37,7 +37,9 @@ func runStop(cmd *cobra.Command, _ []string) error {
 
 	inst, err := instance.Load(paths)
 	if err != nil {
-		return err
+		// No instance state -- nothing to stop. Idempotent success.
+		fmt.Fprintln(out, "No klaus instance running.")
+		return nil
 	}
 
 	rt, err := runtime.New(inst.Runtime)
@@ -74,6 +76,6 @@ func runStop(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("clearing instance state: %w", err)
 	}
 
-	fmt.Fprintln(out, "Klaus instance stopped.")
+	fmt.Fprintln(out, green("Klaus instance stopped."))
 	return nil
 }
