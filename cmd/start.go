@@ -96,6 +96,10 @@ func runStart(cmd *cobra.Command, _ []string) error {
 		_ = instance.Clear(paths)
 	}
 
+	// The image to use is cfg.Image (which defaults to the standard Klaus
+	// image if not overridden by the user, e.g. with a toolchain image).
+	image := cfg.Image
+
 	// Render configuration files.
 	r := renderer.New(paths)
 	if err := r.Render(cfg); err != nil {
@@ -111,7 +115,7 @@ func runStart(cmd *cobra.Command, _ []string) error {
 	}
 
 	// Build container run options.
-	runOpts, err := buildRunOptions(cfg, paths, containerName)
+	runOpts, err := buildRunOptions(cfg, paths, containerName, image)
 	if err != nil {
 		return fmt.Errorf("building run options: %w", err)
 	}
@@ -122,7 +126,8 @@ func runStart(cmd *cobra.Command, _ []string) error {
 	}
 
 	// Start container.
-	fmt.Fprintf(out, "Starting klaus container from %s...\n", cfg.Image)
+	fmt.Fprintf(out, "Pulling %s...\n", image)
+	fmt.Fprintln(out, "Starting klaus container...")
 	containerID, err := rt.Run(ctx, runOpts)
 	if err != nil {
 		return fmt.Errorf("starting container: %w", err)
@@ -133,7 +138,7 @@ func runStart(cmd *cobra.Command, _ []string) error {
 		Name:        instanceName,
 		ContainerID: containerID,
 		Runtime:     rt.Name(),
-		Image:       cfg.Image,
+		Image:       image,
 		Port:        cfg.Port,
 		Workspace:   workspace,
 		StartedAt:   time.Now(),
@@ -145,7 +150,7 @@ func runStart(cmd *cobra.Command, _ []string) error {
 	fmt.Fprintln(out)
 	fmt.Fprintln(out, "Klaus instance started.")
 	fmt.Fprintf(out, "  Container:  %s\n", containerName)
-	fmt.Fprintf(out, "  Image:      %s\n", cfg.Image)
+	fmt.Fprintf(out, "  Image:      %s\n", image)
 	fmt.Fprintf(out, "  Workspace:  %s\n", inst.Workspace)
 	fmt.Fprintf(out, "  MCP:        http://localhost:%d\n", cfg.Port)
 	fmt.Fprintf(out, "\nUse 'klausctl logs' to view output, 'klausctl stop' to stop.\n")
@@ -155,7 +160,7 @@ func runStart(cmd *cobra.Command, _ []string) error {
 // buildRunOptions constructs the container runtime options from config.
 // This mirrors the Helm deployment.yaml template, producing the same
 // env vars and volume mounts.
-func buildRunOptions(cfg *config.Config, paths *config.Paths, containerName string) (runtime.RunOptions, error) {
+func buildRunOptions(cfg *config.Config, paths *config.Paths, containerName, image string) (runtime.RunOptions, error) {
 	env, err := buildEnvVars(cfg, paths)
 	if err != nil {
 		return runtime.RunOptions{}, err
@@ -165,7 +170,7 @@ func buildRunOptions(cfg *config.Config, paths *config.Paths, containerName stri
 
 	return runtime.RunOptions{
 		Name:    containerName,
-		Image:   cfg.Image,
+		Image:   image,
 		Detach:  true,
 		User:    fmt.Sprintf("%d:%d", os.Getuid(), os.Getgid()),
 		EnvVars: env,
