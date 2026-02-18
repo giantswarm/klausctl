@@ -363,10 +363,13 @@ func TestPrintRemoteArtifactsText(t *testing.T) {
 	var buf bytes.Buffer
 	entries := []remoteArtifactEntry{
 		{
-			Name: "gs-base", Repository: "example.com/plugins/gs-base", LatestTag: "v0.0.7",
-			Ref: "example.com/plugins/gs-base:v0.0.7", Digest: "sha256:abc123def456", PulledAt: time.Now().Add(-2 * time.Hour),
+			Name: "gs-base", Ref: "example.com/plugins/gs-base:v0.0.7",
+			Digest: "sha256:abc123def456", PulledAt: time.Now().Add(-2 * time.Hour),
 		},
-		{Name: "gs-sre", Repository: "example.com/plugins/gs-sre", LatestTag: "v0.0.7"},
+		{
+			Name: "gs-sre", Ref: "example.com/plugins/gs-sre:v0.0.7",
+			Digest: "sha256:def789abc012",
+		},
 	}
 
 	if err := printRemoteArtifacts(&buf, entries, "text"); err != nil {
@@ -374,7 +377,7 @@ func TestPrintRemoteArtifactsText(t *testing.T) {
 	}
 
 	output := buf.String()
-	for _, col := range []string{"NAME", "LATEST", "REF", "DIGEST", "PULLED"} {
+	for _, col := range []string{"NAME", "REF", "DIGEST", "PULLED"} {
 		if !strings.Contains(output, col) {
 			t.Errorf("expected header with %s column", col)
 		}
@@ -383,10 +386,13 @@ func TestPrintRemoteArtifactsText(t *testing.T) {
 		t.Error("expected output to contain gs-base")
 	}
 	if !strings.Contains(output, "sha256:abc123def456") {
-		t.Error("expected output to contain digest for cached artifact")
+		t.Error("expected output to contain digest")
 	}
-	if strings.Count(output, "-") < 3 {
-		t.Error("expected dashes for uncached artifact")
+	if !strings.Contains(output, "h ago") {
+		t.Error("expected pulled time for cached artifact")
+	}
+	if !strings.Contains(output, "-") {
+		t.Error("expected dash for unpulled artifact")
 	}
 }
 
@@ -394,8 +400,8 @@ func TestPrintRemoteArtifactsJSON(t *testing.T) {
 	var buf bytes.Buffer
 	entries := []remoteArtifactEntry{
 		{
-			Name: "gs-base", Repository: "example.com/plugins/gs-base", LatestTag: "v0.0.7",
-			Ref: "example.com/plugins/gs-base:v0.0.7", Digest: "sha256:abc123",
+			Name: "gs-base", Ref: "example.com/plugins/gs-base:v0.0.7",
+			Digest: "sha256:abc123",
 		},
 	}
 
@@ -410,11 +416,11 @@ func TestPrintRemoteArtifactsJSON(t *testing.T) {
 	if len(result) != 1 {
 		t.Fatalf("expected 1 entry in JSON, got %d", len(result))
 	}
-	if result[0].LatestTag != "v0.0.7" {
-		t.Errorf("latestTag = %q, want %q", result[0].LatestTag, "v0.0.7")
-	}
 	if result[0].Ref != "example.com/plugins/gs-base:v0.0.7" {
 		t.Errorf("ref = %q, want full ref", result[0].Ref)
+	}
+	if result[0].Digest != "sha256:abc123" {
+		t.Errorf("digest = %q, want %q", result[0].Digest, "sha256:abc123")
 	}
 }
 

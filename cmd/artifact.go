@@ -180,18 +180,17 @@ func pullArtifact(ctx context.Context, ref string, cacheDir string, kind oci.Art
 }
 
 // remoteArtifactEntry describes a remote OCI artifact with its latest
-// available tag and local cache detail.
+// available tag, resolved digest, and local pull timestamp.
 type remoteArtifactEntry struct {
-	Name       string    `json:"name"`
-	Repository string    `json:"repository"`
-	LatestTag  string    `json:"latestTag"`
-	Ref        string    `json:"ref"`
-	Digest     string    `json:"digest"`
-	PulledAt   time.Time `json:"pulledAt"`
+	Name      string    `json:"name"`
+	Ref       string    `json:"ref"`
+	Digest    string    `json:"digest"`
+	PulledAt  time.Time `json:"pulledAt,omitempty"`
 }
 
 // listLatestRemoteArtifacts discovers repositories from the registry,
-// resolves the latest semver tag for each, and enriches with local cache detail.
+// resolves the latest semver tag and digest for each, and checks local
+// pull status.
 func listLatestRemoteArtifacts(ctx context.Context, cacheDir, registryBase string) ([]remoteArtifactEntry, error) {
 	client := oci.NewDefaultClient()
 
@@ -218,16 +217,20 @@ func listLatestRemoteArtifacts(ctx context.Context, cacheDir, registryBase strin
 			continue
 		}
 
+		ref := repo + ":" + latest
+		digest, err := client.Resolve(ctx, ref)
+		if err != nil {
+			return nil, fmt.Errorf("resolving digest for %s: %w", ref, err)
+		}
+
 		name := oci.ShortName(repo)
 		entry := remoteArtifactEntry{
-			Name:       name,
-			Repository: repo,
-			LatestTag:  latest,
+			Name:   name,
+			Ref:    ref,
+			Digest: digest,
 		}
 
 		if cached, ok := cacheByName[name]; ok {
-			entry.Ref = cached.Ref
-			entry.Digest = cached.Digest
 			entry.PulledAt = cached.PulledAt
 		}
 
@@ -261,8 +264,7 @@ func latestSemverTag(tags []string) string {
 	return bestTag
 }
 
-// printRemoteArtifacts prints remote artifacts with latest tag and cache
-// detail in table or JSON format.
+// printRemoteArtifacts prints remote artifacts in table or JSON format.
 func printRemoteArtifacts(out io.Writer, entries []remoteArtifactEntry, outputFmt string) error {
 	if outputFmt == "json" {
 		enc := json.NewEncoder(out)
@@ -271,15 +273,13 @@ func printRemoteArtifacts(out io.Writer, entries []remoteArtifactEntry, outputFm
 	}
 
 	w := tabwriter.NewWriter(out, 0, 0, 3, ' ', 0)
-	fmt.Fprintln(w, "NAME\tLATEST\tREF\tDIGEST\tPULLED")
+	fmt.Fprintln(w, "NAME\tREF\tDIGEST\tPULLED")
 	for _, e := range entries {
-		ref, digest, pulled := "-", "-", "-"
-		if e.Ref != "" {
-			ref = e.Ref
-			digest = oci.TruncateDigest(e.Digest)
+		pulled := "-"
+		if !e.PulledAt.IsZero() {
 			pulled = formatAge(e.PulledAt)
 		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", e.Name, e.LatestTag, ref, digest, pulled)
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", e.Name, e.Ref, oci.TruncateDigest(e.Digest), pulled)
 	}
 	return w.Flush()
 }
