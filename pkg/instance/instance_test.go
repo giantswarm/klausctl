@@ -11,9 +11,13 @@ import (
 func testPaths(t *testing.T) *config.Paths {
 	t.Helper()
 	dir := t.TempDir()
+	instancesDir := filepath.Join(dir, "instances")
+	instanceDir := filepath.Join(instancesDir, "default")
 	return &config.Paths{
 		ConfigDir:    dir,
-		InstanceFile: filepath.Join(dir, "instance.json"),
+		InstancesDir: instancesDir,
+		InstanceDir:  instanceDir,
+		InstanceFile: filepath.Join(instanceDir, "instance.json"),
 	}
 }
 
@@ -126,5 +130,43 @@ func TestContainerName(t *testing.T) {
 	inst = &Instance{Name: "custom"}
 	if got := inst.ContainerName(); got != "klausctl-custom" {
 		t.Errorf("ContainerName() = %q, want %q", got, "klausctl-custom")
+	}
+}
+
+func TestLoadAll(t *testing.T) {
+	paths := testPaths(t)
+
+	first := &Instance{
+		Name:        "default",
+		ContainerID: "id-1",
+		Runtime:     "docker",
+		Image:       "image:latest",
+		Port:        8080,
+		Workspace:   "/tmp/a",
+		StartedAt:   time.Now(),
+	}
+	if err := first.Save(paths.ForInstance("default")); err != nil {
+		t.Fatalf("saving first instance: %v", err)
+	}
+
+	second := &Instance{
+		Name:        "dev",
+		ContainerID: "id-2",
+		Runtime:     "docker",
+		Image:       "image:latest",
+		Port:        8081,
+		Workspace:   "/tmp/b",
+		StartedAt:   time.Now(),
+	}
+	if err := second.Save(paths.ForInstance("dev")); err != nil {
+		t.Fatalf("saving second instance: %v", err)
+	}
+
+	instances, err := LoadAll(paths)
+	if err != nil {
+		t.Fatalf("LoadAll() returned error: %v", err)
+	}
+	if len(instances) != 2 {
+		t.Fatalf("LoadAll() returned %d instances, want 2", len(instances))
 	}
 }

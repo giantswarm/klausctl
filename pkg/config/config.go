@@ -27,6 +27,10 @@ type Config struct {
 	// Image is the klaus container image reference.
 	Image string `yaml:"image"`
 
+	// Toolchain is the configured toolchain reference used to resolve Image.
+	// This preserves the user's intent in per-instance config metadata.
+	Toolchain string `yaml:"toolchain,omitempty"`
+
 	// Workspace is the host directory to mount into the container at /workspace.
 	Workspace string `yaml:"workspace"`
 

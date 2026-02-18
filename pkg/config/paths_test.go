@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -21,8 +22,14 @@ func TestDefaultPaths(t *testing.T) {
 	if filepath.Base(paths.ConfigFile) != "config.yaml" {
 		t.Errorf("ConfigFile base = %q, want %q", filepath.Base(paths.ConfigFile), "config.yaml")
 	}
-	if filepath.Base(paths.InstanceFile) != "instance.json" {
-		t.Errorf("InstanceFile base = %q, want %q", filepath.Base(paths.InstanceFile), "instance.json")
+	if got := filepath.Base(paths.InstancesDir); got != "instances" {
+		t.Errorf("InstancesDir base = %q, want %q", got, "instances")
+	}
+	if got := filepath.Base(paths.InstanceDir); got != "default" {
+		t.Errorf("InstanceDir base = %q, want %q", got, "default")
+	}
+	if !strings.Contains(paths.InstanceFile, filepath.Join("instances", "default")) {
+		t.Errorf("InstanceFile = %q, expected scoped default path", paths.InstanceFile)
 	}
 }
 
@@ -107,5 +114,51 @@ func TestEnsureDir(t *testing.T) {
 	// Should not fail on existing directory.
 	if err := EnsureDir(dir); err != nil {
 		t.Fatalf("EnsureDir() on existing directory returned error: %v", err)
+	}
+}
+
+func TestForInstance(t *testing.T) {
+	paths, err := DefaultPaths()
+	if err != nil {
+		t.Fatalf("DefaultPaths() returned error: %v", err)
+	}
+
+	custom := paths.ForInstance("dev")
+	if got := filepath.Base(custom.InstanceDir); got != "dev" {
+		t.Fatalf("InstanceDir base = %q, want dev", got)
+	}
+	if got := filepath.Base(custom.ConfigFile); got != "config.yaml" {
+		t.Fatalf("ConfigFile base = %q, want config.yaml", got)
+	}
+	if got := filepath.Base(custom.InstanceFile); got != "instance.json" {
+		t.Fatalf("InstanceFile base = %q, want instance.json", got)
+	}
+}
+
+func TestValidateInstanceName(t *testing.T) {
+	valid := []string{"default", "dev-1", "A1", "x"}
+	for _, name := range valid {
+		if err := ValidateInstanceName(name); err != nil {
+			t.Fatalf("ValidateInstanceName(%q) returned error: %v", name, err)
+		}
+	}
+
+	invalid := []string{"", "1dev", "-dev", "dev_", strings.Repeat("a", 64), "dev-"}
+	for _, name := range invalid {
+		if err := ValidateInstanceName(name); err == nil {
+			t.Fatalf("ValidateInstanceName(%q) expected error", name)
+		}
+	}
+}
+
+func TestResolveRefs(t *testing.T) {
+	if got := ResolvePersonalityRef("sre"); got != "gsoci.azurecr.io/giantswarm/klaus-personalities/sre:latest" {
+		t.Fatalf("ResolvePersonalityRef short = %q", got)
+	}
+	if got := ResolveToolchainRef("go:v1.0.0"); got != "gsoci.azurecr.io/giantswarm/klaus-go:v1.0.0" {
+		t.Fatalf("ResolveToolchainRef short = %q", got)
+	}
+	if got := ResolvePluginRef("gs-platform"); got != "gsoci.azurecr.io/giantswarm/klaus-plugins/gs-platform:latest" {
+		t.Fatalf("ResolvePluginRef short = %q", got)
 	}
 }

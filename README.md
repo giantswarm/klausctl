@@ -20,40 +20,45 @@ klausctl is the local-mode counterpart to the Helm chart and the klaus-operator.
 klausctl config init
 
 # Edit the configuration
-$EDITOR ~/.config/klausctl/config.yaml
+$EDITOR ~/.config/klausctl/instances/default/config.yaml
 
 # Set your API key
 export ANTHROPIC_API_KEY=sk-ant-...
 
 # Start a klaus instance
-klausctl start
+klausctl start default
 
 # Check status
-klausctl status
+klausctl status default
 
 # View logs
-klausctl logs -f
+klausctl logs default -f
 
 # Stop the instance
-klausctl stop
+klausctl stop default
 ```
 
 ## Usage
 
 ```
-klausctl start                # Start a klaus instance
-klausctl start --workspace .  # Start with workspace override
-klausctl stop                 # Stop the running instance
-klausctl status               # Show instance status (running, MCP endpoint, uptime)
-klausctl logs                 # Stream container logs (-f to follow, --tail N for last N lines)
+klausctl create <name> [workspace]   # Create and start a named instance
+klausctl list                         # List known instances
+klausctl delete <name>                # Delete an instance (container + files)
+klausctl start <name>                 # Start an instance
+klausctl start <name> --workspace .   # Start with workspace override
+klausctl stop <name>                  # Stop an instance
+klausctl status <name>                # Show instance status (running, MCP endpoint, uptime)
+klausctl logs <name>                  # Stream container logs (-f to follow, --tail N for last N lines)
 klausctl config               # Manage configuration (init, show, path, validate)
 klausctl self-update           # Update klausctl to the latest release (--yes to skip prompt)
 klausctl version              # Show version information
 ```
 
+`start`, `stop`, `status`, and `logs` currently default to `default` when `<name>` is omitted. This implicit default is deprecated; use `default` explicitly to avoid future breakage.
+
 ## Configuration
 
-Config file at `~/.config/klausctl/config.yaml`:
+Config file at `~/.config/klausctl/instances/default/config.yaml`:
 
 ```yaml
 # Container runtime (auto-detected if not set)
@@ -119,7 +124,7 @@ The configuration intentionally mirrors the Helm chart values structure so that 
 ## Architecture
 
 ```
-~/.config/klausctl/config.yaml
+~/.config/klausctl/instances/default/config.yaml
          |
          v
     klausctl CLI
@@ -129,7 +134,7 @@ The configuration intentionally mirrors the Helm chart values structure so that 
          |
          +-- Config renderer (pkg/renderer/)
          |      Generate mcp-config.json, settings.json, SKILL.md files
-         |      in ~/.config/klausctl/rendered/
+         |      in ~/.config/klausctl/instances/default/rendered/
          |
          +-- Container runtime (Docker or Podman, auto-detect)
                 docker/podman run with:
@@ -138,7 +143,7 @@ The configuration intentionally mirrors the Helm chart values structure so that 
                   -e CLAUDE_ADD_DIRS=/etc/klaus/extensions
                   -e CLAUDE_PLUGIN_DIRS=/var/lib/klaus/plugins/gs-platform,...
                   -v ~/.config/klausctl/plugins/gs-platform:/var/lib/klaus/plugins/gs-platform
-                  -v ~/.config/klausctl/rendered/extensions:/etc/klaus/extensions
+                  -v ~/.config/klausctl/instances/default/rendered/extensions:/etc/klaus/extensions
                   -v ~/workspace:/workspace
                   -p 8080:8080
                   gsoci.azurecr.io/giantswarm/klaus:latest

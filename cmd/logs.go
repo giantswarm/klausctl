@@ -18,9 +18,10 @@ var (
 )
 
 var logsCmd = &cobra.Command{
-	Use:   "logs",
+	Use:   "logs [name]",
 	Short: "Stream container logs",
 	Long:  `Stream logs from the running klaus container.`,
+	Args:  cobra.MaximumNArgs(1),
 	RunE:  runLogs,
 }
 
@@ -30,7 +31,7 @@ func init() {
 	rootCmd.AddCommand(logsCmd)
 }
 
-func runLogs(_ *cobra.Command, _ []string) error {
+func runLogs(cmd *cobra.Command, args []string) error {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
@@ -38,6 +39,15 @@ func runLogs(_ *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
+	if err := config.MigrateLayout(paths); err != nil {
+		return err
+	}
+
+	instanceName, err := resolveOptionalInstanceName(args, "logs", cmd.ErrOrStderr())
+	if err != nil {
+		return err
+	}
+	paths = paths.ForInstance(instanceName)
 
 	inst, err := instance.Load(paths)
 	if err != nil {

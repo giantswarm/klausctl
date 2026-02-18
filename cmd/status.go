@@ -18,13 +18,14 @@ import (
 var statusOutput string
 
 var statusCmd = &cobra.Command{
-	Use:   "status",
+	Use:   "status [name]",
 	Short: "Show instance status",
 	Long: `Show the status of the running klaus instance.
 
 Returns exit code 1 when no instance is running, making it usable in scripts:
 
   if klausctl status >/dev/null 2>&1; then echo "running"; fi`,
+	Args: cobra.MaximumNArgs(1),
 	RunE: runStatus,
 }
 
@@ -46,7 +47,7 @@ type statusInfo struct {
 	Uptime      string `json:"uptime,omitempty"`
 }
 
-func runStatus(cmd *cobra.Command, _ []string) error {
+func runStatus(cmd *cobra.Command, args []string) error {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
@@ -56,10 +57,19 @@ func runStatus(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
+	if err := config.MigrateLayout(paths); err != nil {
+		return fmt.Errorf("migrating config layout: %w", err)
+	}
+
+	instanceName, err := resolveOptionalInstanceName(args, "status", cmd.ErrOrStderr())
+	if err != nil {
+		return err
+	}
+	paths = paths.ForInstance(instanceName)
 
 	inst, err := instance.Load(paths)
 	if err != nil {
-		return fmt.Errorf("no klaus instance found; run 'klausctl start' to start one")
+		return fmt.Errorf("no klaus instance found for %q; run 'klausctl start %s' to start one", instanceName, instanceName)
 	}
 
 	rt, err := runtime.New(inst.Runtime)
@@ -72,7 +82,7 @@ func runStatus(cmd *cobra.Command, _ []string) error {
 	// Get container status.
 	status, err := rt.Status(ctx, containerName)
 	if err != nil || status == "" {
-		return fmt.Errorf("instance %q has stale state (container no longer exists); run 'klausctl start' to start a new one", inst.Name)
+		return fmt.Errorf("instance %q has stale state (container no longer exists); run 'klausctl start %s' to start a new one", inst.Name, inst.Name)
 	}
 
 	info := statusInfo{
