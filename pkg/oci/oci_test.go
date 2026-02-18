@@ -131,32 +131,105 @@ func TestToolchainRegistryRef(t *testing.T) {
 }
 
 func TestPluginFromReference(t *testing.T) {
-	ref := PluginReference{
-		Repository: "gsoci.azurecr.io/giantswarm/klaus-plugins/gs-platform",
-		Tag:        "v1.0.0",
+	tests := []struct {
+		name       string
+		ref        PluginReference
+		wantRepo   string
+		wantTag    string
+		wantDigest string
+	}{
+		{
+			name: "tag only",
+			ref: PluginReference{
+				Repository: "gsoci.azurecr.io/giantswarm/klaus-plugins/gs-platform",
+				Tag:        "v1.0.0",
+			},
+			wantRepo: "gsoci.azurecr.io/giantswarm/klaus-plugins/gs-platform",
+			wantTag:  "v1.0.0",
+		},
+		{
+			name: "digest only",
+			ref: PluginReference{
+				Repository: "gsoci.azurecr.io/giantswarm/klaus-plugins/gs-base",
+				Digest:     "sha256:abc123",
+			},
+			wantRepo:   "gsoci.azurecr.io/giantswarm/klaus-plugins/gs-base",
+			wantDigest: "sha256:abc123",
+		},
+		{
+			name: "tag and digest",
+			ref: PluginReference{
+				Repository: "example.com/plugin",
+				Tag:        "v2.0.0",
+				Digest:     "sha256:def456",
+			},
+			wantRepo:   "example.com/plugin",
+			wantTag:    "v2.0.0",
+			wantDigest: "sha256:def456",
+		},
 	}
 
-	p := PluginFromReference(ref)
-	if p.Repository != ref.Repository {
-		t.Errorf("Repository = %q, want %q", p.Repository, ref.Repository)
-	}
-	if p.Tag != ref.Tag {
-		t.Errorf("Tag = %q, want %q", p.Tag, ref.Tag)
-	}
-	if p.Digest != "" {
-		t.Errorf("Digest = %q, want empty", p.Digest)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := PluginFromReference(tt.ref)
+			if p.Repository != tt.wantRepo {
+				t.Errorf("Repository = %q, want %q", p.Repository, tt.wantRepo)
+			}
+			if p.Tag != tt.wantTag {
+				t.Errorf("Tag = %q, want %q", p.Tag, tt.wantTag)
+			}
+			if p.Digest != tt.wantDigest {
+				t.Errorf("Digest = %q, want %q", p.Digest, tt.wantDigest)
+			}
+		})
 	}
 }
 
-func TestPluginFromReferenceWithDigest(t *testing.T) {
-	ref := PluginReference{
-		Repository: "gsoci.azurecr.io/giantswarm/klaus-plugins/gs-base",
-		Digest:     "sha256:abc123",
+func TestRepositoryFromRef(t *testing.T) {
+	tests := []struct {
+		name string
+		ref  string
+		want string
+	}{
+		{
+			name: "tag",
+			ref:  "gsoci.azurecr.io/giantswarm/klaus-personalities/sre:v1.0.0",
+			want: "gsoci.azurecr.io/giantswarm/klaus-personalities/sre",
+		},
+		{
+			name: "digest",
+			ref:  "example.com/org/image@sha256:abc123",
+			want: "example.com/org/image",
+		},
+		{
+			name: "no tag or digest",
+			ref:  "example.com/org/image",
+			want: "example.com/org/image",
+		},
+		{
+			name: "registry with port and tag",
+			ref:  "localhost:5000/foo/bar:v1",
+			want: "localhost:5000/foo/bar",
+		},
+		{
+			name: "registry with port no tag",
+			ref:  "localhost:5000/foo/bar",
+			want: "localhost:5000/foo/bar",
+		},
+		{
+			name: "registry with port and digest",
+			ref:  "localhost:5000/foo/bar@sha256:abc",
+			want: "localhost:5000/foo/bar",
+		},
 	}
 
-	p := PluginFromReference(ref)
-	if p.Digest != ref.Digest {
-		t.Errorf("Digest = %q, want %q", p.Digest, ref.Digest)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := repositoryFromRef(tt.ref)
+			if got != tt.want {
+				t.Errorf("repositoryFromRef(%q) = %q, want %q", tt.ref, got, tt.want)
+			}
+		})
 	}
 }
 

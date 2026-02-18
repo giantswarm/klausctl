@@ -176,6 +176,10 @@ func PluginFromReference(ref PluginReference) config.Plugin {
 // share the same repository, the user's version is kept. Personality-only
 // plugins are appended after user plugins.
 func MergePlugins(personalityPlugins []PluginReference, userPlugins []config.Plugin) []config.Plugin {
+	if len(personalityPlugins) == 0 {
+		return userPlugins
+	}
+
 	seen := make(map[string]bool, len(userPlugins))
 	for _, p := range userPlugins {
 		seen[p.Repository] = true

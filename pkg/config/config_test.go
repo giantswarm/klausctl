@@ -193,6 +193,35 @@ func TestValidate(t *testing.T) {
 			errMsg:  "mutually exclusive",
 		},
 		{
+			name: "personality with whitespace",
+			cfg: Config{
+				Workspace:   "/tmp",
+				Port:        8080,
+				Personality: " gsoci.azurecr.io/giantswarm/klaus-personalities/sre:v1 ",
+			},
+			wantErr: true,
+			errMsg:  "whitespace",
+		},
+		{
+			name: "personality without registry path",
+			cfg: Config{
+				Workspace:   "/tmp",
+				Port:        8080,
+				Personality: "sre:v1",
+			},
+			wantErr: true,
+			errMsg:  "does not look like a valid OCI reference",
+		},
+		{
+			name: "valid personality",
+			cfg: Config{
+				Workspace:   "/tmp",
+				Port:        8080,
+				Personality: "gsoci.azurecr.io/giantswarm/klaus-personalities/sre:v1.0.0",
+			},
+			wantErr: false,
+		},
+		{
 			name: "valid minimal config",
 			cfg: Config{
 				Workspace: "/tmp",

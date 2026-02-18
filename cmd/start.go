@@ -181,10 +181,10 @@ func runStart(cmd *cobra.Command, _ []string) error {
 	if cfg.Personality != "" {
 		fmt.Fprintf(out, "  Personality: %s\n", cfg.Personality)
 	}
-	fmt.Fprintf(out, "  Container:  %s\n", containerName)
-	fmt.Fprintf(out, "  Image:      %s\n", image)
-	fmt.Fprintf(out, "  Workspace:  %s\n", inst.Workspace)
-	fmt.Fprintf(out, "  MCP:        http://localhost:%d\n", cfg.Port)
+	fmt.Fprintf(out, "  Container:   %s\n", containerName)
+	fmt.Fprintf(out, "  Image:       %s\n", image)
+	fmt.Fprintf(out, "  Workspace:   %s\n", inst.Workspace)
+	fmt.Fprintf(out, "  MCP:         http://localhost:%d\n", cfg.Port)
 
 	// Warn about missing API key after the success context so it doesn't
 	// appear before the user knows what's happening.

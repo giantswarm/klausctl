@@ -298,6 +298,15 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("maxBudgetUsd must be >= 0, got %f", c.Claude.MaxBudgetUSD)
 	}
 
+	if c.Personality != "" {
+		if strings.TrimSpace(c.Personality) != c.Personality {
+			return fmt.Errorf("personality reference must not have leading/trailing whitespace")
+		}
+		if !strings.Contains(c.Personality, "/") {
+			return fmt.Errorf("personality %q does not look like a valid OCI reference (expected registry/path format)", c.Personality)
+		}
+	}
+
 	for _, p := range c.Plugins {
 		if p.Repository == "" {
 			return fmt.Errorf("plugin repository is required")

@@ -116,20 +116,20 @@ func runStatus(cmd *cobra.Command, _ []string) error {
 		statusColor = yellow(status)
 	}
 
-	fmt.Fprintf(out, "Instance:   %s\n", inst.Name)
-	fmt.Fprintf(out, "Status:     %s\n", statusColor)
+	fmt.Fprintf(out, "Instance:    %s\n", inst.Name)
+	fmt.Fprintf(out, "Status:      %s\n", statusColor)
 	if inst.Personality != "" {
 		fmt.Fprintf(out, "Personality: %s\n", inst.Personality)
 	}
-	fmt.Fprintf(out, "Container:  %s\n", containerName)
-	fmt.Fprintf(out, "Runtime:    %s\n", inst.Runtime)
-	fmt.Fprintf(out, "Image:      %s\n", inst.Image)
-	fmt.Fprintf(out, "Workspace:  %s\n", inst.Workspace)
+	fmt.Fprintf(out, "Container:   %s\n", containerName)
+	fmt.Fprintf(out, "Runtime:     %s\n", inst.Runtime)
+	fmt.Fprintf(out, "Image:       %s\n", inst.Image)
+	fmt.Fprintf(out, "Workspace:   %s\n", inst.Workspace)
 
 	if status == "running" {
-		fmt.Fprintf(out, "MCP:        %s\n", info.MCP)
+		fmt.Fprintf(out, "MCP:         %s\n", info.MCP)
 		if info.Uptime != "" {
-			fmt.Fprintf(out, "Uptime:     %s\n", info.Uptime)
+			fmt.Fprintf(out, "Uptime:      %s\n", info.Uptime)
 		}
 	}
 
