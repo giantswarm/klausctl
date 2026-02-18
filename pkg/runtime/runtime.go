@@ -6,6 +6,7 @@ package runtime
 import (
 	"context"
 	"fmt"
+	"io"
 	"time"
 )
 
@@ -28,6 +29,11 @@ type Runtime interface {
 	// streams continuously until interrupted. If tail > 0, only the last N
 	// lines are shown.
 	Logs(ctx context.Context, name string, follow bool, tail int) error
+	// Pull pulls a container image, streaming progress to w.
+	Pull(ctx context.Context, image string, w io.Writer) error
+	// Images lists locally cached container images matching the given reference
+	// filter pattern (e.g. "*klaus-*"). If filter is empty, all images are returned.
+	Images(ctx context.Context, filter string) ([]ImageInfo, error)
 }
 
 // RunOptions configures a container run invocation.
@@ -58,6 +64,20 @@ type Volume struct {
 	ContainerPath string
 	// ReadOnly marks the mount as read-only.
 	ReadOnly bool
+}
+
+// ImageInfo holds information about a locally cached container image.
+type ImageInfo struct {
+	// Repository is the full image repository name (e.g. "gsoci.azurecr.io/giantswarm/klaus-go").
+	Repository string `json:"repository"`
+	// Tag is the image tag (e.g. "1.0.0").
+	Tag string `json:"tag"`
+	// ID is the image ID (short hash).
+	ID string `json:"id"`
+	// CreatedSince is a human-readable relative time (e.g. "2 hours ago").
+	CreatedSince string `json:"createdSince"`
+	// Size is a human-readable image size (e.g. "500MB").
+	Size string `json:"size"`
 }
 
 // ContainerInfo holds information about a running container.

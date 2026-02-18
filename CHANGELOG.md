@@ -11,6 +11,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add `klausctl completion` command for bash, zsh, fish, and powershell shell completions.
+- Add `--output json` flag to `klausctl status` and `klausctl toolchain list` for scripting.
+- Add `--wide` flag to `klausctl toolchain list` to show image ID and size columns.
+- Add `--effective` flag to `klausctl config show` to display resolved config with defaults applied.
+- Stream Docker/Podman pull progress during `klausctl start` instead of silent waits.
+- Add color output for status indicators and warnings (respects `NO_COLOR` env var).
+- Add `klausctl toolchain list` to list locally cached toolchain images with tabular output. ([#20](https://github.com/giantswarm/klausctl/issues/20))
+- Add `klausctl toolchain init --name <name>` to scaffold a new toolchain image repository with Dockerfiles, Makefile, CI config, and README. ([#20](https://github.com/giantswarm/klausctl/issues/20))
+- Add `Images()` and `Pull()` methods to `Runtime` interface. ([#20](https://github.com/giantswarm/klausctl/issues/20))
+
+### Changed
+
+- `klausctl stop` is now idempotent -- exits 0 when no instance is running.
+- `klausctl status` returns exit code 1 when no instance is found, enabling `if klausctl status` in scripts.
+- Runtime auto-detection now prefers Docker over Podman and shows a hint about the `runtime` config key.
+- Warnings (e.g. missing `ANTHROPIC_API_KEY`) now appear after the success summary instead of before the action context.
+- `klausctl toolchain list` default table now includes SIZE column.
 - Integrate toolchain image into `klausctl start`: when a toolchain image (e.g., `giantswarm/klaus-go:1.0.0`) is configured via the `image` field, it is used directly for container run, tracked in instance state, and displayed in `klausctl status`. ([#19](https://github.com/giantswarm/klausctl/issues/19))
 - Implement OCI plugin pulling via ORAS for `klausctl start`. ([#5](https://github.com/giantswarm/klausctl/issues/5))
   - ORAS-based client (`pkg/oci/`) with Pull, Push, Resolve, and List operations.

@@ -70,7 +70,11 @@ func runStart(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(out, "Using %s runtime.\n", rt.Name())
+	if cfg.Runtime == "" {
+		fmt.Fprintf(out, "Auto-detected %s runtime (set 'runtime' in config to override).\n", bold(rt.Name()))
+	} else {
+		fmt.Fprintf(out, "Using %s runtime.\n", rt.Name())
+	}
 
 	paths, err := config.DefaultPaths()
 	if err != nil {
@@ -120,13 +124,13 @@ func runStart(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("building run options: %w", err)
 	}
 
-	// Warn if ANTHROPIC_API_KEY is not set -- the agent will likely fail without it.
-	if os.Getenv("ANTHROPIC_API_KEY") == "" {
-		fmt.Fprintln(errOut, "Warning: ANTHROPIC_API_KEY is not set; the claude agent may fail to authenticate.")
+	// Pull the image with streamed progress.
+	fmt.Fprintf(out, "Pulling %s...\n", image)
+	if err := rt.Pull(ctx, image, out); err != nil {
+		return fmt.Errorf("pulling image: %w", err)
 	}
 
 	// Start container.
-	fmt.Fprintf(out, "Pulling %s...\n", image)
 	fmt.Fprintln(out, "Starting klaus container...")
 	containerID, err := rt.Run(ctx, runOpts)
 	if err != nil {
@@ -148,11 +152,18 @@ func runStart(cmd *cobra.Command, _ []string) error {
 	}
 
 	fmt.Fprintln(out)
-	fmt.Fprintln(out, "Klaus instance started.")
+	fmt.Fprintln(out, green("Klaus instance started."))
 	fmt.Fprintf(out, "  Container:  %s\n", containerName)
 	fmt.Fprintf(out, "  Image:      %s\n", image)
 	fmt.Fprintf(out, "  Workspace:  %s\n", inst.Workspace)
 	fmt.Fprintf(out, "  MCP:        http://localhost:%d\n", cfg.Port)
+
+	// Warn about missing API key after the success context so it doesn't
+	// appear before the user knows what's happening.
+	if os.Getenv("ANTHROPIC_API_KEY") == "" {
+		fmt.Fprintf(errOut, "\n%s ANTHROPIC_API_KEY is not set; the claude agent may fail to authenticate.\n", yellow("Warning:"))
+	}
+
 	fmt.Fprintf(out, "\nUse 'klausctl logs' to view output, 'klausctl stop' to stop.\n")
 	return nil
 }

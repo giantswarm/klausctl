@@ -6,10 +6,10 @@ import (
 )
 
 // Detect returns the name of the first available container runtime.
-// It prefers podman over docker when both are available, consistent
-// with the convention that rootless podman is the safer default.
+// It prefers docker over podman when both are available, since docker
+// requires less configuration for bind mounts and UID mapping.
 func Detect() (string, error) {
-	for _, name := range []string{"podman", "docker"} {
+	for _, name := range []string{"docker", "podman"} {
 		if _, err := exec.LookPath(name); err == nil {
 			return name, nil
 		}
