@@ -44,6 +44,10 @@ func runStop(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("migrating config layout: %w", err)
 	}
 
+	if stopAll && len(args) > 0 {
+		return fmt.Errorf("--all cannot be used with an instance name")
+	}
+
 	if stopAll {
 		return stopAllInstances(ctx, out, paths)
 	}

@@ -27,7 +27,7 @@ var startCmd = &cobra.Command{
 	Long: `Start a local klaus container with the configured settings.
 
 This command:
-  1. Loads configuration from ~/.config/klausctl/config.yaml
+  1. Loads configuration from ~/.config/klausctl/instances/<name>/config.yaml
   2. Resolves personality (if configured): pulls the OCI artifact, merges
      plugins, applies image override, and prepares SOUL.md
   3. Pulls OCI plugins (personality + instance-level)
@@ -81,10 +81,7 @@ func startInstance(cmd *cobra.Command, instanceName, workspaceOverride, configPa
 		return err
 	}
 
-	// Override workspace from flag if provided.
-	if startWorkspace != "" {
-		cfg.Workspace = startWorkspace
-	}
+	applyWorkspaceOverride(cfg, workspaceOverride)
 
 	// Validate that the workspace directory exists.
 	workspace := config.ExpandPath(cfg.Workspace)
@@ -448,5 +445,11 @@ func buildPluginDirs(cfg *config.Config) []string {
 func setEnvIfNotEmpty(env map[string]string, key, value string) {
 	if value != "" {
 		env[key] = value
+	}
+}
+
+func applyWorkspaceOverride(cfg *config.Config, workspaceOverride string) {
+	if workspaceOverride != "" {
+		cfg.Workspace = workspaceOverride
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -60,23 +61,9 @@ func runDelete(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	if inst, err := instance.Load(paths); err == nil {
-		rt, err := runtime.New(inst.Runtime)
-		if err != nil {
-			return err
-		}
-		containerName := inst.ContainerName()
-		status, err := rt.Status(ctx, containerName)
-		if err == nil && status != "" {
-			if status == "running" {
-				if err := rt.Stop(ctx, containerName); err != nil {
-					return fmt.Errorf("stopping container: %w", err)
-				}
-			}
-			if err := rt.Remove(ctx, containerName); err != nil {
-				return fmt.Errorf("removing container: %w", err)
-			}
-		}
+	inst, _ := instance.Load(paths)
+	if err := cleanupInstanceContainer(ctx, name, inst); err != nil {
+		return err
 	}
 
 	if err := os.RemoveAll(paths.InstanceDir); err != nil {
@@ -97,6 +84,54 @@ func confirmDelete(cmd *cobra.Command, name string) error {
 	answer = strings.ToLower(strings.TrimSpace(answer))
 	if answer != "y" && answer != "yes" {
 		return fmt.Errorf("delete cancelled")
+	}
+	return nil
+}
+
+func cleanupInstanceContainer(ctx context.Context, instanceName string, inst *instance.Instance) error {
+	containerName := instance.ContainerName(instanceName)
+
+	runtimeCandidates := []string{}
+	if inst != nil {
+		if inst.Name != "" {
+			containerName = inst.ContainerName()
+		}
+		if inst.Runtime != "" {
+			runtimeCandidates = append(runtimeCandidates, inst.Runtime)
+		}
+	}
+	for _, rtName := range []string{"docker", "podman"} {
+		if !slices.Contains(runtimeCandidates, rtName) {
+			runtimeCandidates = append(runtimeCandidates, rtName)
+		}
+	}
+
+	for _, rtName := range runtimeCandidates {
+		rt, err := runtime.New(rtName)
+		if err != nil {
+			continue
+		}
+		if err := stopAndRemoveContainerIfExists(ctx, rt, containerName); err != nil {
+			return fmt.Errorf("cleaning container %s via %s: %w", containerName, rtName, err)
+		}
+	}
+
+	return nil
+}
+
+func stopAndRemoveContainerIfExists(ctx context.Context, rt runtime.Runtime, containerName string) error {
+	status, err := rt.Status(ctx, containerName)
+	if err != nil || status == "" {
+		return nil
+	}
+
+	if status == "running" {
+		if err := rt.Stop(ctx, containerName); err != nil {
+			return fmt.Errorf("stopping container: %w", err)
+		}
+	}
+	if err := rt.Remove(ctx, containerName); err != nil {
+		return fmt.Errorf("removing container: %w", err)
 	}
 	return nil
 }

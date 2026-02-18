@@ -20,22 +20,22 @@ klausctl is the local-mode counterpart to the Helm chart and the klaus-operator.
 klausctl config init
 
 # Edit the configuration
-$EDITOR ~/.config/klausctl/config.yaml
+$EDITOR ~/.config/klausctl/instances/default/config.yaml
 
 # Set your API key
 export ANTHROPIC_API_KEY=sk-ant-...
 
 # Start a klaus instance
-klausctl start
+klausctl start default
 
 # Check status
-klausctl status
+klausctl status default
 
 # View logs
-klausctl logs -f
+klausctl logs default -f
 
 # Stop the instance
-klausctl stop
+klausctl stop default
 ```
 
 ## Usage
@@ -58,7 +58,7 @@ klausctl version              # Show version information
 
 ## Configuration
 
-Config file at `~/.config/klausctl/config.yaml`:
+Config file at `~/.config/klausctl/instances/default/config.yaml`:
 
 ```yaml
 # Container runtime (auto-detected if not set)
@@ -124,7 +124,7 @@ The configuration intentionally mirrors the Helm chart values structure so that 
 ## Architecture
 
 ```
-~/.config/klausctl/config.yaml
+~/.config/klausctl/instances/default/config.yaml
          |
          v
     klausctl CLI
@@ -134,7 +134,7 @@ The configuration intentionally mirrors the Helm chart values structure so that 
          |
          +-- Config renderer (pkg/renderer/)
          |      Generate mcp-config.json, settings.json, SKILL.md files
-         |      in ~/.config/klausctl/rendered/
+         |      in ~/.config/klausctl/instances/default/rendered/
          |
          +-- Container runtime (Docker or Podman, auto-detect)
                 docker/podman run with:
@@ -143,7 +143,7 @@ The configuration intentionally mirrors the Helm chart values structure so that 
                   -e CLAUDE_ADD_DIRS=/etc/klaus/extensions
                   -e CLAUDE_PLUGIN_DIRS=/var/lib/klaus/plugins/gs-platform,...
                   -v ~/.config/klausctl/plugins/gs-platform:/var/lib/klaus/plugins/gs-platform
-                  -v ~/.config/klausctl/rendered/extensions:/etc/klaus/extensions
+                  -v ~/.config/klausctl/instances/default/rendered/extensions:/etc/klaus/extensions
                   -v ~/workspace:/workspace
                   -p 8080:8080
                   gsoci.azurecr.io/giantswarm/klaus:latest
