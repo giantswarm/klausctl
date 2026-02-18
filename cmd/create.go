@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -65,34 +66,36 @@ func runCreate(cmd *cobra.Command, args []string) error {
 	}
 
 	cfg, err := config.GenerateInstanceConfig(paths, config.CreateOptions{
-		Name:        instanceName,
-		Workspace:   workspace,
+		Name:      instanceName,
+		Workspace: workspace,
 		Personality: createPersonality,
-		Toolchain:   createToolchain,
-		Plugins:     createPlugins,
-		Port:        createPort,
+		Toolchain: createToolchain,
+		Plugins:   createPlugins,
+		Port:      createPort,
+		Context:   context.Background(),
+		Output:    cmd.OutOrStdout(),
+		ResolvePersonality: func(ctx context.Context, ref string, outWriter io.Writer) (*config.ResolvedPersonality, error) {
+			if err := config.EnsureDir(paths.PersonalitiesDir); err != nil {
+				return nil, fmt.Errorf("creating personalities directory: %w", err)
+			}
+			pr, err := oci.ResolvePersonality(ctx, ref, paths.PersonalitiesDir, outWriter)
+			if err != nil {
+				return nil, err
+			}
+
+			plugins := make([]config.Plugin, 0, len(pr.Spec.Plugins))
+			for _, p := range pr.Spec.Plugins {
+				plugins = append(plugins, oci.PluginFromReference(p))
+			}
+
+			return &config.ResolvedPersonality{
+				Plugins: plugins,
+				Image:   pr.Spec.Image,
+			}, nil
+		},
 	})
 	if err != nil {
 		return err
-	}
-
-	ctx := context.Background()
-	if cfg.Personality != "" {
-		if err := config.EnsureDir(paths.PersonalitiesDir); err != nil {
-			return fmt.Errorf("creating personalities directory: %w", err)
-		}
-		pr, err := oci.ResolvePersonality(ctx, cfg.Personality, paths.PersonalitiesDir, cmd.OutOrStdout())
-		if err != nil {
-			return fmt.Errorf("resolving personality: %w", err)
-		}
-		cfg.Plugins = oci.MergePlugins(pr.Spec.Plugins, cfg.Plugins)
-		if createToolchain == "" && pr.Spec.Image != "" {
-			cfg.Image = pr.Spec.Image
-		}
-	}
-
-	if createToolchain != "" {
-		cfg.Image = config.ResolveToolchainRef(createToolchain)
 	}
 
 	if err := config.EnsureDir(instancePaths.InstanceDir); err != nil {

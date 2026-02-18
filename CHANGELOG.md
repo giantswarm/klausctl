@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add named instance lifecycle commands for local multi-instance workflows. ([#29](https://github.com/giantswarm/klausctl/issues/29))
+  - `klausctl create <name> [workspace]` creates and starts a named instance.
+  - `klausctl list` lists instance metadata in table or JSON format.
+  - `klausctl delete <name>` removes an instance directory and runtime container.
 - Add personality support for `klausctl start`. When `personality` is set in config, the personality OCI artifact is pulled, its `SOUL.md` is mounted into the container at `/etc/klaus/SOUL.md`, its plugins are merged with user-configured plugins (user wins on conflict), and its toolchain image is used unless the user explicitly overrides `image`. ([#30](https://github.com/giantswarm/klausctl/issues/30))
 - Add unified `validate`, `pull`, and `list` subcommands for plugins, personalities, and toolchains. ([#31](https://github.com/giantswarm/klausctl/issues/31))
   - `klausctl plugin validate|pull|list [--remote]` -- manage OCI plugin artifacts.
@@ -22,6 +26,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Add deprecation hints for implicit `default` instance selection when `<name>` is omitted in `start`, `stop`, `status`, and `logs`; users are now guided to pass `default` explicitly.
+- Validate explicit `klausctl create --port` assignments against existing instance ports and fail on collisions.
+- Persist per-instance `toolchain` metadata in `config.yaml` alongside resolved `image`, and prefer `toolchain` for `klausctl list` output.
+- Move create-time personality plugin/image merge behavior into `GenerateInstanceConfig(...)` via a resolver callback, keeping command handlers thinner.
 - Refactor `pkg/oci/` to import shared `giantswarm/klaus-oci` library for media type constants, metadata types, OCI annotations, and the ORAS client. klausctl-specific helpers (cache paths, container mount paths) remain in `pkg/oci/`. ([#31](https://github.com/giantswarm/klausctl/issues/31))
 
 ### Fixed

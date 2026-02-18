@@ -1,8 +1,10 @@
 package config
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -17,6 +19,21 @@ type CreateOptions struct {
 	Toolchain   string
 	Plugins     []string
 	Port        int
+
+	// Context and Output are passed to ResolvePersonality when provided.
+	Context context.Context
+	Output  io.Writer
+
+	// ResolvePersonality optionally resolves and pulls a personality reference.
+	// Keeping this as a callback avoids package cycles while allowing
+	// GenerateInstanceConfig to encapsulate create-time merge behavior.
+	ResolvePersonality func(ctx context.Context, ref string, w io.Writer) (*ResolvedPersonality, error)
+}
+
+// ResolvedPersonality contains personality-derived values merged into config.
+type ResolvedPersonality struct {
+	Plugins []Plugin
+	Image   string
 }
 
 // GenerateInstanceConfig builds a per-instance configuration from create options.
@@ -37,12 +54,14 @@ func GenerateInstanceConfig(paths *Paths, opts CreateOptions) (*Config, error) {
 	cfg := DefaultConfig()
 	cfg.Workspace = workspace
 
+	toolchainExplicitlySet := opts.Toolchain != ""
 	if opts.Personality != "" {
 		cfg.Personality = ResolvePersonalityRef(opts.Personality)
 	}
 
-	if opts.Toolchain != "" {
-		cfg.Image = ResolveToolchainRef(opts.Toolchain)
+	if toolchainExplicitlySet {
+		cfg.Toolchain = ResolveToolchainRef(opts.Toolchain)
+		cfg.Image = cfg.Toolchain
 	}
 
 	for _, pluginRef := range opts.Plugins {
@@ -50,6 +69,13 @@ func GenerateInstanceConfig(paths *Paths, opts CreateOptions) (*Config, error) {
 	}
 
 	if opts.Port > 0 {
+		used, err := UsedPorts(paths)
+		if err != nil {
+			return nil, err
+		}
+		if used[opts.Port] {
+			return nil, fmt.Errorf("port %d is already used by another instance; choose a different --port or omit --port for auto-selection", opts.Port)
+		}
 		cfg.Port = opts.Port
 	} else {
 		port, err := NextAvailablePort(paths, 8080)
@@ -57,6 +83,23 @@ func GenerateInstanceConfig(paths *Paths, opts CreateOptions) (*Config, error) {
 			return nil, err
 		}
 		cfg.Port = port
+	}
+
+	if cfg.Personality != "" && opts.ResolvePersonality != nil {
+		ctx := opts.Context
+		if ctx == nil {
+			ctx = context.Background()
+		}
+
+		resolved, err := opts.ResolvePersonality(ctx, cfg.Personality, opts.Output)
+		if err != nil {
+			return nil, fmt.Errorf("resolving personality: %w", err)
+		}
+
+		cfg.Plugins = mergePlugins(resolved.Plugins, cfg.Plugins)
+		if !toolchainExplicitlySet && resolved.Image != "" {
+			cfg.Image = resolved.Image
+		}
 	}
 
 	return cfg, cfg.Validate()
@@ -134,4 +177,28 @@ func ParsePluginRef(ref string) Plugin {
 	}
 
 	return plugin
+}
+
+func mergePlugins(personalityPlugins, userPlugins []Plugin) []Plugin {
+	if len(personalityPlugins) == 0 {
+		return userPlugins
+	}
+
+	seen := make(map[string]bool, len(userPlugins))
+	for _, p := range userPlugins {
+		seen[p.Repository] = true
+	}
+
+	merged := make([]Plugin, len(userPlugins))
+	copy(merged, userPlugins)
+
+	for _, p := range personalityPlugins {
+		if seen[p.Repository] {
+			continue
+		}
+		seen[p.Repository] = true
+		merged = append(merged, p)
+	}
+
+	return merged
 }

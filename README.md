@@ -41,15 +41,20 @@ klausctl stop
 ## Usage
 
 ```
-klausctl start                # Start a klaus instance
-klausctl start --workspace .  # Start with workspace override
-klausctl stop                 # Stop the running instance
-klausctl status               # Show instance status (running, MCP endpoint, uptime)
-klausctl logs                 # Stream container logs (-f to follow, --tail N for last N lines)
+klausctl create <name> [workspace]   # Create and start a named instance
+klausctl list                         # List known instances
+klausctl delete <name>                # Delete an instance (container + files)
+klausctl start <name>                 # Start an instance
+klausctl start <name> --workspace .   # Start with workspace override
+klausctl stop <name>                  # Stop an instance
+klausctl status <name>                # Show instance status (running, MCP endpoint, uptime)
+klausctl logs <name>                  # Stream container logs (-f to follow, --tail N for last N lines)
 klausctl config               # Manage configuration (init, show, path, validate)
 klausctl self-update           # Update klausctl to the latest release (--yes to skip prompt)
 klausctl version              # Show version information
 ```
+
+`start`, `stop`, `status`, and `logs` currently default to `default` when `<name>` is omitted. This implicit default is deprecated; use `default` explicitly to avoid future breakage.
 
 ## Configuration
 

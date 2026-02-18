@@ -43,11 +43,8 @@ func init() {
 }
 
 func runStart(cmd *cobra.Command, args []string) error {
-	instanceName := "default"
-	if len(args) > 0 {
-		instanceName = args[0]
-	}
-	if err := config.ValidateInstanceName(instanceName); err != nil {
+	instanceName, err := resolveOptionalInstanceName(args, "start", cmd.ErrOrStderr())
+	if err != nil {
 		return err
 	}
 

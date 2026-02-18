@@ -121,7 +121,7 @@ func loadListEntries(paths *config.Paths) ([]listEntry, error) {
 		item := listEntry{
 			Name:        name,
 			Status:      "stopped",
-			Toolchain:   shortToolchain(cfg.Image),
+			Toolchain:   toolchainLabel(cfg),
 			Personality: shortRefName(cfg.Personality),
 			Workspace:   cfg.Workspace,
 			Port:        cfg.Port,
@@ -151,6 +151,14 @@ func loadListEntries(paths *config.Paths) ([]listEntry, error) {
 		return list[i].Name < list[j].Name
 	})
 	return list, nil
+}
+
+func toolchainLabel(cfg *config.Config) string {
+	if cfg.Toolchain != "" {
+		return shortToolchain(cfg.Toolchain)
+	}
+	// Backward compatibility for older configs that only persisted image.
+	return shortToolchain(cfg.Image)
 }
 
 func shortToolchain(image string) string {

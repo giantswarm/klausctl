@@ -1,6 +1,8 @@
 package config
 
 import (
+	"context"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -37,11 +39,88 @@ func TestGenerateInstanceConfig(t *testing.T) {
 	if cfg.Image != "gsoci.azurecr.io/giantswarm/klaus-go:latest" {
 		t.Fatalf("unexpected image: %s", cfg.Image)
 	}
+	if cfg.Toolchain != "gsoci.azurecr.io/giantswarm/klaus-go:latest" {
+		t.Fatalf("unexpected toolchain: %s", cfg.Toolchain)
+	}
 	if cfg.Port != 8080 {
 		t.Fatalf("unexpected port: %d", cfg.Port)
 	}
 	if len(cfg.Plugins) != 1 || cfg.Plugins[0].Repository != "gsoci.azurecr.io/giantswarm/klaus-plugins/gs-platform" {
 		t.Fatalf("unexpected plugins: %+v", cfg.Plugins)
+	}
+}
+
+func TestGenerateInstanceConfig_PortConflict(t *testing.T) {
+	base := t.TempDir()
+	workspace := filepath.Join(base, "workspace")
+	if err := os.MkdirAll(workspace, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	conflictInstance := filepath.Join(base, "instances", "other")
+	if err := os.MkdirAll(conflictInstance, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(conflictInstance, "config.yaml"), []byte("workspace: /tmp\nport: 9090\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	paths := &Paths{
+		ConfigDir:        base,
+		InstancesDir:     filepath.Join(base, "instances"),
+		PluginsDir:       filepath.Join(base, "plugins"),
+		PersonalitiesDir: filepath.Join(base, "personalities"),
+	}
+
+	_, err := GenerateInstanceConfig(paths, CreateOptions{
+		Name:      "dev",
+		Workspace: workspace,
+		Port:      9090,
+	})
+	if err == nil {
+		t.Fatal("expected error for conflicting explicit port")
+	}
+}
+
+func TestGenerateInstanceConfig_ResolvedPersonalityMergesPlugins(t *testing.T) {
+	base := t.TempDir()
+	workspace := filepath.Join(base, "workspace")
+	if err := os.MkdirAll(workspace, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	paths := &Paths{
+		ConfigDir:        base,
+		InstancesDir:     filepath.Join(base, "instances"),
+		PluginsDir:       filepath.Join(base, "plugins"),
+		PersonalitiesDir: filepath.Join(base, "personalities"),
+	}
+
+	cfg, err := GenerateInstanceConfig(paths, CreateOptions{
+		Name:        "dev",
+		Workspace:   workspace,
+		Personality: "sre",
+		Plugins:     []string{"custom"},
+		Context:     context.Background(),
+		ResolvePersonality: func(_ context.Context, _ string, _ io.Writer) (*ResolvedPersonality, error) {
+			return &ResolvedPersonality{
+				Image: "gsoci.azurecr.io/giantswarm/klaus-personality-image:latest",
+				Plugins: []Plugin{
+					{Repository: "gsoci.azurecr.io/giantswarm/klaus-plugins/base", Tag: "latest"},
+				},
+			}, nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("GenerateInstanceConfig() returned error: %v", err)
+	}
+
+	if cfg.Image != "gsoci.azurecr.io/giantswarm/klaus-personality-image:latest" {
+		t.Fatalf("expected personality image override, got %s", cfg.Image)
+	}
+
+	if len(cfg.Plugins) != 2 {
+		t.Fatalf("expected merged plugins, got %+v", cfg.Plugins)
 	}
 }
 

@@ -31,7 +31,7 @@ func init() {
 	rootCmd.AddCommand(logsCmd)
 }
 
-func runLogs(_ *cobra.Command, args []string) error {
+func runLogs(cmd *cobra.Command, args []string) error {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
@@ -43,11 +43,8 @@ func runLogs(_ *cobra.Command, args []string) error {
 		return err
 	}
 
-	instanceName := "default"
-	if len(args) > 0 {
-		instanceName = args[0]
-	}
-	if err := config.ValidateInstanceName(instanceName); err != nil {
+	instanceName, err := resolveOptionalInstanceName(args, "logs", cmd.ErrOrStderr())
+	if err != nil {
 		return err
 	}
 	paths = paths.ForInstance(instanceName)
