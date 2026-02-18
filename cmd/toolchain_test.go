@@ -21,15 +21,15 @@ type mockRuntime struct {
 	err    error
 }
 
-func (m *mockRuntime) Name() string                                                   { return "mock" }
-func (m *mockRuntime) Run(_ context.Context, _ runtime.RunOptions) (string, error)    { return "", nil }
-func (m *mockRuntime) Stop(_ context.Context, _ string) error                         { return nil }
-func (m *mockRuntime) Remove(_ context.Context, _ string) error                       { return nil }
-func (m *mockRuntime) Status(_ context.Context, _ string) (string, error)             { return "", nil }
+func (m *mockRuntime) Name() string                                                { return "mock" }
+func (m *mockRuntime) Run(_ context.Context, _ runtime.RunOptions) (string, error) { return "", nil }
+func (m *mockRuntime) Stop(_ context.Context, _ string) error                      { return nil }
+func (m *mockRuntime) Remove(_ context.Context, _ string) error                    { return nil }
+func (m *mockRuntime) Status(_ context.Context, _ string) (string, error)          { return "", nil }
 func (m *mockRuntime) Inspect(_ context.Context, _ string) (*runtime.ContainerInfo, error) {
 	return nil, nil
 }
-func (m *mockRuntime) Pull(_ context.Context, _ string, _ io.Writer) error  { return nil }
+func (m *mockRuntime) Pull(_ context.Context, _ string, _ io.Writer) error   { return nil }
 func (m *mockRuntime) Logs(_ context.Context, _ string, _ bool, _ int) error { return nil }
 func (m *mockRuntime) Images(_ context.Context, _ string) ([]runtime.ImageInfo, error) {
 	return m.images, m.err
@@ -186,13 +186,13 @@ func TestPrintImageTable(t *testing.T) {
 
 	images := []runtime.ImageInfo{
 		{
-			Repository: "gsoci.azurecr.io/giantswarm/klaus-go",
-			Tag:        "1.0.0",
+			Repository:   "gsoci.azurecr.io/giantswarm/klaus-go",
+			Tag:          "1.0.0",
 			CreatedSince: "2 hours ago",
 		},
 		{
-			Repository: "gsoci.azurecr.io/giantswarm/klaus-python",
-			Tag:        "1.0.0",
+			Repository:   "gsoci.azurecr.io/giantswarm/klaus-python",
+			Tag:          "1.0.0",
 			CreatedSince: "5 minutes ago",
 		},
 	}

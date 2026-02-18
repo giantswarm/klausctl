@@ -25,10 +25,10 @@ import (
 const toolchainImageSubstring = "klaus-"
 
 var (
-	toolchainInitName  string
-	toolchainInitDir   string
-	toolchainListOut   string
-	toolchainListWide  bool
+	toolchainInitName string
+	toolchainInitDir  string
+	toolchainListOut  string
+	toolchainListWide bool
 )
 
 var toolchainCmd = &cobra.Command{

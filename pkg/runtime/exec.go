@@ -188,11 +188,11 @@ func (r *execRuntime) Images(ctx context.Context, filter string) ([]ImageInfo, e
 			continue
 		}
 		images = append(images, ImageInfo{
-			Repository: raw.Repository,
-			Tag:        raw.Tag,
-			ID:         raw.ID,
+			Repository:   raw.Repository,
+			Tag:          raw.Tag,
+			ID:           raw.ID,
 			CreatedSince: raw.CreatedSince,
-			Size:       raw.Size,
+			Size:         raw.Size,
 		})
 	}
 
