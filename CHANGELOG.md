@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Fix `plugin list --remote` and `personality list --remote` failing when no local cache exists. The commands now discover repositories directly from the OCI registry catalog, allowing remote listing on a clean machine with zero local cache. ([#42](https://github.com/giantswarm/klausctl/issues/42))
+
 ### Added
 
 - Add named instance lifecycle commands for local multi-instance workflows. ([#29](https://github.com/giantswarm/klausctl/issues/29))

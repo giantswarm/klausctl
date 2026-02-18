@@ -65,7 +65,8 @@ var pluginListCmd = &cobra.Command{
 	Long: `List locally cached plugins, or query the remote registry with --remote.
 
 Without --remote, shows plugins downloaded to the local cache.
-With --remote, shows available tags for locally cached plugin repositories.`,
+With --remote, discovers available plugins directly from the OCI registry
+and lists their tags. Works on a clean machine with no local cache.`,
 	RunE: runPluginList,
 }
 
@@ -168,5 +169,5 @@ func runPluginList(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	return listOCIArtifacts(ctx, cmd.OutOrStdout(), paths.PluginsDir, pluginListOut, "plugin", "plugins", pluginListRemote)
+	return listOCIArtifacts(ctx, cmd.OutOrStdout(), paths.PluginsDir, pluginListOut, "plugin", "plugins", oci.DefaultPluginRegistry, pluginListRemote)
 }

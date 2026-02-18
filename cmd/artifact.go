@@ -81,30 +81,47 @@ func listLocalArtifacts(cacheDir string) ([]cachedArtifact, error) {
 	return artifacts, nil
 }
 
-// listRemoteTags queries the registry for available tags of locally cached
-// artifacts in the given cache directory. Each cached artifact's Ref is used
-// to derive the repository to query.
-func listRemoteTags(ctx context.Context, cacheDir string) ([]remoteTag, error) {
+// listRemoteTags queries the registry for available tags. It first collects
+// repositories from the local cache, then discovers additional repositories
+// from the registry catalog using registryBase (if non-empty). This allows
+// the command to work on a clean machine with no local cache.
+func listRemoteTags(ctx context.Context, cacheDir, registryBase string) ([]remoteTag, error) {
 	artifacts, err := listLocalArtifacts(cacheDir)
 	if err != nil {
 		return nil, err
 	}
 
-	if len(artifacts) == 0 {
+	seen := make(map[string]bool)
+	var repos []string
+	for _, a := range artifacts {
+		repo := repositoryFromRef(a.Ref)
+		if repo != "" && !seen[repo] {
+			seen[repo] = true
+			repos = append(repos, repo)
+		}
+	}
+
+	if registryBase != "" {
+		discovered, err := oci.DiscoverRepositories(ctx, registryBase, false)
+		if err != nil {
+			return nil, fmt.Errorf("discovering remote repositories: %w", err)
+		}
+		for _, repo := range discovered {
+			if !seen[repo] {
+				seen[repo] = true
+				repos = append(repos, repo)
+			}
+		}
+	}
+
+	if len(repos) == 0 {
 		return nil, nil
 	}
 
 	client := oci.NewDefaultClient()
 	var tags []remoteTag
 
-	seen := make(map[string]bool)
-	for _, a := range artifacts {
-		repo := repositoryFromRef(a.Ref)
-		if repo == "" || seen[repo] {
-			continue
-		}
-		seen[repo] = true
-
+	for _, repo := range repos {
 		repoTags, err := client.List(ctx, repo)
 		if err != nil {
 			return nil, fmt.Errorf("listing tags for %s: %w", repo, err)
@@ -161,17 +178,18 @@ func pullArtifact(ctx context.Context, ref string, cacheDir string, kind oci.Art
 
 // listOCIArtifacts implements the common list subcommand for OCI-cached artifact
 // types (plugins, personalities). It handles both local and remote listing,
-// empty-state messaging, and output formatting.
-func listOCIArtifacts(ctx context.Context, out io.Writer, cacheDir, outputFmt, typeName, typePlural string, remote bool) error {
+// empty-state messaging, and output formatting. When registryBase is non-empty
+// and remote is true, the command discovers repositories directly from the
+// registry catalog, allowing it to work without any local cache.
+func listOCIArtifacts(ctx context.Context, out io.Writer, cacheDir, outputFmt, typeName, typePlural, registryBase string, remote bool) error {
 	if remote {
-		tags, err := listRemoteTags(ctx, cacheDir)
+		tags, err := listRemoteTags(ctx, cacheDir, registryBase)
 		if err != nil {
 			return err
 		}
 		if len(tags) == 0 {
 			return printEmpty(out, outputFmt,
-				fmt.Sprintf("No locally cached %s to query remote tags for.", typePlural),
-				fmt.Sprintf("Use 'klausctl %s pull <ref>' to pull a %s first.", typeName, typeName),
+				fmt.Sprintf("No %s found in the remote registry.", typePlural),
 			)
 		}
 		return printRemoteTags(out, tags, outputFmt)

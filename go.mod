@@ -7,6 +7,7 @@ require (
 	github.com/giantswarm/klaus-oci v0.0.2
 	github.com/spf13/cobra v1.10.2
 	gopkg.in/yaml.v3 v3.0.1
+	oras.land/oras-go/v2 v2.6.0
 )
 
 require (
@@ -32,5 +33,4 @@ require (
 	golang.org/x/sync v0.14.0 // indirect
 	golang.org/x/sys v0.39.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
-	oras.land/oras-go/v2 v2.6.0 // indirect
 )

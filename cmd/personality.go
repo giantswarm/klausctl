@@ -63,7 +63,8 @@ var personalityListCmd = &cobra.Command{
 	Long: `List locally cached personalities, or query the remote registry with --remote.
 
 Without --remote, shows personalities downloaded to the local cache.
-With --remote, shows available tags for locally cached personality repositories.`,
+With --remote, discovers available personalities directly from the OCI registry
+and lists their tags. Works on a clean machine with no local cache.`,
 	RunE: runPersonalityList,
 }
 
@@ -180,5 +181,5 @@ func runPersonalityList(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	return listOCIArtifacts(ctx, cmd.OutOrStdout(), paths.PersonalitiesDir, personalityListOut, "personality", "personalities", personalityListRemote)
+	return listOCIArtifacts(ctx, cmd.OutOrStdout(), paths.PersonalitiesDir, personalityListOut, "personality", "personalities", oci.DefaultPersonalityRegistry, personalityListRemote)
 }
