@@ -19,6 +19,8 @@ type Instance struct {
 	ContainerID string `json:"containerID"`
 	// Runtime is the container runtime used ("docker" or "podman").
 	Runtime string `json:"runtime"`
+	// Personality is the OCI reference of the resolved personality (empty when none).
+	Personality string `json:"personality,omitempty"`
 	// Image is the container image reference.
 	Image string `json:"image"`
 	// Port is the host port mapped to the MCP endpoint.

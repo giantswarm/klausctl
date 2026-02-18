@@ -28,9 +28,11 @@ var startCmd = &cobra.Command{
 
 This command:
   1. Loads configuration from ~/.config/klausctl/config.yaml
-  2. Pulls OCI plugins (if configured)
-  3. Renders configuration files (skills, settings, MCP config)
-  4. Starts a container with the correct env vars, mounts, and ports`,
+  2. Resolves personality (if configured): pulls the OCI artifact, merges
+     plugins, applies image override, and prepares SOUL.md
+  3. Pulls OCI plugins (personality + instance-level)
+  4. Renders configuration files (skills, settings, MCP config)
+  5. Starts a container with the correct env vars, mounts, and ports`,
 	RunE: runStart,
 }
 
@@ -164,6 +166,7 @@ func runStart(cmd *cobra.Command, _ []string) error {
 		Name:        instanceName,
 		ContainerID: containerID,
 		Runtime:     rt.Name(),
+		Personality: cfg.Personality,
 		Image:       image,
 		Port:        cfg.Port,
 		Workspace:   workspace,
@@ -175,6 +178,9 @@ func runStart(cmd *cobra.Command, _ []string) error {
 
 	fmt.Fprintln(out)
 	fmt.Fprintln(out, green("Klaus instance started."))
+	if cfg.Personality != "" {
+		fmt.Fprintf(out, "  Personality: %s\n", cfg.Personality)
+	}
 	fmt.Fprintf(out, "  Container:  %s\n", containerName)
 	fmt.Fprintf(out, "  Image:      %s\n", image)
 	fmt.Fprintf(out, "  Workspace:  %s\n", inst.Workspace)

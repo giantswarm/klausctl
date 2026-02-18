@@ -160,7 +160,12 @@ func defaultConfigTemplate() string {
 # Container runtime (auto-detected if not set)
 # runtime: docker  # or: podman
 
-# Klaus container image
+# Personality: an OCI artifact defining the AI's identity (SOUL.md) and
+# a curated set of plugins. The personality may also specify a default image.
+# Instance-level image and plugins compose with and can override personality values.
+# personality: gsoci.azurecr.io/giantswarm/klaus-personalities/sre:v1.0.0
+
+# Klaus container image (overrides personality image if set)
 image: gsoci.azurecr.io/giantswarm/klaus:latest
 
 # Workspace directory to mount into the container
