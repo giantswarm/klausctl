@@ -22,7 +22,7 @@ import (
 var startWorkspace string
 
 var startCmd = &cobra.Command{
-	Use:   "start",
+	Use:   "start [name]",
 	Short: "Start a local klaus instance",
 	Long: `Start a local klaus container with the configured settings.
 
@@ -33,6 +33,7 @@ This command:
   3. Pulls OCI plugins (personality + instance-level)
   4. Renders configuration files (skills, settings, MCP config)
   5. Starts a container with the correct env vars, mounts, and ports`,
+	Args: cobra.MaximumNArgs(1),
 	RunE: runStart,
 }
 
@@ -41,14 +42,44 @@ func init() {
 	rootCmd.AddCommand(startCmd)
 }
 
-func runStart(cmd *cobra.Command, _ []string) error {
+func runStart(cmd *cobra.Command, args []string) error {
+	instanceName := "default"
+	if len(args) > 0 {
+		instanceName = args[0]
+	}
+	if err := config.ValidateInstanceName(instanceName); err != nil {
+		return err
+	}
+
+	configPathOverride := ""
+	if cfgFile != "" {
+		configPathOverride = cfgFile
+	}
+	return startInstance(cmd, instanceName, startWorkspace, configPathOverride)
+}
+
+func startInstance(cmd *cobra.Command, instanceName, workspaceOverride, configPathOverride string) error {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
 	out := cmd.OutOrStdout()
 	errOut := cmd.ErrOrStderr()
 
-	cfg, err := config.Load(cfgFile)
+	paths, err := config.DefaultPaths()
+	if err != nil {
+		return err
+	}
+	if err := config.MigrateLayout(paths); err != nil {
+		return fmt.Errorf("migrating config layout: %w", err)
+	}
+	paths = paths.ForInstance(instanceName)
+
+	cfgPath := paths.ConfigFile
+	if configPathOverride != "" {
+		cfgPath = configPathOverride
+	}
+
+	cfg, err := config.Load(cfgPath)
 	if err != nil {
 		return err
 	}
@@ -78,13 +109,7 @@ func runStart(cmd *cobra.Command, _ []string) error {
 		fmt.Fprintf(out, "Using %s runtime.\n", rt.Name())
 	}
 
-	paths, err := config.DefaultPaths()
-	if err != nil {
-		return err
-	}
-
 	// Derive the instance name and container name consistently.
-	const instanceName = "default"
 	containerName := instance.ContainerName(instanceName)
 
 	// Check if already running.
@@ -93,8 +118,9 @@ func runStart(cmd *cobra.Command, _ []string) error {
 		status, sErr := rt.Status(ctx, inst.ContainerName())
 		if sErr == nil && status == "running" {
 			return fmt.Errorf(
-				"instance %q is already running (container: %s, MCP: http://localhost:%d)\nUse 'klausctl stop' to stop it first",
+				"instance %q is already running (container: %s, MCP: http://localhost:%d)\nUse 'klausctl stop %s' to stop it first",
 				inst.Name, inst.ContainerName(), inst.Port,
+				inst.Name,
 			)
 		}
 		// Clean up stale container.
@@ -178,6 +204,7 @@ func runStart(cmd *cobra.Command, _ []string) error {
 
 	fmt.Fprintln(out)
 	fmt.Fprintln(out, green("Klaus instance started."))
+	fmt.Fprintf(out, "  Instance:    %s\n", inst.Name)
 	if cfg.Personality != "" {
 		fmt.Fprintf(out, "  Personality: %s\n", cfg.Personality)
 	}
@@ -192,7 +219,7 @@ func runStart(cmd *cobra.Command, _ []string) error {
 		fmt.Fprintf(errOut, "\n%s ANTHROPIC_API_KEY is not set; the claude agent may fail to authenticate.\n", yellow("Warning:"))
 	}
 
-	fmt.Fprintf(out, "\nUse 'klausctl logs' to view output, 'klausctl stop' to stop.\n")
+	fmt.Fprintf(out, "\nUse 'klausctl logs %s' to view output, 'klausctl stop %s' to stop.\n", inst.Name, inst.Name)
 	return nil
 }
 

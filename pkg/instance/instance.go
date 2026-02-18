@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/giantswarm/klausctl/pkg/config"
@@ -47,8 +48,8 @@ func (i *Instance) ContainerName() string {
 // Save writes the instance state to the instance file.
 // The caller is responsible for setting StartedAt before calling Save.
 func (i *Instance) Save(paths *config.Paths) error {
-	if err := config.EnsureDir(paths.ConfigDir); err != nil {
-		return fmt.Errorf("creating config directory: %w", err)
+	if err := config.EnsureDir(paths.InstanceDir); err != nil {
+		return fmt.Errorf("creating instance directory: %w", err)
 	}
 
 	data, err := json.MarshalIndent(i, "", "  ")
@@ -57,6 +58,45 @@ func (i *Instance) Save(paths *config.Paths) error {
 	}
 
 	return os.WriteFile(paths.InstanceFile, append(data, '\n'), 0o644)
+}
+
+// LoadAll reads instance state files from all per-instance directories.
+func LoadAll(paths *config.Paths) ([]*Instance, error) {
+	entries, err := os.ReadDir(paths.InstancesDir)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("reading instances directory: %w", err)
+	}
+
+	instances := make([]*Instance, 0, len(entries))
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+
+		instanceFile := filepath.Join(paths.InstancesDir, entry.Name(), "instance.json")
+		data, err := os.ReadFile(instanceFile)
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			return nil, fmt.Errorf("reading instance state %s: %w", entry.Name(), err)
+		}
+
+		inst := &Instance{}
+		if err := json.Unmarshal(data, inst); err != nil {
+			return nil, fmt.Errorf("parsing instance state %s: %w", entry.Name(), err)
+		}
+
+		if inst.Name == "" {
+			inst.Name = entry.Name()
+		}
+		instances = append(instances, inst)
+	}
+
+	return instances, nil
 }
 
 // Load reads the instance state from the instance file.
