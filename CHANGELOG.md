@@ -21,6 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `klausctl toolchain init --name <name>` to scaffold a new toolchain image repository with Dockerfiles, Makefile, CI config, and README. ([#20](https://github.com/giantswarm/klausctl/issues/20))
 - Add `Images()` and `Pull()` methods to `Runtime` interface. ([#20](https://github.com/giantswarm/klausctl/issues/20))
 
+### Fixed
+
+- Fix CircleCI config to use `klausctl` binary name instead of `template` from project scaffold. ([#9](https://github.com/giantswarm/klausctl/issues/9))
+
 ### Changed
 
 - `klausctl stop` is now idempotent -- exits 0 when no instance is running.
