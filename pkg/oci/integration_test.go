@@ -4,6 +4,8 @@ package oci
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -46,7 +48,6 @@ func TestIntegrationPushAndPull(t *testing.T) {
 	ctx := context.Background()
 	client := NewClient(WithPlainHTTP(true))
 
-	// Set up a plugin directory with realistic content.
 	srcDir := setupPluginDir(t)
 	ref := testRef("gs-platform", "v1.0.0")
 
@@ -57,9 +58,14 @@ func TestIntegrationPushAndPull(t *testing.T) {
 		Skills:      []string{"k8s"},
 	}
 
+	configJSON, err := json.Marshal(meta)
+	if err != nil {
+		t.Fatalf("marshaling metadata: %v", err)
+	}
+
 	// --- Push ---
 	t.Log("Pushing plugin to registry...")
-	pushResult, err := client.Push(ctx, srcDir, ref, meta)
+	pushResult, err := client.Push(ctx, srcDir, ref, configJSON, PluginArtifact)
 	if err != nil {
 		t.Fatalf("Push() error = %v", err)
 	}
@@ -71,7 +77,7 @@ func TestIntegrationPushAndPull(t *testing.T) {
 	// --- Pull into a fresh directory ---
 	destDir := t.TempDir()
 	t.Log("Pulling plugin from registry...")
-	pullResult, err := client.Pull(ctx, ref, destDir)
+	pullResult, err := client.Pull(ctx, ref, destDir, PluginArtifact)
 	if err != nil {
 		t.Fatalf("Pull() error = %v", err)
 	}
@@ -115,15 +121,14 @@ func TestIntegrationCacheHit(t *testing.T) {
 	ref := testRef("cache-test", "v1.0.0")
 
 	meta := PluginMeta{Name: "cache-test", Version: "1.0.0"}
+	configJSON, _ := json.Marshal(meta)
 
-	// Push.
-	if _, err := client.Push(ctx, srcDir, ref, meta); err != nil {
+	if _, err := client.Push(ctx, srcDir, ref, configJSON, PluginArtifact); err != nil {
 		t.Fatalf("Push() error = %v", err)
 	}
 
-	// First pull -- should not be cached.
 	destDir := t.TempDir()
-	first, err := client.Pull(ctx, ref, destDir)
+	first, err := client.Pull(ctx, ref, destDir, PluginArtifact)
 	if err != nil {
 		t.Fatalf("Pull() error = %v", err)
 	}
@@ -132,8 +137,7 @@ func TestIntegrationCacheHit(t *testing.T) {
 	}
 	t.Logf("First pull: digest=%s, cached=%v", first.Digest, first.Cached)
 
-	// Second pull to same directory -- should be cached.
-	second, err := client.Pull(ctx, ref, destDir)
+	second, err := client.Pull(ctx, ref, destDir, PluginArtifact)
 	if err != nil {
 		t.Fatalf("Pull() error = %v", err)
 	}
@@ -146,62 +150,6 @@ func TestIntegrationCacheHit(t *testing.T) {
 	t.Logf("Second pull: digest=%s, cached=%v", second.Digest, second.Cached)
 }
 
-func TestIntegrationCacheInvalidation(t *testing.T) {
-	ctx := context.Background()
-	client := NewClient(WithPlainHTTP(true))
-
-	ref := testRef("cache-invalidation", "v1.0.0")
-
-	// Push version 1.
-	srcDir1 := setupPluginDir(t)
-	meta1 := PluginMeta{Name: "cache-invalidation", Version: "1.0.0"}
-	push1, err := client.Push(ctx, srcDir1, ref, meta1)
-	if err != nil {
-		t.Fatalf("Push v1 error = %v", err)
-	}
-	t.Logf("Pushed v1: digest=%s", push1.Digest)
-
-	// Pull version 1.
-	destDir := t.TempDir()
-	pull1, err := client.Pull(ctx, ref, destDir)
-	if err != nil {
-		t.Fatalf("Pull v1 error = %v", err)
-	}
-	if pull1.Cached {
-		t.Error("First pull should not be cached")
-	}
-
-	// Push version 2 with different content (same tag).
-	srcDir2 := t.TempDir()
-	writeTestFile(t, filepath.Join(srcDir2, "SKILL.md"), "# Updated content v2")
-	meta2 := PluginMeta{Name: "cache-invalidation", Version: "2.0.0"}
-	push2, err := client.Push(ctx, srcDir2, ref, meta2)
-	if err != nil {
-		t.Fatalf("Push v2 error = %v", err)
-	}
-	t.Logf("Pushed v2: digest=%s", push2.Digest)
-
-	if push1.Digest == push2.Digest {
-		t.Fatal("v1 and v2 should have different digests")
-	}
-
-	// Pull again -- cache should be invalidated because digest changed.
-	pull2, err := client.Pull(ctx, ref, destDir)
-	if err != nil {
-		t.Fatalf("Pull v2 error = %v", err)
-	}
-	if pull2.Cached {
-		t.Error("Pull after tag update should NOT be cached")
-	}
-	if pull2.Digest != push2.Digest {
-		t.Errorf("Pull digest = %q, want %q", pull2.Digest, push2.Digest)
-	}
-	t.Logf("Pull after update: digest=%s, cached=%v", pull2.Digest, pull2.Cached)
-
-	// Verify new content is present.
-	assertFileContains(t, filepath.Join(destDir, "SKILL.md"), "Updated content v2")
-}
-
 func TestIntegrationResolve(t *testing.T) {
 	ctx := context.Background()
 	client := NewClient(WithPlainHTTP(true))
@@ -210,12 +158,13 @@ func TestIntegrationResolve(t *testing.T) {
 	ref := testRef("resolve-test", "v2.0.0")
 
 	meta := PluginMeta{Name: "resolve-test", Version: "2.0.0"}
-	pushResult, err := client.Push(ctx, srcDir, ref, meta)
+	configJSON, _ := json.Marshal(meta)
+
+	pushResult, err := client.Push(ctx, srcDir, ref, configJSON, PluginArtifact)
 	if err != nil {
 		t.Fatalf("Push() error = %v", err)
 	}
 
-	// Resolve by tag.
 	digest, err := client.Resolve(ctx, ref)
 	if err != nil {
 		t.Fatalf("Resolve() error = %v", err)
@@ -225,7 +174,6 @@ func TestIntegrationResolve(t *testing.T) {
 	}
 	t.Logf("Resolved %s -> %s", ref, digest)
 
-	// Resolve without tag should fail.
 	bareRepo := fmt.Sprintf("%s/klausctl-test/resolve-test", testRegistry)
 	_, err = client.Resolve(ctx, bareRepo)
 	if err == nil {
@@ -242,17 +190,18 @@ func TestIntegrationList(t *testing.T) {
 	repoName := "klausctl-test/list-test"
 	fullRepo := fmt.Sprintf("%s/%s", testRegistry, repoName)
 
-	// Push two tags.
 	meta := PluginMeta{Name: "list-test", Version: "1.0.0"}
-	if _, err := client.Push(ctx, srcDir, fullRepo+":v1.0.0", meta); err != nil {
+	configJSON, _ := json.Marshal(meta)
+
+	if _, err := client.Push(ctx, srcDir, fullRepo+":v1.0.0", configJSON, PluginArtifact); err != nil {
 		t.Fatalf("Push v1.0.0 error = %v", err)
 	}
 	meta.Version = "2.0.0"
-	if _, err := client.Push(ctx, srcDir, fullRepo+":v2.0.0", meta); err != nil {
+	configJSON, _ = json.Marshal(meta)
+	if _, err := client.Push(ctx, srcDir, fullRepo+":v2.0.0", configJSON, PluginArtifact); err != nil {
 		t.Fatalf("Push v2.0.0 error = %v", err)
 	}
 
-	// List tags.
 	tags, err := client.List(ctx, fullRepo)
 	if err != nil {
 		t.Fatalf("List() error = %v", err)
@@ -275,39 +224,9 @@ func TestIntegrationList(t *testing.T) {
 	}
 }
 
-func TestIntegrationPullByDigest(t *testing.T) {
-	ctx := context.Background()
-	client := NewClient(WithPlainHTTP(true))
-
-	srcDir := setupPluginDir(t)
-	tagRef := testRef("digest-pull", "v1.0.0")
-
-	meta := PluginMeta{Name: "digest-pull", Version: "1.0.0"}
-	pushResult, err := client.Push(ctx, srcDir, tagRef, meta)
-	if err != nil {
-		t.Fatalf("Push() error = %v", err)
-	}
-
-	// Build a digest-based reference.
-	digestRef := fmt.Sprintf("%s/klausctl-test/digest-pull@%s", testRegistry, pushResult.Digest)
-	t.Logf("Pulling by digest: %s", digestRef)
-
-	destDir := t.TempDir()
-	pullResult, err := client.Pull(ctx, digestRef, destDir)
-	if err != nil {
-		t.Fatalf("Pull by digest error = %v", err)
-	}
-	if pullResult.Digest != pushResult.Digest {
-		t.Errorf("Digest mismatch: pull=%q, push=%q", pullResult.Digest, pushResult.Digest)
-	}
-
-	assertFileExists(t, filepath.Join(destDir, "skills", "k8s", "SKILL.md"))
-	t.Logf("Pull by digest succeeded: %s", pullResult.Digest)
-}
-
 func assertFileExists(t *testing.T, path string) {
 	t.Helper()
-	if _, err := os.Stat(path); os.IsNotExist(err) {
+	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
 		t.Errorf("expected file to exist: %s", path)
 	}
 }

@@ -95,43 +95,63 @@ func TestBuildRef(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := buildRef(tt.plugin)
+			got := BuildRef(tt.plugin)
 			if got != tt.want {
-				t.Errorf("buildRef() = %q, want %q", got, tt.want)
+				t.Errorf("BuildRef() = %q, want %q", got, tt.want)
 			}
 		})
 	}
 }
 
-func TestTruncateDigest(t *testing.T) {
+func TestToolchainRegistryRef(t *testing.T) {
 	tests := []struct {
-		input string
-		want  string
+		name string
+		want string
 	}{
 		{
-			input: "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
-			want:  "sha256:abcdef123456",
+			name: "go",
+			want: "gsoci.azurecr.io/giantswarm/klaus-go",
 		},
 		{
-			input: "sha256:short",
-			want:  "sha256:short",
-		},
-		{
-			input: "noprefix",
-			want:  "noprefix",
-		},
-		{
-			input: "",
-			want:  "",
+			name: "python",
+			want: "gsoci.azurecr.io/giantswarm/klaus-python",
 		},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.input, func(t *testing.T) {
-			got := truncateDigest(tt.input)
+		t.Run(tt.name, func(t *testing.T) {
+			got := ToolchainRegistryRef(tt.name)
 			if got != tt.want {
-				t.Errorf("truncateDigest(%q) = %q, want %q", tt.input, got, tt.want)
+				t.Errorf("ToolchainRegistryRef(%q) = %q, want %q", tt.name, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestNewDefaultClient(t *testing.T) {
+	client := NewDefaultClient()
+	if client == nil {
+		t.Fatal("NewDefaultClient() returned nil")
+	}
+}
+
+func TestNewDefaultClientWithOpts(t *testing.T) {
+	client := NewDefaultClient(WithPlainHTTP(true))
+	if client == nil {
+		t.Fatal("NewDefaultClient(WithPlainHTTP(true)) returned nil")
+	}
+}
+
+func TestRegistryAuthEnvVar(t *testing.T) {
+	if RegistryAuthEnvVar != "KLAUSCTL_REGISTRY_AUTH" {
+		t.Errorf("RegistryAuthEnvVar = %q, want %q", RegistryAuthEnvVar, "KLAUSCTL_REGISTRY_AUTH")
+	}
+}
+
+func TestToolchainRegistryRefFullPath(t *testing.T) {
+	full := "gsoci.azurecr.io/giantswarm/klaus-go"
+	got := ToolchainRegistryRef(full)
+	if got != full {
+		t.Errorf("ToolchainRegistryRef(%q) = %q, want %q (should return as-is)", full, got, full)
 	}
 }

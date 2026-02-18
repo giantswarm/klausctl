@@ -3,14 +3,14 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/spf13/cobra"
 
 	"github.com/giantswarm/klausctl/pkg/runtime"
 )
@@ -36,40 +36,21 @@ func (m *mockRuntime) Images(_ context.Context, _ string) ([]runtime.ImageInfo, 
 }
 
 func TestSubcommandsRegistered(t *testing.T) {
-	tests := []struct {
-		name   string
-		parent *cobra.Command
-		sub    string
-	}{
-		{"toolchain on root", rootCmd, "toolchain"},
-		{"completion on root", rootCmd, "completion"},
-		{"list on toolchain", toolchainCmd, "list"},
-		{"init on toolchain", toolchainCmd, "init"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			for _, cmd := range tt.parent.Commands() {
-				if cmd.Name() == tt.sub {
-					return
-				}
-			}
-			t.Errorf("expected %q subcommand to be registered", tt.sub)
-		})
-	}
+	assertCommandOnRoot(t, "toolchain")
+	assertCommandOnRoot(t, "completion")
+	assertSubcommandsRegistered(t, toolchainCmd, []string{"list", "init", "validate", "pull"})
 }
 
 func TestToolchainInitNameFlagRequired(t *testing.T) {
-	f := toolchainInitCmd.Flags().Lookup("name")
-	if f == nil {
-		t.Fatal("expected --name flag to be registered")
-	}
+	assertFlagRegistered(t, toolchainInitCmd, "name")
 }
 
 func TestToolchainInitDirFlag(t *testing.T) {
-	f := toolchainInitCmd.Flags().Lookup("dir")
-	if f == nil {
-		t.Fatal("expected --dir flag to be registered")
-	}
+	assertFlagRegistered(t, toolchainInitCmd, "dir")
+}
+
+func TestToolchainListRemoteFlag(t *testing.T) {
+	assertFlagRegistered(t, toolchainListCmd, "remote")
 }
 
 func TestScaffoldFiles(t *testing.T) {
@@ -132,7 +113,6 @@ func TestRunToolchainInit(t *testing.T) {
 	dir := t.TempDir()
 	outDir := filepath.Join(dir, "klaus-test-toolchain")
 
-	// Set the flag values for the test.
 	toolchainInitName = "test-toolchain"
 	toolchainInitDir = outDir
 
@@ -144,13 +124,11 @@ func TestRunToolchainInit(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// Verify output mentions the created directory.
 	output := buf.String()
 	if !strings.Contains(output, "Created") {
 		t.Error("expected output to contain 'Created'")
 	}
 
-	// Verify all scaffold files were created.
 	expectedFiles := []string{
 		"Dockerfile",
 		"Dockerfile.debian",
@@ -160,7 +138,7 @@ func TestRunToolchainInit(t *testing.T) {
 	}
 	for _, name := range expectedFiles {
 		path := filepath.Join(outDir, name)
-		if _, err := os.Stat(path); os.IsNotExist(err) {
+		if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
 			t.Errorf("expected file %q to be created", name)
 		}
 	}
@@ -202,7 +180,6 @@ func TestPrintImageTable(t *testing.T) {
 	}
 	output := buf.String()
 
-	// Verify header.
 	if !strings.Contains(output, "IMAGE") {
 		t.Error("expected table header to contain IMAGE")
 	}
@@ -213,7 +190,6 @@ func TestPrintImageTable(t *testing.T) {
 		t.Error("expected table header to contain CREATED")
 	}
 
-	// Verify rows.
 	if !strings.Contains(output, "klaus-go") {
 		t.Error("expected output to contain 'klaus-go'")
 	}
@@ -251,11 +227,9 @@ func TestToolchainListWithImages(t *testing.T) {
 	if !strings.Contains(output, "2.1.0") {
 		t.Error("expected output to contain '2.1.0'")
 	}
-	// Non-toolchain images should be filtered out.
 	if strings.Contains(output, "alpine") {
 		t.Error("expected non-toolchain image 'alpine' to be filtered out")
 	}
-	// Base klaus image (no suffix after "klaus") should be filtered out.
 	if strings.Contains(output, "3 days ago") {
 		t.Error("expected base 'klaus' image to be filtered out")
 	}
@@ -349,4 +323,82 @@ func TestToolchainListWide(t *testing.T) {
 	if !strings.Contains(output, "500MB") {
 		t.Error("expected wide output to contain image size")
 	}
+}
+
+func TestValidateToolchainDirValid(t *testing.T) {
+	dir := t.TempDir()
+
+	if err := os.WriteFile(filepath.Join(dir, "Dockerfile"), []byte("FROM alpine"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	err := validateToolchainDir(dir, io.Discard, "text")
+	if err != nil {
+		t.Errorf("validateToolchainDir() error = %v", err)
+	}
+}
+
+func TestValidateToolchainDirMissingDockerfile(t *testing.T) {
+	dir := t.TempDir()
+
+	err := validateToolchainDir(dir, io.Discard, "text")
+	if err == nil {
+		t.Fatal("expected error for missing Dockerfile")
+	}
+	if !strings.Contains(err.Error(), "Dockerfile not found") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestValidateToolchainDirNotExist(t *testing.T) {
+	testValidateDirNotExist(t, validateToolchainDir)
+}
+
+func TestValidateToolchainDirNotADirectory(t *testing.T) {
+	testValidateDirNotADirectory(t, validateToolchainDir)
+}
+
+func TestValidateToolchainDirTextOutput(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "Dockerfile"), []byte("FROM alpine"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var buf bytes.Buffer
+	if err := validateToolchainDir(dir, &buf, "text"); err != nil {
+		t.Fatalf("validateToolchainDir() error = %v", err)
+	}
+
+	if !strings.Contains(buf.String(), "Valid toolchain directory") {
+		t.Error("expected text output to contain 'Valid toolchain directory'")
+	}
+}
+
+func TestValidateToolchainDirJSONOutput(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "Dockerfile"), []byte("FROM alpine"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var buf bytes.Buffer
+	if err := validateToolchainDir(dir, &buf, "json"); err != nil {
+		t.Fatalf("validateToolchainDir() error = %v", err)
+	}
+
+	var result toolchainValidation
+	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
+		t.Fatalf("JSON parse error: %v", err)
+	}
+	if !result.Valid {
+		t.Error("expected valid=true")
+	}
+	if result.Directory != dir {
+		t.Errorf("directory = %q, want %q", result.Directory, dir)
+	}
+}
+
+func TestToolchainFlagsRegistered(t *testing.T) {
+	assertFlagRegistered(t, toolchainValidateCmd, "output")
+	assertFlagRegistered(t, toolchainPullCmd, "output")
+	assertFlagRegistered(t, toolchainListCmd, "output")
 }
