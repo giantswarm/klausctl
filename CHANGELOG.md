@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add GitHub Actions CI workflow with build, test, golangci-lint, govulncheck, and GoReleaser config validation on PRs. ([#9](https://github.com/giantswarm/klausctl/issues/9))
+- Add `golangci-lint` configuration (`.golangci.yml`). ([#9](https://github.com/giantswarm/klausctl/issues/9))
 - Add `klausctl completion` command for bash, zsh, fish, and powershell shell completions.
 - Add `--output json` flag to `klausctl status` and `klausctl toolchain list` for scripting.
 - Add `--wide` flag to `klausctl toolchain list` to show image ID and size columns.
@@ -20,6 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `klausctl toolchain list` to list locally cached toolchain images with tabular output. ([#20](https://github.com/giantswarm/klausctl/issues/20))
 - Add `klausctl toolchain init --name <name>` to scaffold a new toolchain image repository with Dockerfiles, Makefile, CI config, and README. ([#20](https://github.com/giantswarm/klausctl/issues/20))
 - Add `Images()` and `Pull()` methods to `Runtime` interface. ([#20](https://github.com/giantswarm/klausctl/issues/20))
+
+### Removed
+
+- Remove obsolete CircleCI configuration (`.circleci/config.yml`) in favor of GitHub Actions. ([#9](https://github.com/giantswarm/klausctl/issues/9))
 
 ### Changed
 
