@@ -50,9 +50,11 @@ var personalityPullCmd = &cobra.Command{
 	Short: "Pull a personality from the OCI registry",
 	Long: `Pull a personality OCI artifact from the registry to the local cache.
 
-The reference must include a tag or digest:
+Accepts a short name, short name with tag, or full OCI reference:
 
-  klausctl personality pull gsoci.azurecr.io/giantswarm/klaus-personalities/sre:v1.0.0`,
+  klausctl personality pull sre              (resolves latest version)
+  klausctl personality pull sre:v0.0.7       (specific version)
+  klausctl personality pull gsoci.azurecr.io/giantswarm/klaus-personalities/sre:v0.0.7`,
 	Args: cobra.ExactArgs(1),
 	RunE: runPersonalityPull,
 }
@@ -166,7 +168,12 @@ func runPersonalityPull(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("creating personalities directory: %w", err)
 	}
 
-	return pullArtifact(ctx, args[0], paths.PersonalitiesDir, oci.PersonalityArtifact, cmd.OutOrStdout(), personalityPullOut)
+	ref, err := resolveArtifactRef(ctx, args[0], oci.DefaultPersonalityRegistry)
+	if err != nil {
+		return err
+	}
+
+	return pullArtifact(ctx, ref, paths.PersonalitiesDir, oci.PersonalityArtifact, cmd.OutOrStdout(), personalityPullOut)
 }
 
 func runPersonalityList(cmd *cobra.Command, _ []string) error {

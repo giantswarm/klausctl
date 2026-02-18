@@ -52,9 +52,11 @@ var pluginPullCmd = &cobra.Command{
 	Short: "Pull a plugin from the OCI registry",
 	Long: `Pull a plugin OCI artifact from the registry to the local cache.
 
-The reference must include a tag or digest:
+Accepts a short name, short name with tag, or full OCI reference:
 
-  klausctl plugin pull gsoci.azurecr.io/giantswarm/klaus-plugins/gs-base:v0.6.0`,
+  klausctl plugin pull gs-base              (resolves latest version)
+  klausctl plugin pull gs-base:v0.0.7       (specific version)
+  klausctl plugin pull gsoci.azurecr.io/giantswarm/klaus-plugins/gs-base:v0.0.7`,
 	Args: cobra.ExactArgs(1),
 	RunE: runPluginPull,
 }
@@ -154,7 +156,12 @@ func runPluginPull(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("creating plugins directory: %w", err)
 	}
 
-	return pullArtifact(ctx, args[0], paths.PluginsDir, oci.PluginArtifact, cmd.OutOrStdout(), pluginPullOut)
+	ref, err := resolveArtifactRef(ctx, args[0], oci.DefaultPluginRegistry)
+	if err != nil {
+		return err
+	}
+
+	return pullArtifact(ctx, ref, paths.PluginsDir, oci.PluginArtifact, cmd.OutOrStdout(), pluginPullOut)
 }
 
 func runPluginList(cmd *cobra.Command, _ []string) error {

@@ -180,16 +180,18 @@ func pullArtifact(ctx context.Context, ref string, cacheDir string, kind oci.Art
 }
 
 // remoteArtifactEntry describes a remote OCI artifact with its latest
-// available tag and whether that tag is already cached locally.
+// available tag and local cache detail.
 type remoteArtifactEntry struct {
-	Name       string `json:"name"`
-	Repository string `json:"repository"`
-	LatestTag  string `json:"latestTag"`
-	Cached     bool   `json:"cached"`
+	Name       string    `json:"name"`
+	Repository string    `json:"repository"`
+	LatestTag  string    `json:"latestTag"`
+	Ref        string    `json:"ref"`
+	Digest     string    `json:"digest"`
+	PulledAt   time.Time `json:"pulledAt"`
 }
 
 // listLatestRemoteArtifacts discovers repositories from the registry,
-// resolves the latest semver tag for each, and checks local cache status.
+// resolves the latest semver tag for each, and enriches with local cache detail.
 func listLatestRemoteArtifacts(ctx context.Context, cacheDir, registryBase string) ([]remoteArtifactEntry, error) {
 	client := oci.NewDefaultClient()
 
@@ -199,9 +201,9 @@ func listLatestRemoteArtifacts(ctx context.Context, cacheDir, registryBase strin
 	}
 
 	localArtifacts, _ := listLocalArtifacts(cacheDir)
-	cachedRefs := make(map[string]bool, len(localArtifacts))
+	cacheByName := make(map[string]cachedArtifact, len(localArtifacts))
 	for _, a := range localArtifacts {
-		cachedRefs[a.Ref] = true
+		cacheByName[a.Name] = a
 	}
 
 	var entries []remoteArtifactEntry
@@ -216,13 +218,20 @@ func listLatestRemoteArtifacts(ctx context.Context, cacheDir, registryBase strin
 			continue
 		}
 
-		ref := repo + ":" + latest
-		entries = append(entries, remoteArtifactEntry{
-			Name:       oci.ShortName(repo),
+		name := oci.ShortName(repo)
+		entry := remoteArtifactEntry{
+			Name:       name,
 			Repository: repo,
 			LatestTag:  latest,
-			Cached:     cachedRefs[ref],
-		})
+		}
+
+		if cached, ok := cacheByName[name]; ok {
+			entry.Ref = cached.Ref
+			entry.Digest = cached.Digest
+			entry.PulledAt = cached.PulledAt
+		}
+
+		entries = append(entries, entry)
 	}
 
 	sort.Slice(entries, func(i, j int) bool {
@@ -253,7 +262,7 @@ func latestSemverTag(tags []string) string {
 }
 
 // printRemoteArtifacts prints remote artifacts with latest tag and cache
-// status in table or JSON format.
+// detail in table or JSON format.
 func printRemoteArtifacts(out io.Writer, entries []remoteArtifactEntry, outputFmt string) error {
 	if outputFmt == "json" {
 		enc := json.NewEncoder(out)
@@ -262,13 +271,15 @@ func printRemoteArtifacts(out io.Writer, entries []remoteArtifactEntry, outputFm
 	}
 
 	w := tabwriter.NewWriter(out, 0, 0, 3, ' ', 0)
-	fmt.Fprintln(w, "NAME\tLATEST\tCACHED")
+	fmt.Fprintln(w, "NAME\tLATEST\tREF\tDIGEST\tPULLED")
 	for _, e := range entries {
-		cached := ""
-		if e.Cached {
-			cached = "yes"
+		ref, digest, pulled := "-", "-", "-"
+		if e.Ref != "" {
+			ref = e.Ref
+			digest = oci.TruncateDigest(e.Digest)
+			pulled = formatAge(e.PulledAt)
 		}
-		fmt.Fprintf(w, "%s\t%s\t%s\n", e.Name, e.LatestTag, cached)
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", e.Name, e.LatestTag, ref, digest, pulled)
 	}
 	return w.Flush()
 }
@@ -352,6 +363,46 @@ func printRemoteTags(out io.Writer, tags []remoteTag, outputFmt string) error {
 		fmt.Fprintf(w, "%s\t%s\n", t.Repository, t.Tag)
 	}
 	return w.Flush()
+}
+
+// resolveArtifactRef resolves a short artifact name to a full OCI reference.
+// Short names like "gs-ae" or "gs-ae:v0.0.7" are expanded using the
+// registryBase (e.g., "gsoci.azurecr.io/giantswarm/klaus-plugins").
+// If no tag is specified, the latest semver tag is resolved from the registry.
+// Full OCI references (containing "/") are returned as-is.
+func resolveArtifactRef(ctx context.Context, ref, registryBase string) (string, error) {
+	if strings.Contains(ref, "/") {
+		return ref, nil
+	}
+
+	name, tag := splitNameTag(ref)
+	fullRepo := registryBase + "/" + name
+
+	if tag != "" {
+		return fullRepo + ":" + tag, nil
+	}
+
+	client := oci.NewDefaultClient()
+	tags, err := client.List(ctx, fullRepo)
+	if err != nil {
+		return "", fmt.Errorf("listing tags for %s: %w", fullRepo, err)
+	}
+
+	latest := latestSemverTag(tags)
+	if latest == "" {
+		return "", fmt.Errorf("no semver tags found for %s", fullRepo)
+	}
+
+	return fullRepo + ":" + latest, nil
+}
+
+// splitNameTag splits "name:tag" into name and tag. If no colon is present,
+// tag is empty.
+func splitNameTag(ref string) (name, tag string) {
+	if idx := strings.LastIndex(ref, ":"); idx >= 0 {
+		return ref[:idx], ref[idx+1:]
+	}
+	return ref, ""
 }
 
 // repositoryFromRef extracts the repository part from an OCI reference,

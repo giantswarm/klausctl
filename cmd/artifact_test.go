@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -361,8 +362,11 @@ func TestLatestSemverTag(t *testing.T) {
 func TestPrintRemoteArtifactsText(t *testing.T) {
 	var buf bytes.Buffer
 	entries := []remoteArtifactEntry{
-		{Name: "gs-base", Repository: "example.com/plugins/gs-base", LatestTag: "v0.0.7", Cached: true},
-		{Name: "gs-sre", Repository: "example.com/plugins/gs-sre", LatestTag: "v0.0.7", Cached: false},
+		{
+			Name: "gs-base", Repository: "example.com/plugins/gs-base", LatestTag: "v0.0.7",
+			Ref: "example.com/plugins/gs-base:v0.0.7", Digest: "sha256:abc123def456", PulledAt: time.Now().Add(-2 * time.Hour),
+		},
+		{Name: "gs-sre", Repository: "example.com/plugins/gs-sre", LatestTag: "v0.0.7"},
 	}
 
 	if err := printRemoteArtifacts(&buf, entries, "text"); err != nil {
@@ -370,27 +374,29 @@ func TestPrintRemoteArtifactsText(t *testing.T) {
 	}
 
 	output := buf.String()
-	if !strings.Contains(output, "NAME") {
-		t.Error("expected header with NAME column")
-	}
-	if !strings.Contains(output, "LATEST") {
-		t.Error("expected header with LATEST column")
-	}
-	if !strings.Contains(output, "CACHED") {
-		t.Error("expected header with CACHED column")
+	for _, col := range []string{"NAME", "LATEST", "REF", "DIGEST", "PULLED"} {
+		if !strings.Contains(output, col) {
+			t.Errorf("expected header with %s column", col)
+		}
 	}
 	if !strings.Contains(output, "gs-base") {
 		t.Error("expected output to contain gs-base")
 	}
-	if !strings.Contains(output, "yes") {
-		t.Error("expected output to contain 'yes' for cached artifact")
+	if !strings.Contains(output, "sha256:abc123def456") {
+		t.Error("expected output to contain digest for cached artifact")
+	}
+	if strings.Count(output, "-") < 3 {
+		t.Error("expected dashes for uncached artifact")
 	}
 }
 
 func TestPrintRemoteArtifactsJSON(t *testing.T) {
 	var buf bytes.Buffer
 	entries := []remoteArtifactEntry{
-		{Name: "gs-base", Repository: "example.com/plugins/gs-base", LatestTag: "v0.0.7", Cached: true},
+		{
+			Name: "gs-base", Repository: "example.com/plugins/gs-base", LatestTag: "v0.0.7",
+			Ref: "example.com/plugins/gs-base:v0.0.7", Digest: "sha256:abc123",
+		},
 	}
 
 	if err := printRemoteArtifacts(&buf, entries, "json"); err != nil {
@@ -404,11 +410,58 @@ func TestPrintRemoteArtifactsJSON(t *testing.T) {
 	if len(result) != 1 {
 		t.Fatalf("expected 1 entry in JSON, got %d", len(result))
 	}
-	if !result[0].Cached {
-		t.Error("expected cached=true")
-	}
 	if result[0].LatestTag != "v0.0.7" {
 		t.Errorf("latestTag = %q, want %q", result[0].LatestTag, "v0.0.7")
+	}
+	if result[0].Ref != "example.com/plugins/gs-base:v0.0.7" {
+		t.Errorf("ref = %q, want full ref", result[0].Ref)
+	}
+}
+
+func TestSplitNameTag(t *testing.T) {
+	tests := []struct {
+		ref      string
+		wantName string
+		wantTag  string
+	}{
+		{"gs-ae", "gs-ae", ""},
+		{"gs-ae:v0.0.7", "gs-ae", "v0.0.7"},
+		{"my-plugin:latest", "my-plugin", "latest"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.ref, func(t *testing.T) {
+			name, tag := splitNameTag(tt.ref)
+			if name != tt.wantName {
+				t.Errorf("name = %q, want %q", name, tt.wantName)
+			}
+			if tag != tt.wantTag {
+				t.Errorf("tag = %q, want %q", tag, tt.wantTag)
+			}
+		})
+	}
+}
+
+func TestResolveArtifactRefFullRef(t *testing.T) {
+	ctx := context.Background()
+	ref, err := resolveArtifactRef(ctx, "gsoci.azurecr.io/giantswarm/klaus-plugins/gs-base:v0.0.7", "gsoci.azurecr.io/giantswarm/klaus-plugins")
+	if err != nil {
+		t.Fatalf("resolveArtifactRef() error = %v", err)
+	}
+	if ref != "gsoci.azurecr.io/giantswarm/klaus-plugins/gs-base:v0.0.7" {
+		t.Errorf("ref = %q, want full ref unchanged", ref)
+	}
+}
+
+func TestResolveArtifactRefShortWithTag(t *testing.T) {
+	ctx := context.Background()
+	ref, err := resolveArtifactRef(ctx, "gs-base:v0.0.7", "gsoci.azurecr.io/giantswarm/klaus-plugins")
+	if err != nil {
+		t.Fatalf("resolveArtifactRef() error = %v", err)
+	}
+	want := "gsoci.azurecr.io/giantswarm/klaus-plugins/gs-base:v0.0.7"
+	if ref != want {
+		t.Errorf("ref = %q, want %q", ref, want)
 	}
 }
 
