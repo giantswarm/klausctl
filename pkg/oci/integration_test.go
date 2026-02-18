@@ -5,6 +5,7 @@ package oci
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -225,7 +226,7 @@ func TestIntegrationList(t *testing.T) {
 
 func assertFileExists(t *testing.T, path string) {
 	t.Helper()
-	if _, err := os.Stat(path); os.IsNotExist(err) {
+	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
 		t.Errorf("expected file to exist: %s", path)
 	}
 }

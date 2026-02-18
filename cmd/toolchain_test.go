@@ -4,14 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/spf13/cobra"
 
 	"github.com/giantswarm/klausctl/pkg/runtime"
 )
@@ -37,51 +36,21 @@ func (m *mockRuntime) Images(_ context.Context, _ string) ([]runtime.ImageInfo, 
 }
 
 func TestSubcommandsRegistered(t *testing.T) {
-	tests := []struct {
-		name   string
-		parent *cobra.Command
-		sub    string
-	}{
-		{"toolchain on root", rootCmd, "toolchain"},
-		{"completion on root", rootCmd, "completion"},
-		{"plugin on root", rootCmd, "plugin"},
-		{"personality on root", rootCmd, "personality"},
-		{"list on toolchain", toolchainCmd, "list"},
-		{"init on toolchain", toolchainCmd, "init"},
-		{"validate on toolchain", toolchainCmd, "validate"},
-		{"pull on toolchain", toolchainCmd, "pull"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			for _, cmd := range tt.parent.Commands() {
-				if cmd.Name() == tt.sub {
-					return
-				}
-			}
-			t.Errorf("expected %q subcommand to be registered", tt.sub)
-		})
-	}
+	assertCommandOnRoot(t, "toolchain")
+	assertCommandOnRoot(t, "completion")
+	assertSubcommandsRegistered(t, toolchainCmd, []string{"list", "init", "validate", "pull"})
 }
 
 func TestToolchainInitNameFlagRequired(t *testing.T) {
-	f := toolchainInitCmd.Flags().Lookup("name")
-	if f == nil {
-		t.Fatal("expected --name flag to be registered")
-	}
+	assertFlagRegistered(t, toolchainInitCmd, "name")
 }
 
 func TestToolchainInitDirFlag(t *testing.T) {
-	f := toolchainInitCmd.Flags().Lookup("dir")
-	if f == nil {
-		t.Fatal("expected --dir flag to be registered")
-	}
+	assertFlagRegistered(t, toolchainInitCmd, "dir")
 }
 
 func TestToolchainListRemoteFlag(t *testing.T) {
-	f := toolchainListCmd.Flags().Lookup("remote")
-	if f == nil {
-		t.Fatal("expected --remote flag to be registered")
-	}
+	assertFlagRegistered(t, toolchainListCmd, "remote")
 }
 
 func TestScaffoldFiles(t *testing.T) {
@@ -169,7 +138,7 @@ func TestRunToolchainInit(t *testing.T) {
 	}
 	for _, name := range expectedFiles {
 		path := filepath.Join(outDir, name)
-		if _, err := os.Stat(path); os.IsNotExist(err) {
+		if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
 			t.Errorf("expected file %q to be created", name)
 		}
 	}
@@ -382,13 +351,11 @@ func TestValidateToolchainDirMissingDockerfile(t *testing.T) {
 }
 
 func TestValidateToolchainDirNotExist(t *testing.T) {
-	err := validateToolchainDir("/nonexistent/path", io.Discard, "text")
-	if err == nil {
-		t.Fatal("expected error for nonexistent directory")
-	}
-	if !strings.Contains(err.Error(), "does not exist") {
-		t.Errorf("unexpected error: %v", err)
-	}
+	testValidateDirNotExist(t, validateToolchainDir)
+}
+
+func TestValidateToolchainDirNotADirectory(t *testing.T) {
+	testValidateDirNotADirectory(t, validateToolchainDir)
 }
 
 func TestValidateToolchainDirTextOutput(t *testing.T) {
@@ -431,10 +398,7 @@ func TestValidateToolchainDirJSONOutput(t *testing.T) {
 }
 
 func TestToolchainFlagsRegistered(t *testing.T) {
-	if f := toolchainValidateCmd.Flags().Lookup("output"); f == nil {
-		t.Error("expected --output flag on validate")
-	}
-	if f := toolchainPullCmd.Flags().Lookup("output"); f == nil {
-		t.Error("expected --output flag on pull")
-	}
+	assertFlagRegistered(t, toolchainValidateCmd, "output")
+	assertFlagRegistered(t, toolchainPullCmd, "output")
+	assertFlagRegistered(t, toolchainListCmd, "output")
 }

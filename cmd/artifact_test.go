@@ -14,6 +14,21 @@ import (
 	"github.com/giantswarm/klausctl/pkg/oci"
 )
 
+func TestValidateOutputFormat(t *testing.T) {
+	if err := validateOutputFormat("text"); err != nil {
+		t.Errorf("expected text to be valid, got: %v", err)
+	}
+	if err := validateOutputFormat("json"); err != nil {
+		t.Errorf("expected json to be valid, got: %v", err)
+	}
+	if err := validateOutputFormat("yaml"); err == nil {
+		t.Error("expected yaml to be rejected")
+	}
+	if err := validateOutputFormat(""); err == nil {
+		t.Error("expected empty string to be rejected")
+	}
+}
+
 func TestListLocalArtifacts(t *testing.T) {
 	dir := t.TempDir()
 
@@ -150,16 +165,32 @@ func TestPrintLocalArtifactsJSON(t *testing.T) {
 	}
 }
 
-func TestPrintLocalArtifactsJSONEmpty(t *testing.T) {
+func TestPrintEmptyJSON(t *testing.T) {
 	var buf bytes.Buffer
 
-	if err := printLocalArtifacts(&buf, nil, "json"); err != nil {
-		t.Fatalf("printLocalArtifacts() error = %v", err)
+	if err := printEmpty(&buf, "json", "hint line 1", "hint line 2"); err != nil {
+		t.Fatalf("printEmpty() error = %v", err)
 	}
 
 	output := strings.TrimSpace(buf.String())
 	if output != "[]" {
 		t.Errorf("expected empty JSON array, got: %s", output)
+	}
+}
+
+func TestPrintEmptyText(t *testing.T) {
+	var buf bytes.Buffer
+
+	if err := printEmpty(&buf, "text", "No items found.", "Try pulling first."); err != nil {
+		t.Fatalf("printEmpty() error = %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "No items found.") {
+		t.Error("expected hint line 1")
+	}
+	if !strings.Contains(output, "Try pulling first.") {
+		t.Error("expected hint line 2")
 	}
 }
 
@@ -254,6 +285,18 @@ func TestRepositoryFromRef(t *testing.T) {
 		{
 			ref:  "example.com/repo",
 			want: "example.com/repo",
+		},
+		{
+			ref:  "localhost:5000/repo",
+			want: "localhost:5000/repo",
+		},
+		{
+			ref:  "localhost:5000/repo:v1.0.0",
+			want: "localhost:5000/repo",
+		},
+		{
+			ref:  "localhost:5000/org/repo@sha256:abc123",
+			want: "localhost:5000/org/repo",
 		},
 	}
 

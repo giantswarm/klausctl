@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -88,6 +89,9 @@ func init() {
 }
 
 func runPersonalityValidate(cmd *cobra.Command, args []string) error {
+	if err := validateOutputFormat(personalityValidateOut); err != nil {
+		return err
+	}
 	return validatePersonalityDir(args[0], cmd.OutOrStdout(), personalityValidateOut)
 }
 
@@ -95,7 +99,7 @@ func runPersonalityValidate(cmd *cobra.Command, args []string) error {
 func validatePersonalityDir(dir string, out io.Writer, outputFmt string) error {
 	info, err := os.Stat(dir)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("directory does not exist: %s", dir)
 		}
 		return fmt.Errorf("checking directory: %w", err)
@@ -107,7 +111,7 @@ func validatePersonalityDir(dir string, out io.Writer, outputFmt string) error {
 	specPath := filepath.Join(dir, "personality.yaml")
 	data, err := os.ReadFile(specPath)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("personality.yaml not found in %s", dir)
 		}
 		return fmt.Errorf("reading personality.yaml: %w", err)
@@ -144,6 +148,10 @@ func validatePersonalityDir(dir string, out io.Writer, outputFmt string) error {
 }
 
 func runPersonalityPull(cmd *cobra.Command, args []string) error {
+	if err := validateOutputFormat(personalityPullOut); err != nil {
+		return err
+	}
+
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
@@ -160,43 +168,17 @@ func runPersonalityPull(cmd *cobra.Command, args []string) error {
 }
 
 func runPersonalityList(cmd *cobra.Command, _ []string) error {
+	if err := validateOutputFormat(personalityListOut); err != nil {
+		return err
+	}
+
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
-
-	out := cmd.OutOrStdout()
 
 	paths, err := config.DefaultPaths()
 	if err != nil {
 		return err
 	}
 
-	if personalityListRemote {
-		tags, err := listRemoteTags(ctx, paths.PersonalitiesDir)
-		if err != nil {
-			return err
-		}
-		if len(tags) == 0 {
-			if personalityListOut != "json" {
-				fmt.Fprintln(out, "No locally cached personalities to query remote tags for.")
-				fmt.Fprintln(out, "Use 'klausctl personality pull <ref>' to pull a personality first.")
-			} else {
-				fmt.Fprintln(out, "[]")
-			}
-			return nil
-		}
-		return printRemoteTags(out, tags, personalityListOut)
-	}
-
-	artifacts, err := listLocalArtifacts(paths.PersonalitiesDir)
-	if err != nil {
-		return err
-	}
-
-	if len(artifacts) == 0 && personalityListOut != "json" {
-		fmt.Fprintln(out, "No personalities cached locally.")
-		fmt.Fprintln(out, "Use 'klausctl personality pull <ref>' to pull a personality.")
-		return nil
-	}
-
-	return printLocalArtifacts(out, artifacts, personalityListOut)
+	return listOCIArtifacts(ctx, cmd.OutOrStdout(), paths.PersonalitiesDir, personalityListOut, "personality", "personalities", personalityListRemote)
 }

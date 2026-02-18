@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -32,7 +33,7 @@ var (
 	toolchainPullOut     string
 	toolchainListOut     string
 	toolchainListWide    bool
-	toolchainListRemot   bool
+	toolchainListRemote  bool
 )
 
 var toolchainCmd = &cobra.Command{
@@ -109,7 +110,7 @@ func init() {
 	toolchainPullCmd.Flags().StringVarP(&toolchainPullOut, "output", "o", "text", "output format: text, json")
 	toolchainListCmd.Flags().StringVarP(&toolchainListOut, "output", "o", "text", "output format: text, json")
 	toolchainListCmd.Flags().BoolVar(&toolchainListWide, "wide", false, "show additional columns (ID, size)")
-	toolchainListCmd.Flags().BoolVar(&toolchainListRemot, "remote", false, "list remote registry tags instead of local images")
+	toolchainListCmd.Flags().BoolVar(&toolchainListRemote, "remote", false, "list remote registry tags instead of local images")
 
 	toolchainInitCmd.Flags().StringVar(&toolchainInitName, "name", "", "toolchain name (required)")
 	toolchainInitCmd.Flags().StringVar(&toolchainInitDir, "dir", "", "output directory (default: ./klaus-<name>)")
@@ -122,23 +123,30 @@ func init() {
 	rootCmd.AddCommand(toolchainCmd)
 }
 
+// loadRuntime creates a container runtime from the current config file.
+func loadRuntime() (runtime.Runtime, error) {
+	name := ""
+	if cfg, err := config.Load(cfgFile); err == nil {
+		name = cfg.Runtime
+	}
+	return runtime.New(name)
+}
+
 func runToolchainList(cmd *cobra.Command, _ []string) error {
+	if err := validateOutputFormat(toolchainListOut); err != nil {
+		return err
+	}
+
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
 	out := cmd.OutOrStdout()
 
-	if toolchainListRemot {
+	if toolchainListRemote {
 		return runToolchainListRemote(ctx, out)
 	}
 
-	runtimeName := ""
-	cfg, err := config.Load(cfgFile)
-	if err == nil {
-		runtimeName = cfg.Runtime
-	}
-
-	rt, err := runtime.New(runtimeName)
+	rt, err := loadRuntime()
 	if err != nil {
 		return err
 	}
@@ -151,13 +159,7 @@ func runToolchainList(cmd *cobra.Command, _ []string) error {
 
 // runToolchainListRemote queries remote tags for locally cached toolchain images.
 func runToolchainListRemote(ctx context.Context, out io.Writer) error {
-	runtimeName := ""
-	cfg, err := config.Load(cfgFile)
-	if err == nil {
-		runtimeName = cfg.Runtime
-	}
-
-	rt, err := runtime.New(runtimeName)
+	rt, err := loadRuntime()
 	if err != nil {
 		return err
 	}
@@ -177,13 +179,10 @@ func runToolchainListRemote(ctx context.Context, out io.Writer) error {
 	}
 
 	if len(repos) == 0 {
-		if toolchainListOut != "json" {
-			fmt.Fprintln(out, "No locally cached toolchain images to query remote tags for.")
-			fmt.Fprintln(out, "Use 'klausctl toolchain pull <ref>' to pull a toolchain image first.")
-		} else {
-			fmt.Fprintln(out, "[]")
-		}
-		return nil
+		return printEmpty(out, toolchainListOut,
+			"No locally cached toolchain images to query remote tags for.",
+			"Use 'klausctl toolchain pull <ref>' to pull a toolchain image first.",
+		)
 	}
 
 	client := oci.NewDefaultClient()
@@ -222,13 +221,10 @@ func toolchainList(ctx context.Context, out io.Writer, rt runtime.Runtime, opts 
 	}
 
 	if len(images) == 0 {
-		if opts.output == "json" {
-			fmt.Fprintln(out, "[]")
-			return nil
-		}
-		fmt.Fprintln(out, "No toolchain images found locally.")
-		fmt.Fprintln(out, "Toolchain images are built and tagged by CI in the toolchain repository.")
-		return nil
+		return printEmpty(out, opts.output,
+			"No toolchain images found locally.",
+			"Toolchain images are built and tagged by CI in the toolchain repository.",
+		)
 	}
 
 	if opts.output == "json" {
@@ -257,6 +253,9 @@ func printImageTable(out io.Writer, images []runtime.ImageInfo, wide bool) error
 }
 
 func runToolchainValidate(cmd *cobra.Command, args []string) error {
+	if err := validateOutputFormat(toolchainValidateOut); err != nil {
+		return err
+	}
 	return validateToolchainDir(args[0], cmd.OutOrStdout(), toolchainValidateOut)
 }
 
@@ -264,7 +263,7 @@ func runToolchainValidate(cmd *cobra.Command, args []string) error {
 func validateToolchainDir(dir string, out io.Writer, outputFmt string) error {
 	info, err := os.Stat(dir)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("directory does not exist: %s", dir)
 		}
 		return fmt.Errorf("checking directory: %w", err)
@@ -275,7 +274,7 @@ func validateToolchainDir(dir string, out io.Writer, outputFmt string) error {
 
 	dockerfilePath := filepath.Join(dir, "Dockerfile")
 	if _, err := os.Stat(dockerfilePath); err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("Dockerfile not found in %s", dir)
 		}
 		return fmt.Errorf("checking Dockerfile: %w", err)
@@ -295,18 +294,16 @@ func validateToolchainDir(dir string, out io.Writer, outputFmt string) error {
 }
 
 func runToolchainPull(cmd *cobra.Command, args []string) error {
+	if err := validateOutputFormat(toolchainPullOut); err != nil {
+		return err
+	}
+
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
 	out := cmd.OutOrStdout()
 
-	runtimeName := ""
-	cfg, err := config.Load(cfgFile)
-	if err == nil {
-		runtimeName = cfg.Runtime
-	}
-
-	rt, err := runtime.New(runtimeName)
+	rt, err := loadRuntime()
 	if err != nil {
 		return err
 	}

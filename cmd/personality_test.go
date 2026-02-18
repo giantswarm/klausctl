@@ -10,57 +10,39 @@ import (
 	"testing"
 )
 
-func TestPersonalitySubcommandsRegistered(t *testing.T) {
-	subs := []string{"validate", "pull", "list"}
-	for _, name := range subs {
-		t.Run(name, func(t *testing.T) {
-			for _, cmd := range personalityCmd.Commands() {
-				if cmd.Name() == name {
-					return
-				}
-			}
-			t.Errorf("expected %q subcommand on personality", name)
-		})
-	}
-}
-
-func TestPersonalityCommandRegisteredOnRoot(t *testing.T) {
-	for _, cmd := range rootCmd.Commands() {
-		if cmd.Name() == "personality" {
-			return
-		}
-	}
-	t.Error("expected 'personality' command to be registered on root")
-}
-
-func TestValidatePersonalityDirValid(t *testing.T) {
-	dir := t.TempDir()
-
-	spec := `description: SRE personality
+const personalitySpecYAML = `description: SRE personality
 image: gsoci.azurecr.io/giantswarm/klaus-go:1.0.0
 plugins:
   - repository: gsoci.azurecr.io/giantswarm/klaus-plugins/gs-base
     tag: v0.6.0
 `
-	if err := os.WriteFile(filepath.Join(dir, "personality.yaml"), []byte(spec), 0o644); err != nil {
+
+func TestPersonalitySubcommandsRegistered(t *testing.T) {
+	assertSubcommandsRegistered(t, personalityCmd, []string{"validate", "pull", "list"})
+}
+
+func TestPersonalityCommandRegisteredOnRoot(t *testing.T) {
+	assertCommandOnRoot(t, "personality")
+}
+
+func TestValidatePersonalityDirValid(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "personality.yaml"), []byte(personalitySpecYAML), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
-	err := validatePersonalityDir(dir, io.Discard, "text")
-	if err != nil {
+	if err := validatePersonalityDir(dir, io.Discard, "text"); err != nil {
 		t.Errorf("validatePersonalityDir() error = %v", err)
 	}
 }
 
 func TestValidatePersonalityDirMinimal(t *testing.T) {
 	dir := t.TempDir()
-
 	if err := os.WriteFile(filepath.Join(dir, "personality.yaml"), []byte("{}"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
-	err := validatePersonalityDir(dir, io.Discard, "text")
-	if err != nil {
+	if err := validatePersonalityDir(dir, io.Discard, "text"); err != nil {
 		t.Errorf("validatePersonalityDir() error = %v", err)
 	}
 }
@@ -79,7 +61,6 @@ func TestValidatePersonalityDirMissingSpec(t *testing.T) {
 
 func TestValidatePersonalityDirInvalidYAML(t *testing.T) {
 	dir := t.TempDir()
-
 	if err := os.WriteFile(filepath.Join(dir, "personality.yaml"), []byte("{{invalid"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -94,39 +75,16 @@ func TestValidatePersonalityDirInvalidYAML(t *testing.T) {
 }
 
 func TestValidatePersonalityDirNotExist(t *testing.T) {
-	err := validatePersonalityDir("/nonexistent/path", io.Discard, "text")
-	if err == nil {
-		t.Fatal("expected error for nonexistent directory")
-	}
-	if !strings.Contains(err.Error(), "does not exist") {
-		t.Errorf("unexpected error: %v", err)
-	}
+	testValidateDirNotExist(t, validatePersonalityDir)
 }
 
 func TestValidatePersonalityDirNotADirectory(t *testing.T) {
-	f := filepath.Join(t.TempDir(), "file.txt")
-	if err := os.WriteFile(f, []byte("not a dir"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	err := validatePersonalityDir(f, io.Discard, "text")
-	if err == nil {
-		t.Fatal("expected error for file (not directory)")
-	}
-	if !strings.Contains(err.Error(), "not a directory") {
-		t.Errorf("unexpected error: %v", err)
-	}
+	testValidateDirNotADirectory(t, validatePersonalityDir)
 }
 
 func TestValidatePersonalityDirTextOutput(t *testing.T) {
 	dir := t.TempDir()
-	spec := `description: SRE personality
-image: gsoci.azurecr.io/giantswarm/klaus-go:1.0.0
-plugins:
-  - repository: gsoci.azurecr.io/giantswarm/klaus-plugins/gs-base
-    tag: v0.6.0
-`
-	if err := os.WriteFile(filepath.Join(dir, "personality.yaml"), []byte(spec), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "personality.yaml"), []byte(personalitySpecYAML), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -146,13 +104,7 @@ plugins:
 
 func TestValidatePersonalityDirJSONOutput(t *testing.T) {
 	dir := t.TempDir()
-	spec := `description: SRE personality
-image: gsoci.azurecr.io/giantswarm/klaus-go:1.0.0
-plugins:
-  - repository: gsoci.azurecr.io/giantswarm/klaus-plugins/gs-base
-    tag: v0.6.0
-`
-	if err := os.WriteFile(filepath.Join(dir, "personality.yaml"), []byte(spec), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "personality.yaml"), []byte(personalitySpecYAML), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -177,16 +129,8 @@ plugins:
 }
 
 func TestPersonalityFlagsRegistered(t *testing.T) {
-	if f := personalityValidateCmd.Flags().Lookup("output"); f == nil {
-		t.Error("expected --output flag on validate")
-	}
-	if f := personalityPullCmd.Flags().Lookup("output"); f == nil {
-		t.Error("expected --output flag on pull")
-	}
-	if f := personalityListCmd.Flags().Lookup("output"); f == nil {
-		t.Error("expected --output flag on list")
-	}
-	if f := personalityListCmd.Flags().Lookup("remote"); f == nil {
-		t.Error("expected --remote flag on list")
-	}
+	assertFlagRegistered(t, personalityValidateCmd, "output")
+	assertFlagRegistered(t, personalityPullCmd, "output")
+	assertFlagRegistered(t, personalityListCmd, "output")
+	assertFlagRegistered(t, personalityListCmd, "remote")
 }

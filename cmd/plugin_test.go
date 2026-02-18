@@ -11,26 +11,11 @@ import (
 )
 
 func TestPluginSubcommandsRegistered(t *testing.T) {
-	subs := []string{"validate", "pull", "list"}
-	for _, name := range subs {
-		t.Run(name, func(t *testing.T) {
-			for _, cmd := range pluginCmd.Commands() {
-				if cmd.Name() == name {
-					return
-				}
-			}
-			t.Errorf("expected %q subcommand on plugin", name)
-		})
-	}
+	assertSubcommandsRegistered(t, pluginCmd, []string{"validate", "pull", "list"})
 }
 
 func TestPluginCommandRegisteredOnRoot(t *testing.T) {
-	for _, cmd := range rootCmd.Commands() {
-		if cmd.Name() == "plugin" {
-			return
-		}
-	}
-	t.Error("expected 'plugin' command to be registered on root")
+	assertCommandOnRoot(t, "plugin")
 }
 
 func TestValidatePluginDirValid(t *testing.T) {
@@ -43,8 +28,7 @@ func TestValidatePluginDirValid(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err := validatePluginDir(dir, io.Discard, "text")
-	if err != nil {
+	if err := validatePluginDir(dir, io.Discard, "text"); err != nil {
 		t.Errorf("validatePluginDir() error = %v", err)
 	}
 }
@@ -59,8 +43,7 @@ func TestValidatePluginDirWithAgents(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err := validatePluginDir(dir, io.Discard, "text")
-	if err != nil {
+	if err := validatePluginDir(dir, io.Discard, "text"); err != nil {
 		t.Errorf("validatePluginDir() error = %v", err)
 	}
 }
@@ -72,8 +55,7 @@ func TestValidatePluginDirWithMCPConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err := validatePluginDir(dir, io.Discard, "text")
-	if err != nil {
+	if err := validatePluginDir(dir, io.Discard, "text"); err != nil {
 		t.Errorf("validatePluginDir() error = %v", err)
 	}
 }
@@ -91,28 +73,11 @@ func TestValidatePluginDirEmpty(t *testing.T) {
 }
 
 func TestValidatePluginDirNotExist(t *testing.T) {
-	err := validatePluginDir("/nonexistent/path", io.Discard, "text")
-	if err == nil {
-		t.Fatal("expected error for nonexistent directory")
-	}
-	if !strings.Contains(err.Error(), "does not exist") {
-		t.Errorf("unexpected error: %v", err)
-	}
+	testValidateDirNotExist(t, validatePluginDir)
 }
 
 func TestValidatePluginDirNotADirectory(t *testing.T) {
-	f := filepath.Join(t.TempDir(), "file.txt")
-	if err := os.WriteFile(f, []byte("not a dir"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	err := validatePluginDir(f, io.Discard, "text")
-	if err == nil {
-		t.Fatal("expected error for file (not directory)")
-	}
-	if !strings.Contains(err.Error(), "not a directory") {
-		t.Errorf("unexpected error: %v", err)
-	}
+	testValidateDirNotADirectory(t, validatePluginDir)
 }
 
 func TestValidatePluginDirTextOutput(t *testing.T) {
@@ -126,8 +91,7 @@ func TestValidatePluginDirTextOutput(t *testing.T) {
 		t.Fatalf("validatePluginDir() error = %v", err)
 	}
 
-	output := buf.String()
-	if !strings.Contains(output, "Valid plugin directory") {
+	if !strings.Contains(buf.String(), "Valid plugin directory") {
 		t.Error("expected text output to contain 'Valid plugin directory'")
 	}
 }
@@ -159,16 +123,8 @@ func TestValidatePluginDirJSONOutput(t *testing.T) {
 }
 
 func TestPluginFlagsRegistered(t *testing.T) {
-	if f := pluginValidateCmd.Flags().Lookup("output"); f == nil {
-		t.Error("expected --output flag on validate")
-	}
-	if f := pluginPullCmd.Flags().Lookup("output"); f == nil {
-		t.Error("expected --output flag on pull")
-	}
-	if f := pluginListCmd.Flags().Lookup("output"); f == nil {
-		t.Error("expected --output flag on list")
-	}
-	if f := pluginListCmd.Flags().Lookup("remote"); f == nil {
-		t.Error("expected --remote flag on list")
-	}
+	assertFlagRegistered(t, pluginValidateCmd, "output")
+	assertFlagRegistered(t, pluginPullCmd, "output")
+	assertFlagRegistered(t, pluginListCmd, "output")
+	assertFlagRegistered(t, pluginListCmd, "remote")
 }

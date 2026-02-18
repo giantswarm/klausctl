@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -88,6 +89,9 @@ func init() {
 }
 
 func runPluginValidate(cmd *cobra.Command, args []string) error {
+	if err := validateOutputFormat(pluginValidateOut); err != nil {
+		return err
+	}
 	return validatePluginDir(args[0], cmd.OutOrStdout(), pluginValidateOut)
 }
 
@@ -95,7 +99,7 @@ func runPluginValidate(cmd *cobra.Command, args []string) error {
 func validatePluginDir(dir string, out io.Writer, outputFmt string) error {
 	info, err := os.Stat(dir)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("directory does not exist: %s", dir)
 		}
 		return fmt.Errorf("checking directory: %w", err)
@@ -132,6 +136,10 @@ func validatePluginDir(dir string, out io.Writer, outputFmt string) error {
 }
 
 func runPluginPull(cmd *cobra.Command, args []string) error {
+	if err := validateOutputFormat(pluginPullOut); err != nil {
+		return err
+	}
+
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
@@ -148,43 +156,17 @@ func runPluginPull(cmd *cobra.Command, args []string) error {
 }
 
 func runPluginList(cmd *cobra.Command, _ []string) error {
+	if err := validateOutputFormat(pluginListOut); err != nil {
+		return err
+	}
+
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
-
-	out := cmd.OutOrStdout()
 
 	paths, err := config.DefaultPaths()
 	if err != nil {
 		return err
 	}
 
-	if pluginListRemote {
-		tags, err := listRemoteTags(ctx, paths.PluginsDir)
-		if err != nil {
-			return err
-		}
-		if len(tags) == 0 {
-			if pluginListOut != "json" {
-				fmt.Fprintln(out, "No locally cached plugins to query remote tags for.")
-				fmt.Fprintln(out, "Use 'klausctl plugin pull <ref>' to pull a plugin first.")
-			} else {
-				fmt.Fprintln(out, "[]")
-			}
-			return nil
-		}
-		return printRemoteTags(out, tags, pluginListOut)
-	}
-
-	artifacts, err := listLocalArtifacts(paths.PluginsDir)
-	if err != nil {
-		return err
-	}
-
-	if len(artifacts) == 0 && pluginListOut != "json" {
-		fmt.Fprintln(out, "No plugins cached locally.")
-		fmt.Fprintln(out, "Use 'klausctl plugin pull <ref>' to pull a plugin.")
-		return nil
-	}
-
-	return printLocalArtifacts(out, artifacts, pluginListOut)
+	return listOCIArtifacts(ctx, cmd.OutOrStdout(), paths.PluginsDir, pluginListOut, "plugin", "plugins", pluginListRemote)
 }
