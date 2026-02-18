@@ -4,11 +4,9 @@ go 1.25
 
 require (
 	github.com/creativeprojects/go-selfupdate v1.5.2
-	github.com/opencontainers/go-digest v1.0.0
-	github.com/opencontainers/image-spec v1.1.1
+	github.com/giantswarm/klaus-oci v0.0.2
 	github.com/spf13/cobra v1.10.2
 	gopkg.in/yaml.v3 v3.0.1
-	oras.land/oras-go/v2 v2.6.0
 )
 
 require (
@@ -23,6 +21,9 @@ require (
 	github.com/hashicorp/go-retryablehttp v0.7.8 // indirect
 	github.com/hashicorp/go-version v1.8.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
+	github.com/kr/text v0.2.0 // indirect
+	github.com/opencontainers/go-digest v1.0.0 // indirect
+	github.com/opencontainers/image-spec v1.1.1 // indirect
 	github.com/spf13/pflag v1.0.9 // indirect
 	github.com/ulikunitz/xz v0.5.15 // indirect
 	gitlab.com/gitlab-org/api/client-go v1.9.1 // indirect
@@ -31,4 +32,5 @@ require (
 	golang.org/x/sync v0.14.0 // indirect
 	golang.org/x/sys v0.39.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
+	oras.land/oras-go/v2 v2.6.0 // indirect
 )

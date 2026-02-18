@@ -19,6 +19,8 @@ type Paths struct {
 	ExtensionsDir string
 	// PluginsDir is where OCI plugins are stored.
 	PluginsDir string
+	// PersonalitiesDir is where OCI personalities are stored.
+	PersonalitiesDir string
 	// InstanceFile is the path to the instance state file.
 	InstanceFile string
 }
@@ -33,12 +35,13 @@ func DefaultPaths() (*Paths, error) {
 	}
 	base := filepath.Join(configDir, "klausctl")
 	return &Paths{
-		ConfigDir:     base,
-		ConfigFile:    filepath.Join(base, "config.yaml"),
-		RenderedDir:   filepath.Join(base, "rendered"),
-		ExtensionsDir: filepath.Join(base, "rendered", "extensions"),
-		PluginsDir:    filepath.Join(base, "plugins"),
-		InstanceFile:  filepath.Join(base, "instance.json"),
+		ConfigDir:        base,
+		ConfigFile:       filepath.Join(base, "config.yaml"),
+		RenderedDir:      filepath.Join(base, "rendered"),
+		ExtensionsDir:    filepath.Join(base, "rendered", "extensions"),
+		PluginsDir:       filepath.Join(base, "plugins"),
+		PersonalitiesDir: filepath.Join(base, "personalities"),
+		InstanceFile:     filepath.Join(base, "instance.json"),
 	}, nil
 }
 

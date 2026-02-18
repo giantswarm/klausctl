@@ -11,6 +11,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add unified `validate`, `pull`, and `list` subcommands for plugins, personalities, and toolchains. ([#31](https://github.com/giantswarm/klausctl/issues/31))
+  - `klausctl plugin validate|pull|list [--remote]` -- manage OCI plugin artifacts.
+  - `klausctl personality validate|pull|list [--remote]` -- manage OCI personality artifacts.
+  - `klausctl toolchain validate|pull` -- validate toolchain directories and pull images.
+  - `klausctl toolchain list --remote` -- query remote registry tags for locally cached toolchain images.
+- Add `PersonalitiesDir` to config paths for OCI personality cache storage. ([#31](https://github.com/giantswarm/klausctl/issues/31))
+
+### Changed
+
+- Refactor `pkg/oci/` to import shared `giantswarm/klaus-oci` library for media type constants, metadata types, OCI annotations, and the ORAS client. klausctl-specific helpers (cache paths, container mount paths) remain in `pkg/oci/`. ([#31](https://github.com/giantswarm/klausctl/issues/31))
+
+### Added
+
 - Add `klausctl completion` command for bash, zsh, fish, and powershell shell completions.
 - Add `--output json` flag to `klausctl status` and `klausctl toolchain list` for scripting.
 - Add `--wide` flag to `klausctl toolchain list` to show image ID and size columns.

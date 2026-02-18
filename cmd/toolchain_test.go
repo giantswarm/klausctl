@@ -43,8 +43,12 @@ func TestSubcommandsRegistered(t *testing.T) {
 	}{
 		{"toolchain on root", rootCmd, "toolchain"},
 		{"completion on root", rootCmd, "completion"},
+		{"plugin on root", rootCmd, "plugin"},
+		{"personality on root", rootCmd, "personality"},
 		{"list on toolchain", toolchainCmd, "list"},
 		{"init on toolchain", toolchainCmd, "init"},
+		{"validate on toolchain", toolchainCmd, "validate"},
+		{"pull on toolchain", toolchainCmd, "pull"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -69,6 +73,13 @@ func TestToolchainInitDirFlag(t *testing.T) {
 	f := toolchainInitCmd.Flags().Lookup("dir")
 	if f == nil {
 		t.Fatal("expected --dir flag to be registered")
+	}
+}
+
+func TestToolchainListRemoteFlag(t *testing.T) {
+	f := toolchainListCmd.Flags().Lookup("remote")
+	if f == nil {
+		t.Fatal("expected --remote flag to be registered")
 	}
 }
 
@@ -132,7 +143,6 @@ func TestRunToolchainInit(t *testing.T) {
 	dir := t.TempDir()
 	outDir := filepath.Join(dir, "klaus-test-toolchain")
 
-	// Set the flag values for the test.
 	toolchainInitName = "test-toolchain"
 	toolchainInitDir = outDir
 
@@ -144,13 +154,11 @@ func TestRunToolchainInit(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// Verify output mentions the created directory.
 	output := buf.String()
 	if !strings.Contains(output, "Created") {
 		t.Error("expected output to contain 'Created'")
 	}
 
-	// Verify all scaffold files were created.
 	expectedFiles := []string{
 		"Dockerfile",
 		"Dockerfile.debian",
@@ -202,7 +210,6 @@ func TestPrintImageTable(t *testing.T) {
 	}
 	output := buf.String()
 
-	// Verify header.
 	if !strings.Contains(output, "IMAGE") {
 		t.Error("expected table header to contain IMAGE")
 	}
@@ -213,7 +220,6 @@ func TestPrintImageTable(t *testing.T) {
 		t.Error("expected table header to contain CREATED")
 	}
 
-	// Verify rows.
 	if !strings.Contains(output, "klaus-go") {
 		t.Error("expected output to contain 'klaus-go'")
 	}
@@ -251,11 +257,9 @@ func TestToolchainListWithImages(t *testing.T) {
 	if !strings.Contains(output, "2.1.0") {
 		t.Error("expected output to contain '2.1.0'")
 	}
-	// Non-toolchain images should be filtered out.
 	if strings.Contains(output, "alpine") {
 		t.Error("expected non-toolchain image 'alpine' to be filtered out")
 	}
-	// Base klaus image (no suffix after "klaus") should be filtered out.
 	if strings.Contains(output, "3 days ago") {
 		t.Error("expected base 'klaus' image to be filtered out")
 	}
@@ -348,5 +352,40 @@ func TestToolchainListWide(t *testing.T) {
 	}
 	if !strings.Contains(output, "500MB") {
 		t.Error("expected wide output to contain image size")
+	}
+}
+
+func TestValidateToolchainDirValid(t *testing.T) {
+	dir := t.TempDir()
+
+	if err := os.WriteFile(filepath.Join(dir, "Dockerfile"), []byte("FROM alpine"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	err := validateToolchainDir(dir)
+	if err != nil {
+		t.Errorf("validateToolchainDir() error = %v", err)
+	}
+}
+
+func TestValidateToolchainDirMissingDockerfile(t *testing.T) {
+	dir := t.TempDir()
+
+	err := validateToolchainDir(dir)
+	if err == nil {
+		t.Fatal("expected error for missing Dockerfile")
+	}
+	if !strings.Contains(err.Error(), "Dockerfile not found") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestValidateToolchainDirNotExist(t *testing.T) {
+	err := validateToolchainDir("/nonexistent/path")
+	if err == nil {
+		t.Fatal("expected error for nonexistent directory")
+	}
+	if !strings.Contains(err.Error(), "does not exist") {
+		t.Errorf("unexpected error: %v", err)
 	}
 }
