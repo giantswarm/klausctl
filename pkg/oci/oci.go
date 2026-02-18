@@ -4,8 +4,11 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"strings"
+
+	"gopkg.in/yaml.v3"
 
 	"github.com/giantswarm/klausctl/pkg/config"
 )
@@ -93,4 +96,115 @@ func ToolchainRegistryRef(name string) string {
 		return name
 	}
 	return DefaultToolchainRegistry + "/klaus-" + name
+}
+
+// PersonalityResult holds the outcome of resolving a personality artifact.
+type PersonalityResult struct {
+	// Spec is the parsed personality.yaml content.
+	Spec PersonalitySpec
+	// Dir is the local directory where the personality was pulled.
+	Dir string
+	// ShortName is the short name extracted from the OCI reference.
+	ShortName string
+}
+
+// ResolvePersonality pulls a personality OCI artifact and parses its spec.
+// The personality is stored at <personalitiesDir>/<shortName>/.
+func ResolvePersonality(ctx context.Context, ref, personalitiesDir string, w io.Writer) (*PersonalityResult, error) {
+	repo := repositoryFromRef(ref)
+	shortName := ShortName(repo)
+	destDir := filepath.Join(personalitiesDir, shortName)
+
+	client := NewDefaultClient()
+
+	fmt.Fprintf(w, "  Pulling personality %s...\n", ref)
+	result, err := client.Pull(ctx, ref, destDir, PersonalityArtifact)
+	if err != nil {
+		return nil, fmt.Errorf("pulling personality %s: %w", ref, err)
+	}
+
+	if result.Cached {
+		fmt.Fprintf(w, "  %s: up-to-date (%s)\n", shortName, TruncateDigest(result.Digest))
+	} else {
+		fmt.Fprintf(w, "  %s: pulled (%s)\n", shortName, TruncateDigest(result.Digest))
+	}
+
+	spec, err := LoadPersonalitySpec(destDir)
+	if err != nil {
+		return nil, fmt.Errorf("loading personality spec: %w", err)
+	}
+
+	return &PersonalityResult{
+		Spec:      spec,
+		Dir:       destDir,
+		ShortName: shortName,
+	}, nil
+}
+
+// LoadPersonalitySpec reads and parses a personality.yaml from the given directory.
+func LoadPersonalitySpec(dir string) (PersonalitySpec, error) {
+	data, err := os.ReadFile(filepath.Join(dir, "personality.yaml"))
+	if err != nil {
+		return PersonalitySpec{}, fmt.Errorf("reading personality.yaml: %w", err)
+	}
+
+	var spec PersonalitySpec
+	if err := yaml.Unmarshal(data, &spec); err != nil {
+		return PersonalitySpec{}, fmt.Errorf("parsing personality.yaml: %w", err)
+	}
+
+	return spec, nil
+}
+
+// HasSOULFile reports whether a pulled personality directory contains a SOUL.md.
+func HasSOULFile(personalityDir string) bool {
+	_, err := os.Stat(filepath.Join(personalityDir, "SOUL.md"))
+	return err == nil
+}
+
+// PluginFromReference converts a klaus-oci PluginReference to a config.Plugin.
+func PluginFromReference(ref PluginReference) config.Plugin {
+	return config.Plugin{
+		Repository: ref.Repository,
+		Tag:        ref.Tag,
+		Digest:     ref.Digest,
+	}
+}
+
+// MergePlugins merges personality plugins with user-configured plugins.
+// User plugins take precedence: if a personality plugin and a user plugin
+// share the same repository, the user's version is kept. Personality-only
+// plugins are appended after user plugins.
+func MergePlugins(personalityPlugins []PluginReference, userPlugins []config.Plugin) []config.Plugin {
+	seen := make(map[string]bool, len(userPlugins))
+	for _, p := range userPlugins {
+		seen[p.Repository] = true
+	}
+
+	merged := make([]config.Plugin, len(userPlugins))
+	copy(merged, userPlugins)
+
+	for _, ref := range personalityPlugins {
+		if seen[ref.Repository] {
+			continue
+		}
+		seen[ref.Repository] = true
+		merged = append(merged, PluginFromReference(ref))
+	}
+
+	return merged
+}
+
+// repositoryFromRef extracts the repository part from an OCI reference,
+// stripping the tag or digest suffix.
+func repositoryFromRef(ref string) string {
+	if idx := strings.Index(ref, "@"); idx > 0 {
+		return ref[:idx]
+	}
+	if idx := strings.LastIndex(ref, ":"); idx > 0 {
+		if !strings.Contains(ref[idx+1:], "/") {
+			return ref[:idx]
+		}
+	}
+	return ref
 }

@@ -19,6 +19,11 @@ type Config struct {
 	// Auto-detected if empty.
 	Runtime string `yaml:"runtime,omitempty"`
 
+	// Personality is an OCI reference to a personality artifact that defines
+	// the AI's identity (SOUL.md) and a curated set of plugins. Instance-level
+	// config (image, plugins) composes with and can override personality values.
+	Personality string `yaml:"personality,omitempty"`
+
 	// Image is the klaus container image reference.
 	Image string `yaml:"image"`
 
@@ -58,6 +63,18 @@ type Config struct {
 
 	// EnvVars sets explicit environment variable key-value pairs in the container.
 	EnvVars map[string]string `yaml:"envVars,omitempty"`
+
+	// imageFromConfig tracks whether Image was explicitly set in the config
+	// file before defaults were applied. Used by personality merging to
+	// determine whether the personality's image should take effect.
+	imageFromConfig bool
+}
+
+// ImageExplicitlySet reports whether the Image field was explicitly set in the
+// config file (before defaults were applied). When false, a personality's image
+// takes precedence.
+func (c *Config) ImageExplicitlySet() bool {
+	return c.imageFromConfig
 }
 
 // ClaudeConfig contains Claude Code agent configuration, mirroring the Helm values.claude section.
@@ -212,6 +229,7 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("parsing config: %w", err)
 	}
 
+	cfg.imageFromConfig = cfg.Image != ""
 	cfg.applyDefaults()
 
 	if err := cfg.Validate(); err != nil {

@@ -239,6 +239,72 @@ func TestValidate(t *testing.T) {
 	}
 }
 
+func TestLoadPersonalityField(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+
+	content := `
+workspace: /tmp/test
+personality: gsoci.azurecr.io/giantswarm/klaus-personalities/sre:v1.0.0
+`
+	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("Load() returned error: %v", err)
+	}
+
+	if cfg.Personality != "gsoci.azurecr.io/giantswarm/klaus-personalities/sre:v1.0.0" {
+		t.Errorf("Personality = %q, want the configured OCI reference", cfg.Personality)
+	}
+}
+
+func TestImageExplicitlySetTrue(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+
+	content := `
+workspace: /tmp/test
+image: gsoci.azurecr.io/giantswarm/klaus-go:1.0.0
+`
+	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("Load() returned error: %v", err)
+	}
+
+	if !cfg.ImageExplicitlySet() {
+		t.Error("ImageExplicitlySet() = false, want true when image is set in config")
+	}
+}
+
+func TestImageExplicitlySetFalse(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+
+	content := `workspace: /tmp/test`
+	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("Load() returned error: %v", err)
+	}
+
+	if cfg.ImageExplicitlySet() {
+		t.Error("ImageExplicitlySet() = true, want false when image is not set in config")
+	}
+	if cfg.Image != "gsoci.azurecr.io/giantswarm/klaus:latest" {
+		t.Errorf("Image = %q, want default applied", cfg.Image)
+	}
+}
+
 func TestMarshal(t *testing.T) {
 	cfg := DefaultConfig()
 	cfg.Workspace = "/tmp/test"
