@@ -49,8 +49,31 @@ func TestToolchainInitDirFlag(t *testing.T) {
 	assertFlagRegistered(t, toolchainInitCmd, "dir")
 }
 
-func TestToolchainListRemoteFlag(t *testing.T) {
-	assertFlagRegistered(t, toolchainListCmd, "remote")
+func TestToolchainListLocalFlag(t *testing.T) {
+	assertFlagRegistered(t, toolchainListCmd, "local")
+}
+
+func TestIsToolchainRepo(t *testing.T) {
+	tests := []struct {
+		repo string
+		want bool
+	}{
+		{"gsoci.azurecr.io/giantswarm/klaus-go", true},
+		{"gsoci.azurecr.io/giantswarm/klaus-python", true},
+		{"gsoci.azurecr.io/giantswarm/klaus-git", true},
+		{"gsoci.azurecr.io/giantswarm/klaus-plugins/gs-base", false},
+		{"gsoci.azurecr.io/giantswarm/klaus-personalities/sre", false},
+		{"gsoci.azurecr.io/giantswarm/some-other-repo", false},
+		{"docker.io/library/alpine", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.repo, func(t *testing.T) {
+			if got := isToolchainRepo(tt.repo); got != tt.want {
+				t.Errorf("isToolchainRepo(%q) = %v, want %v", tt.repo, got, tt.want)
+			}
+		})
+	}
 }
 
 func TestScaffoldFiles(t *testing.T) {
