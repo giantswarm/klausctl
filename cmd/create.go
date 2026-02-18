@@ -66,14 +66,14 @@ func runCreate(cmd *cobra.Command, args []string) error {
 	}
 
 	cfg, err := config.GenerateInstanceConfig(paths, config.CreateOptions{
-		Name:      instanceName,
-		Workspace: workspace,
+		Name:        instanceName,
+		Workspace:   workspace,
 		Personality: createPersonality,
-		Toolchain: createToolchain,
-		Plugins:   createPlugins,
-		Port:      createPort,
-		Context:   context.Background(),
-		Output:    cmd.OutOrStdout(),
+		Toolchain:   createToolchain,
+		Plugins:     createPlugins,
+		Port:        createPort,
+		Context:     context.Background(),
+		Output:      cmd.OutOrStdout(),
 		ResolvePersonality: func(ctx context.Context, ref string, outWriter io.Writer) (*config.ResolvedPersonality, error) {
 			if err := config.EnsureDir(paths.PersonalitiesDir); err != nil {
 				return nil, fmt.Errorf("creating personalities directory: %w", err)
