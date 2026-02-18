@@ -35,14 +35,15 @@ func init() {
 
 // statusInfo holds all status fields for both text and JSON rendering.
 type statusInfo struct {
-	Instance  string `json:"instance"`
-	Status    string `json:"status"`
-	Container string `json:"container"`
-	Runtime   string `json:"runtime"`
-	Image     string `json:"image"`
-	Workspace string `json:"workspace"`
-	MCP       string `json:"mcp,omitempty"`
-	Uptime    string `json:"uptime,omitempty"`
+	Instance    string `json:"instance"`
+	Status      string `json:"status"`
+	Personality string `json:"personality,omitempty"`
+	Container   string `json:"container"`
+	Runtime     string `json:"runtime"`
+	Image       string `json:"image"`
+	Workspace   string `json:"workspace"`
+	MCP         string `json:"mcp,omitempty"`
+	Uptime      string `json:"uptime,omitempty"`
 }
 
 func runStatus(cmd *cobra.Command, _ []string) error {
@@ -75,12 +76,13 @@ func runStatus(cmd *cobra.Command, _ []string) error {
 	}
 
 	info := statusInfo{
-		Instance:  inst.Name,
-		Status:    status,
-		Container: containerName,
-		Runtime:   inst.Runtime,
-		Image:     inst.Image,
-		Workspace: inst.Workspace,
+		Instance:    inst.Name,
+		Status:      status,
+		Personality: inst.Personality,
+		Container:   containerName,
+		Runtime:     inst.Runtime,
+		Image:       inst.Image,
+		Workspace:   inst.Workspace,
 	}
 
 	if status == "running" {
@@ -114,17 +116,20 @@ func runStatus(cmd *cobra.Command, _ []string) error {
 		statusColor = yellow(status)
 	}
 
-	fmt.Fprintf(out, "Instance:   %s\n", inst.Name)
-	fmt.Fprintf(out, "Status:     %s\n", statusColor)
-	fmt.Fprintf(out, "Container:  %s\n", containerName)
-	fmt.Fprintf(out, "Runtime:    %s\n", inst.Runtime)
-	fmt.Fprintf(out, "Image:      %s\n", inst.Image)
-	fmt.Fprintf(out, "Workspace:  %s\n", inst.Workspace)
+	fmt.Fprintf(out, "Instance:    %s\n", inst.Name)
+	fmt.Fprintf(out, "Status:      %s\n", statusColor)
+	if inst.Personality != "" {
+		fmt.Fprintf(out, "Personality: %s\n", inst.Personality)
+	}
+	fmt.Fprintf(out, "Container:   %s\n", containerName)
+	fmt.Fprintf(out, "Runtime:     %s\n", inst.Runtime)
+	fmt.Fprintf(out, "Image:       %s\n", inst.Image)
+	fmt.Fprintf(out, "Workspace:   %s\n", inst.Workspace)
 
 	if status == "running" {
-		fmt.Fprintf(out, "MCP:        %s\n", info.MCP)
+		fmt.Fprintf(out, "MCP:         %s\n", info.MCP)
 		if info.Uptime != "" {
-			fmt.Fprintf(out, "Uptime:     %s\n", info.Uptime)
+			fmt.Fprintf(out, "Uptime:      %s\n", info.Uptime)
 		}
 	}
 

@@ -28,9 +28,11 @@ var startCmd = &cobra.Command{
 
 This command:
   1. Loads configuration from ~/.config/klausctl/config.yaml
-  2. Pulls OCI plugins (if configured)
-  3. Renders configuration files (skills, settings, MCP config)
-  4. Starts a container with the correct env vars, mounts, and ports`,
+  2. Resolves personality (if configured): pulls the OCI artifact, merges
+     plugins, applies image override, and prepares SOUL.md
+  3. Pulls OCI plugins (personality + instance-level)
+  4. Renders configuration files (skills, settings, MCP config)
+  5. Starts a container with the correct env vars, mounts, and ports`,
 	RunE: runStart,
 }
 
@@ -100,8 +102,30 @@ func runStart(cmd *cobra.Command, _ []string) error {
 		_ = instance.Clear(paths)
 	}
 
-	// The image to use is cfg.Image (which defaults to the standard Klaus
-	// image if not overridden by the user, e.g. with a toolchain image).
+	// Resolve personality if configured. This pulls the personality artifact,
+	// merges its plugins with the user's, and optionally overrides the image.
+	var personalityDir string
+	if cfg.Personality != "" {
+		fmt.Fprintln(out, "Resolving personality...")
+		if err := config.EnsureDir(paths.PersonalitiesDir); err != nil {
+			return fmt.Errorf("creating personalities directory: %w", err)
+		}
+
+		pr, err := oci.ResolvePersonality(ctx, cfg.Personality, paths.PersonalitiesDir, out)
+		if err != nil {
+			return fmt.Errorf("resolving personality: %w", err)
+		}
+		personalityDir = pr.Dir
+
+		// Merge personality plugins with user plugins (user wins on conflict).
+		cfg.Plugins = oci.MergePlugins(pr.Spec.Plugins, cfg.Plugins)
+
+		// Use personality image if the user didn't explicitly set one.
+		if !cfg.ImageExplicitlySet() && pr.Spec.Image != "" {
+			cfg.Image = pr.Spec.Image
+		}
+	}
+
 	image := cfg.Image
 
 	// Render configuration files.
@@ -119,7 +143,7 @@ func runStart(cmd *cobra.Command, _ []string) error {
 	}
 
 	// Build container run options.
-	runOpts, err := buildRunOptions(cfg, paths, containerName, image)
+	runOpts, err := buildRunOptions(cfg, paths, containerName, image, personalityDir)
 	if err != nil {
 		return fmt.Errorf("building run options: %w", err)
 	}
@@ -142,6 +166,7 @@ func runStart(cmd *cobra.Command, _ []string) error {
 		Name:        instanceName,
 		ContainerID: containerID,
 		Runtime:     rt.Name(),
+		Personality: cfg.Personality,
 		Image:       image,
 		Port:        cfg.Port,
 		Workspace:   workspace,
@@ -153,10 +178,13 @@ func runStart(cmd *cobra.Command, _ []string) error {
 
 	fmt.Fprintln(out)
 	fmt.Fprintln(out, green("Klaus instance started."))
-	fmt.Fprintf(out, "  Container:  %s\n", containerName)
-	fmt.Fprintf(out, "  Image:      %s\n", image)
-	fmt.Fprintf(out, "  Workspace:  %s\n", inst.Workspace)
-	fmt.Fprintf(out, "  MCP:        http://localhost:%d\n", cfg.Port)
+	if cfg.Personality != "" {
+		fmt.Fprintf(out, "  Personality: %s\n", cfg.Personality)
+	}
+	fmt.Fprintf(out, "  Container:   %s\n", containerName)
+	fmt.Fprintf(out, "  Image:       %s\n", image)
+	fmt.Fprintf(out, "  Workspace:   %s\n", inst.Workspace)
+	fmt.Fprintf(out, "  MCP:         http://localhost:%d\n", cfg.Port)
 
 	// Warn about missing API key after the success context so it doesn't
 	// appear before the user knows what's happening.
@@ -170,14 +198,15 @@ func runStart(cmd *cobra.Command, _ []string) error {
 
 // buildRunOptions constructs the container runtime options from config.
 // This mirrors the Helm deployment.yaml template, producing the same
-// env vars and volume mounts.
-func buildRunOptions(cfg *config.Config, paths *config.Paths, containerName, image string) (runtime.RunOptions, error) {
+// env vars and volume mounts. personalityDir is the local path to the
+// resolved personality (empty when no personality is configured).
+func buildRunOptions(cfg *config.Config, paths *config.Paths, containerName, image, personalityDir string) (runtime.RunOptions, error) {
 	env, err := buildEnvVars(cfg, paths)
 	if err != nil {
 		return runtime.RunOptions{}, err
 	}
 
-	volumes := buildVolumes(cfg, paths, env)
+	volumes := buildVolumes(cfg, paths, env, personalityDir)
 
 	return runtime.RunOptions{
 		Name:    containerName,
@@ -280,7 +309,8 @@ func setClaudeEnvVars(env map[string]string, claude *config.ClaudeConfig) {
 
 // buildVolumes constructs the container volume mounts and sets related env vars.
 // The env map is mutated to add mount-dependent env vars (CLAUDE_WORKSPACE, etc.).
-func buildVolumes(cfg *config.Config, paths *config.Paths, env map[string]string) []runtime.Volume {
+// personalityDir is the local path to the resolved personality (empty when none).
+func buildVolumes(cfg *config.Config, paths *config.Paths, env map[string]string, personalityDir string) []runtime.Volume {
 	var vols []runtime.Volume
 
 	// Workspace mount.
@@ -341,6 +371,16 @@ func buildVolumes(cfg *config.Config, paths *config.Paths, env map[string]string
 		if cfg.Claude.LoadAdditionalDirsMemory == nil || *cfg.Claude.LoadAdditionalDirsMemory {
 			env["CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD"] = "true"
 		}
+	}
+
+	// SOUL.md mount from personality.
+	if personalityDir != "" && oci.HasSOULFile(personalityDir) {
+		soulPath := filepath.Join(personalityDir, "SOUL.md")
+		vols = append(vols, runtime.Volume{
+			HostPath:      soulPath,
+			ContainerPath: "/etc/klaus/SOUL.md",
+			ReadOnly:      true,
+		})
 	}
 
 	// Plugin mounts and CLAUDE_PLUGIN_DIRS.

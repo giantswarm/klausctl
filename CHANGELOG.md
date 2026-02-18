@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add personality support for `klausctl start`. When `personality` is set in config, the personality OCI artifact is pulled, its `SOUL.md` is mounted into the container at `/etc/klaus/SOUL.md`, its plugins are merged with user-configured plugins (user wins on conflict), and its toolchain image is used unless the user explicitly overrides `image`. ([#30](https://github.com/giantswarm/klausctl/issues/30))
 - Add unified `validate`, `pull`, and `list` subcommands for plugins, personalities, and toolchains. ([#31](https://github.com/giantswarm/klausctl/issues/31))
   - `klausctl plugin validate|pull|list [--remote]` -- manage OCI plugin artifacts.
   - `klausctl personality validate|pull|list [--remote]` -- manage OCI personality artifacts.

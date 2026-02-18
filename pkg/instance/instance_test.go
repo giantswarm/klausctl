@@ -25,6 +25,7 @@ func TestSaveAndLoad(t *testing.T) {
 		Name:        "test",
 		ContainerID: "abc123",
 		Runtime:     "docker",
+		Personality: "gsoci.azurecr.io/giantswarm/klaus-personalities/sre:v1.0.0",
 		Image:       "ghcr.io/giantswarm/klaus:latest",
 		Port:        8080,
 		Workspace:   "/tmp/test",
@@ -48,6 +49,9 @@ func TestSaveAndLoad(t *testing.T) {
 	}
 	if loaded.Runtime != inst.Runtime {
 		t.Errorf("Runtime = %q, want %q", loaded.Runtime, inst.Runtime)
+	}
+	if loaded.Personality != inst.Personality {
+		t.Errorf("Personality = %q, want %q", loaded.Personality, inst.Personality)
 	}
 	if loaded.Image != inst.Image {
 		t.Errorf("Image = %q, want %q", loaded.Image, inst.Image)
