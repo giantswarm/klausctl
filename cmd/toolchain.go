@@ -167,56 +167,16 @@ func isToolchainRepo(repo string) bool {
 
 // runToolchainListRemote discovers toolchain images from the registry,
 // resolves the latest semver tag and digest for each, and checks local
-// pull status.
+// pull status. Toolchains don't use the OCI cache directory so cacheDir
+// is empty, which means the PULLED column will always show "-".
 func runToolchainListRemote(ctx context.Context, out io.Writer) error {
-	client := oci.NewDefaultClient()
-
-	allRepos, err := client.ListRepositories(ctx, oci.DefaultToolchainRegistry)
-	if err != nil {
-		return fmt.Errorf("discovering remote repositories: %w", err)
-	}
-
-	var repos []string
-	for _, repo := range allRepos {
-		if isToolchainRepo(repo) {
-			repos = append(repos, repo)
-		}
-	}
-
-	if len(repos) == 0 {
-		return printEmpty(out, toolchainListOut,
-			"No toolchain images found in the remote registry.",
-		)
-	}
-
-	var entries []remoteArtifactEntry
-	for _, repo := range repos {
-		tags, err := client.List(ctx, repo)
-		if err != nil {
-			return fmt.Errorf("listing tags for %s: %w", repo, err)
-		}
-
-		latest := latestSemverTag(tags)
-		if latest == "" {
-			continue
-		}
-
-		ref := repo + ":" + latest
-		digest, err := client.Resolve(ctx, ref)
-		if err != nil {
-			return fmt.Errorf("resolving digest for %s: %w", ref, err)
-		}
-
-		entries = append(entries, remoteArtifactEntry{
-			Name:   oci.ShortToolchainName(repo),
-			Ref:    ref,
-			Digest: digest,
-		})
-	}
-
-	sort.Slice(entries, func(i, j int) bool {
-		return entries[i].Name < entries[j].Name
+	entries, err := listLatestRemoteArtifacts(ctx, "", oci.DefaultToolchainRegistry, &remoteListOptions{
+		Filter:    isToolchainRepo,
+		ShortName: oci.ShortToolchainName,
 	})
+	if err != nil {
+		return err
+	}
 
 	if len(entries) == 0 {
 		return printEmpty(out, toolchainListOut,

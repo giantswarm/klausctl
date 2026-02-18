@@ -195,48 +195,6 @@ func TestPrintEmptyText(t *testing.T) {
 	}
 }
 
-func TestPrintRemoteTagsText(t *testing.T) {
-	var buf bytes.Buffer
-	tags := []remoteTag{
-		{Repository: "example.com/plugin", Tag: "v1.0.0"},
-		{Repository: "example.com/plugin", Tag: "v2.0.0"},
-	}
-
-	if err := printRemoteTags(&buf, tags, "text"); err != nil {
-		t.Fatalf("printRemoteTags() error = %v", err)
-	}
-
-	output := buf.String()
-	if !strings.Contains(output, "REPOSITORY") {
-		t.Error("expected header with REPOSITORY column")
-	}
-	if !strings.Contains(output, "TAG") {
-		t.Error("expected header with TAG column")
-	}
-	if !strings.Contains(output, "v1.0.0") {
-		t.Error("expected output to contain v1.0.0")
-	}
-}
-
-func TestPrintRemoteTagsJSON(t *testing.T) {
-	var buf bytes.Buffer
-	tags := []remoteTag{
-		{Repository: "example.com/plugin", Tag: "v1.0.0"},
-	}
-
-	if err := printRemoteTags(&buf, tags, "json"); err != nil {
-		t.Fatalf("printRemoteTags() error = %v", err)
-	}
-
-	var result []remoteTag
-	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
-		t.Fatalf("JSON parse error: %v", err)
-	}
-	if len(result) != 1 {
-		t.Errorf("expected 1 tag in JSON, got %d", len(result))
-	}
-}
-
 func TestShortNameFromRef(t *testing.T) {
 	tests := []struct {
 		ref  string
