@@ -40,8 +40,9 @@ var (
 	IsCached       = klausoci.IsCached
 	ReadCacheEntry = klausoci.ReadCacheEntry
 
-	ShortName      = klausoci.ShortName
-	TruncateDigest = klausoci.TruncateDigest
+	ShortName         = klausoci.ShortName
+	TruncateDigest    = klausoci.TruncateDigest
+	SplitRegistryBase = klausoci.SplitRegistryBase
 )
 
 // Re-exported media type and annotation constants.

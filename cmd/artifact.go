@@ -101,8 +101,10 @@ func listRemoteTags(ctx context.Context, cacheDir, registryBase string) ([]remot
 		}
 	}
 
+	client := oci.NewDefaultClient()
+
 	if registryBase != "" {
-		discovered, err := oci.DiscoverRepositories(ctx, registryBase, false)
+		discovered, err := client.ListRepositories(ctx, registryBase)
 		if err != nil {
 			return nil, fmt.Errorf("discovering remote repositories: %w", err)
 		}
@@ -118,7 +120,6 @@ func listRemoteTags(ctx context.Context, cacheDir, registryBase string) ([]remot
 		return nil, nil
 	}
 
-	client := oci.NewDefaultClient()
 	var tags []remoteTag
 
 	for _, repo := range repos {
