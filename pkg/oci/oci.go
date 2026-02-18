@@ -89,6 +89,14 @@ const (
 	DefaultToolchainRegistry   = "gsoci.azurecr.io/giantswarm"
 )
 
+// ShortToolchainName extracts the toolchain name from a full repository path,
+// stripping both the registry prefix and the "klaus-" convention.
+// e.g. "gsoci.azurecr.io/giantswarm/klaus-go" -> "go"
+func ShortToolchainName(repository string) string {
+	name := ShortName(repository)
+	return strings.TrimPrefix(name, "klaus-")
+}
+
 // ToolchainRegistryRef returns the full registry reference for a toolchain
 // image name. Toolchains use the pattern gsoci.azurecr.io/giantswarm/klaus-<name>.
 func ToolchainRegistryRef(name string) string {

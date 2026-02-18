@@ -208,7 +208,7 @@ func runToolchainListRemote(ctx context.Context, out io.Writer) error {
 		}
 
 		entries = append(entries, remoteArtifactEntry{
-			Name:   oci.ShortName(repo),
+			Name:   oci.ShortToolchainName(repo),
 			Ref:    ref,
 			Digest: digest,
 		})
