@@ -310,6 +310,108 @@ func TestRepositoryFromRef(t *testing.T) {
 	}
 }
 
+func TestLatestSemverTag(t *testing.T) {
+	tests := []struct {
+		name string
+		tags []string
+		want string
+	}{
+		{
+			name: "multiple versions",
+			tags: []string{"v0.0.1", "v0.0.3", "v0.0.2"},
+			want: "v0.0.3",
+		},
+		{
+			name: "single version",
+			tags: []string{"v1.0.0"},
+			want: "v1.0.0",
+		},
+		{
+			name: "mixed valid and invalid",
+			tags: []string{"latest", "v0.0.6", "main", "v0.0.7"},
+			want: "v0.0.7",
+		},
+		{
+			name: "no valid semver",
+			tags: []string{"latest", "main", "dev"},
+			want: "",
+		},
+		{
+			name: "empty",
+			tags: nil,
+			want: "",
+		},
+		{
+			name: "prerelease lower than release",
+			tags: []string{"v1.0.0-rc.1", "v0.9.0"},
+			want: "v1.0.0-rc.1",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := latestSemverTag(tt.tags)
+			if got != tt.want {
+				t.Errorf("latestSemverTag(%v) = %q, want %q", tt.tags, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestPrintRemoteArtifactsText(t *testing.T) {
+	var buf bytes.Buffer
+	entries := []remoteArtifactEntry{
+		{Name: "gs-base", Repository: "example.com/plugins/gs-base", LatestTag: "v0.0.7", Cached: true},
+		{Name: "gs-sre", Repository: "example.com/plugins/gs-sre", LatestTag: "v0.0.7", Cached: false},
+	}
+
+	if err := printRemoteArtifacts(&buf, entries, "text"); err != nil {
+		t.Fatalf("printRemoteArtifacts() error = %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "NAME") {
+		t.Error("expected header with NAME column")
+	}
+	if !strings.Contains(output, "LATEST") {
+		t.Error("expected header with LATEST column")
+	}
+	if !strings.Contains(output, "CACHED") {
+		t.Error("expected header with CACHED column")
+	}
+	if !strings.Contains(output, "gs-base") {
+		t.Error("expected output to contain gs-base")
+	}
+	if !strings.Contains(output, "yes") {
+		t.Error("expected output to contain 'yes' for cached artifact")
+	}
+}
+
+func TestPrintRemoteArtifactsJSON(t *testing.T) {
+	var buf bytes.Buffer
+	entries := []remoteArtifactEntry{
+		{Name: "gs-base", Repository: "example.com/plugins/gs-base", LatestTag: "v0.0.7", Cached: true},
+	}
+
+	if err := printRemoteArtifacts(&buf, entries, "json"); err != nil {
+		t.Fatalf("printRemoteArtifacts() error = %v", err)
+	}
+
+	var result []remoteArtifactEntry
+	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
+		t.Fatalf("JSON parse error: %v", err)
+	}
+	if len(result) != 1 {
+		t.Fatalf("expected 1 entry in JSON, got %d", len(result))
+	}
+	if !result[0].Cached {
+		t.Error("expected cached=true")
+	}
+	if result[0].LatestTag != "v0.0.7" {
+		t.Errorf("latestTag = %q, want %q", result[0].LatestTag, "v0.0.7")
+	}
+}
+
 func TestFormatAge(t *testing.T) {
 	tests := []struct {
 		name     string

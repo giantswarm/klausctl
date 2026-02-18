@@ -13,6 +13,8 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/Masterminds/semver/v3"
+
 	"github.com/giantswarm/klausctl/pkg/oci"
 )
 
@@ -177,36 +179,129 @@ func pullArtifact(ctx context.Context, ref string, cacheDir string, kind oci.Art
 	return nil
 }
 
+// remoteArtifactEntry describes a remote OCI artifact with its latest
+// available tag and whether that tag is already cached locally.
+type remoteArtifactEntry struct {
+	Name       string `json:"name"`
+	Repository string `json:"repository"`
+	LatestTag  string `json:"latestTag"`
+	Cached     bool   `json:"cached"`
+}
+
+// listLatestRemoteArtifacts discovers repositories from the registry,
+// resolves the latest semver tag for each, and checks local cache status.
+func listLatestRemoteArtifacts(ctx context.Context, cacheDir, registryBase string) ([]remoteArtifactEntry, error) {
+	client := oci.NewDefaultClient()
+
+	repos, err := client.ListRepositories(ctx, registryBase)
+	if err != nil {
+		return nil, fmt.Errorf("discovering remote repositories: %w", err)
+	}
+
+	localArtifacts, _ := listLocalArtifacts(cacheDir)
+	cachedRefs := make(map[string]bool, len(localArtifacts))
+	for _, a := range localArtifacts {
+		cachedRefs[a.Ref] = true
+	}
+
+	var entries []remoteArtifactEntry
+	for _, repo := range repos {
+		tags, err := client.List(ctx, repo)
+		if err != nil {
+			return nil, fmt.Errorf("listing tags for %s: %w", repo, err)
+		}
+
+		latest := latestSemverTag(tags)
+		if latest == "" {
+			continue
+		}
+
+		ref := repo + ":" + latest
+		entries = append(entries, remoteArtifactEntry{
+			Name:       oci.ShortName(repo),
+			Repository: repo,
+			LatestTag:  latest,
+			Cached:     cachedRefs[ref],
+		})
+	}
+
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].Name < entries[j].Name
+	})
+
+	return entries, nil
+}
+
+// latestSemverTag returns the highest semver tag from the given list.
+// Tags that are not valid semver are ignored.
+func latestSemverTag(tags []string) string {
+	var best *semver.Version
+	var bestTag string
+
+	for _, tag := range tags {
+		v, err := semver.NewVersion(tag)
+		if err != nil {
+			continue
+		}
+		if best == nil || v.GreaterThan(best) {
+			best = v
+			bestTag = tag
+		}
+	}
+
+	return bestTag
+}
+
+// printRemoteArtifacts prints remote artifacts with latest tag and cache
+// status in table or JSON format.
+func printRemoteArtifacts(out io.Writer, entries []remoteArtifactEntry, outputFmt string) error {
+	if outputFmt == "json" {
+		enc := json.NewEncoder(out)
+		enc.SetIndent("", "  ")
+		return enc.Encode(entries)
+	}
+
+	w := tabwriter.NewWriter(out, 0, 0, 3, ' ', 0)
+	fmt.Fprintln(w, "NAME\tLATEST\tCACHED")
+	for _, e := range entries {
+		cached := ""
+		if e.Cached {
+			cached = "yes"
+		}
+		fmt.Fprintf(w, "%s\t%s\t%s\n", e.Name, e.LatestTag, cached)
+	}
+	return w.Flush()
+}
+
 // listOCIArtifacts implements the common list subcommand for OCI-cached artifact
-// types (plugins, personalities). It handles both local and remote listing,
-// empty-state messaging, and output formatting. When registryBase is non-empty
-// and remote is true, the command discovers repositories directly from the
-// registry catalog, allowing it to work without any local cache.
-func listOCIArtifacts(ctx context.Context, out io.Writer, cacheDir, outputFmt, typeName, typePlural, registryBase string, remote bool) error {
-	if remote {
-		tags, err := listRemoteTags(ctx, cacheDir, registryBase)
+// types (plugins, personalities). By default it queries the remote registry for
+// the latest available version of each artifact and indicates local cache status.
+// With --local, it shows only locally cached artifacts.
+func listOCIArtifacts(ctx context.Context, out io.Writer, cacheDir, outputFmt, typeName, typePlural, registryBase string, local bool) error {
+	if local {
+		artifacts, err := listLocalArtifacts(cacheDir)
 		if err != nil {
 			return err
 		}
-		if len(tags) == 0 {
+		if len(artifacts) == 0 {
 			return printEmpty(out, outputFmt,
-				fmt.Sprintf("No %s found in the remote registry.", typePlural),
+				fmt.Sprintf("No %s cached locally.", typePlural),
+				fmt.Sprintf("Use 'klausctl %s pull <ref>' to pull a %s.", typeName, typeName),
 			)
 		}
-		return printRemoteTags(out, tags, outputFmt)
+		return printLocalArtifacts(out, artifacts, outputFmt)
 	}
 
-	artifacts, err := listLocalArtifacts(cacheDir)
+	entries, err := listLatestRemoteArtifacts(ctx, cacheDir, registryBase)
 	if err != nil {
 		return err
 	}
-	if len(artifacts) == 0 {
+	if len(entries) == 0 {
 		return printEmpty(out, outputFmt,
-			fmt.Sprintf("No %s cached locally.", typePlural),
-			fmt.Sprintf("Use 'klausctl %s pull <ref>' to pull a %s.", typeName, typeName),
+			fmt.Sprintf("No %s found in the remote registry.", typePlural),
 		)
 	}
-	return printLocalArtifacts(out, artifacts, outputFmt)
+	return printRemoteArtifacts(out, entries, outputFmt)
 }
 
 // printEmpty writes an empty result. For JSON, it emits []; for text, it

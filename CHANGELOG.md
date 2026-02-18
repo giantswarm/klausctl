@@ -9,9 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `plugin list` and `personality list` now default to remote registry listing, showing the latest version of each artifact and whether it is cached locally. Use `--local` for the previous local-only behavior. ([#42](https://github.com/giantswarm/klausctl/issues/42))
+
 ### Fixed
 
-- Fix `plugin list --remote` and `personality list --remote` failing when no local cache exists. The commands now discover repositories directly from the OCI registry catalog, allowing remote listing on a clean machine with zero local cache. ([#42](https://github.com/giantswarm/klausctl/issues/42))
+- Fix `plugin list` and `personality list` remote discovery failing when no local cache exists. The commands now discover repositories directly from the OCI registry catalog via `klaus-oci` v0.0.3. ([#42](https://github.com/giantswarm/klausctl/issues/42))
 
 ### Added
 

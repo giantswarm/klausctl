@@ -126,5 +126,5 @@ func TestPluginFlagsRegistered(t *testing.T) {
 	assertFlagRegistered(t, pluginValidateCmd, "output")
 	assertFlagRegistered(t, pluginPullCmd, "output")
 	assertFlagRegistered(t, pluginListCmd, "output")
-	assertFlagRegistered(t, pluginListCmd, "remote")
+	assertFlagRegistered(t, pluginListCmd, "local")
 }

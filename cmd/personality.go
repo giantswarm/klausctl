@@ -21,7 +21,7 @@ var (
 	personalityValidateOut string
 	personalityPullOut     string
 	personalityListOut     string
-	personalityListRemote  bool
+	personalityListLocal   bool
 )
 
 var personalityCmd = &cobra.Command{
@@ -60,11 +60,12 @@ The reference must include a tag or digest:
 var personalityListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List personalities",
-	Long: `List locally cached personalities, or query the remote registry with --remote.
+	Long: `List available personalities from the remote OCI registry.
 
-Without --remote, shows personalities downloaded to the local cache.
-With --remote, discovers available personalities directly from the OCI registry
-and lists their tags. Works on a clean machine with no local cache.`,
+By default, discovers personalities from the registry, shows the latest version
+of each, and indicates whether it is cached locally.
+
+With --local, shows only locally cached personalities with full detail.`,
 	RunE: runPersonalityList,
 }
 
@@ -81,7 +82,7 @@ func init() {
 	personalityValidateCmd.Flags().StringVarP(&personalityValidateOut, "output", "o", "text", "output format: text, json")
 	personalityPullCmd.Flags().StringVarP(&personalityPullOut, "output", "o", "text", "output format: text, json")
 	personalityListCmd.Flags().StringVarP(&personalityListOut, "output", "o", "text", "output format: text, json")
-	personalityListCmd.Flags().BoolVar(&personalityListRemote, "remote", false, "list remote registry tags instead of local cache")
+	personalityListCmd.Flags().BoolVar(&personalityListLocal, "local", false, "list only locally cached personalities")
 
 	personalityCmd.AddCommand(personalityValidateCmd)
 	personalityCmd.AddCommand(personalityPullCmd)
@@ -181,5 +182,5 @@ func runPersonalityList(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	return listOCIArtifacts(ctx, cmd.OutOrStdout(), paths.PersonalitiesDir, personalityListOut, "personality", "personalities", oci.DefaultPersonalityRegistry, personalityListRemote)
+	return listOCIArtifacts(ctx, cmd.OutOrStdout(), paths.PersonalitiesDir, personalityListOut, "personality", "personalities", oci.DefaultPersonalityRegistry, personalityListLocal)
 }

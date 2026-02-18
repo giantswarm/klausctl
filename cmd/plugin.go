@@ -20,7 +20,7 @@ var (
 	pluginValidateOut string
 	pluginPullOut     string
 	pluginListOut     string
-	pluginListRemote  bool
+	pluginListLocal   bool
 )
 
 var pluginCmd = &cobra.Command{
@@ -62,11 +62,12 @@ The reference must include a tag or digest:
 var pluginListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List plugins",
-	Long: `List locally cached plugins, or query the remote registry with --remote.
+	Long: `List available plugins from the remote OCI registry.
 
-Without --remote, shows plugins downloaded to the local cache.
-With --remote, discovers available plugins directly from the OCI registry
-and lists their tags. Works on a clean machine with no local cache.`,
+By default, discovers plugins from the registry, shows the latest version
+of each, and indicates whether it is cached locally.
+
+With --local, shows only locally cached plugins with full detail.`,
 	RunE: runPluginList,
 }
 
@@ -81,7 +82,7 @@ func init() {
 	pluginValidateCmd.Flags().StringVarP(&pluginValidateOut, "output", "o", "text", "output format: text, json")
 	pluginPullCmd.Flags().StringVarP(&pluginPullOut, "output", "o", "text", "output format: text, json")
 	pluginListCmd.Flags().StringVarP(&pluginListOut, "output", "o", "text", "output format: text, json")
-	pluginListCmd.Flags().BoolVar(&pluginListRemote, "remote", false, "list remote registry tags instead of local cache")
+	pluginListCmd.Flags().BoolVar(&pluginListLocal, "local", false, "list only locally cached plugins")
 
 	pluginCmd.AddCommand(pluginValidateCmd)
 	pluginCmd.AddCommand(pluginPullCmd)
@@ -169,5 +170,5 @@ func runPluginList(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	return listOCIArtifacts(ctx, cmd.OutOrStdout(), paths.PluginsDir, pluginListOut, "plugin", "plugins", oci.DefaultPluginRegistry, pluginListRemote)
+	return listOCIArtifacts(ctx, cmd.OutOrStdout(), paths.PluginsDir, pluginListOut, "plugin", "plugins", oci.DefaultPluginRegistry, pluginListLocal)
 }
