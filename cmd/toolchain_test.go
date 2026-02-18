@@ -3,6 +3,7 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -362,7 +363,7 @@ func TestValidateToolchainDirValid(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err := validateToolchainDir(dir)
+	err := validateToolchainDir(dir, io.Discard, "text")
 	if err != nil {
 		t.Errorf("validateToolchainDir() error = %v", err)
 	}
@@ -371,7 +372,7 @@ func TestValidateToolchainDirValid(t *testing.T) {
 func TestValidateToolchainDirMissingDockerfile(t *testing.T) {
 	dir := t.TempDir()
 
-	err := validateToolchainDir(dir)
+	err := validateToolchainDir(dir, io.Discard, "text")
 	if err == nil {
 		t.Fatal("expected error for missing Dockerfile")
 	}
@@ -381,11 +382,59 @@ func TestValidateToolchainDirMissingDockerfile(t *testing.T) {
 }
 
 func TestValidateToolchainDirNotExist(t *testing.T) {
-	err := validateToolchainDir("/nonexistent/path")
+	err := validateToolchainDir("/nonexistent/path", io.Discard, "text")
 	if err == nil {
 		t.Fatal("expected error for nonexistent directory")
 	}
 	if !strings.Contains(err.Error(), "does not exist") {
 		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestValidateToolchainDirTextOutput(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "Dockerfile"), []byte("FROM alpine"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var buf bytes.Buffer
+	if err := validateToolchainDir(dir, &buf, "text"); err != nil {
+		t.Fatalf("validateToolchainDir() error = %v", err)
+	}
+
+	if !strings.Contains(buf.String(), "Valid toolchain directory") {
+		t.Error("expected text output to contain 'Valid toolchain directory'")
+	}
+}
+
+func TestValidateToolchainDirJSONOutput(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "Dockerfile"), []byte("FROM alpine"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var buf bytes.Buffer
+	if err := validateToolchainDir(dir, &buf, "json"); err != nil {
+		t.Fatalf("validateToolchainDir() error = %v", err)
+	}
+
+	var result toolchainValidation
+	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
+		t.Fatalf("JSON parse error: %v", err)
+	}
+	if !result.Valid {
+		t.Error("expected valid=true")
+	}
+	if result.Directory != dir {
+		t.Errorf("directory = %q, want %q", result.Directory, dir)
+	}
+}
+
+func TestToolchainFlagsRegistered(t *testing.T) {
+	if f := toolchainValidateCmd.Flags().Lookup("output"); f == nil {
+		t.Error("expected --output flag on validate")
+	}
+	if f := toolchainPullCmd.Flags().Lookup("output"); f == nil {
+		t.Error("expected --output flag on pull")
 	}
 }

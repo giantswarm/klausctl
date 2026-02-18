@@ -1,6 +1,9 @@
 package cmd
 
 import (
+	"bytes"
+	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -40,7 +43,7 @@ func TestValidatePluginDirValid(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err := validatePluginDir(dir)
+	err := validatePluginDir(dir, io.Discard, "text")
 	if err != nil {
 		t.Errorf("validatePluginDir() error = %v", err)
 	}
@@ -56,7 +59,7 @@ func TestValidatePluginDirWithAgents(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err := validatePluginDir(dir)
+	err := validatePluginDir(dir, io.Discard, "text")
 	if err != nil {
 		t.Errorf("validatePluginDir() error = %v", err)
 	}
@@ -69,7 +72,7 @@ func TestValidatePluginDirWithMCPConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err := validatePluginDir(dir)
+	err := validatePluginDir(dir, io.Discard, "text")
 	if err != nil {
 		t.Errorf("validatePluginDir() error = %v", err)
 	}
@@ -78,7 +81,7 @@ func TestValidatePluginDirWithMCPConfig(t *testing.T) {
 func TestValidatePluginDirEmpty(t *testing.T) {
 	dir := t.TempDir()
 
-	err := validatePluginDir(dir)
+	err := validatePluginDir(dir, io.Discard, "text")
 	if err == nil {
 		t.Fatal("expected error for empty directory")
 	}
@@ -88,7 +91,7 @@ func TestValidatePluginDirEmpty(t *testing.T) {
 }
 
 func TestValidatePluginDirNotExist(t *testing.T) {
-	err := validatePluginDir("/nonexistent/path")
+	err := validatePluginDir("/nonexistent/path", io.Discard, "text")
 	if err == nil {
 		t.Fatal("expected error for nonexistent directory")
 	}
@@ -103,7 +106,7 @@ func TestValidatePluginDirNotADirectory(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err := validatePluginDir(f)
+	err := validatePluginDir(f, io.Discard, "text")
 	if err == nil {
 		t.Fatal("expected error for file (not directory)")
 	}
@@ -112,11 +115,60 @@ func TestValidatePluginDirNotADirectory(t *testing.T) {
 	}
 }
 
-func TestPluginListFlagsRegistered(t *testing.T) {
+func TestValidatePluginDirTextOutput(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "skills"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	var buf bytes.Buffer
+	if err := validatePluginDir(dir, &buf, "text"); err != nil {
+		t.Fatalf("validatePluginDir() error = %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "Valid plugin directory") {
+		t.Error("expected text output to contain 'Valid plugin directory'")
+	}
+}
+
+func TestValidatePluginDirJSONOutput(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "skills"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "agents"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	var buf bytes.Buffer
+	if err := validatePluginDir(dir, &buf, "json"); err != nil {
+		t.Fatalf("validatePluginDir() error = %v", err)
+	}
+
+	var result pluginValidation
+	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
+		t.Fatalf("JSON parse error: %v", err)
+	}
+	if !result.Valid {
+		t.Error("expected valid=true")
+	}
+	if len(result.Found) != 2 {
+		t.Errorf("expected 2 found items, got %d", len(result.Found))
+	}
+}
+
+func TestPluginFlagsRegistered(t *testing.T) {
+	if f := pluginValidateCmd.Flags().Lookup("output"); f == nil {
+		t.Error("expected --output flag on validate")
+	}
+	if f := pluginPullCmd.Flags().Lookup("output"); f == nil {
+		t.Error("expected --output flag on pull")
+	}
 	if f := pluginListCmd.Flags().Lookup("output"); f == nil {
-		t.Error("expected --output flag")
+		t.Error("expected --output flag on list")
 	}
 	if f := pluginListCmd.Flags().Lookup("remote"); f == nil {
-		t.Error("expected --remote flag")
+		t.Error("expected --remote flag on list")
 	}
 }

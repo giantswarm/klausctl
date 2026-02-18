@@ -128,6 +128,26 @@ func TestToolchainRegistryRef(t *testing.T) {
 	}
 }
 
+func TestNewDefaultClient(t *testing.T) {
+	client := NewDefaultClient()
+	if client == nil {
+		t.Fatal("NewDefaultClient() returned nil")
+	}
+}
+
+func TestNewDefaultClientWithOpts(t *testing.T) {
+	client := NewDefaultClient(WithPlainHTTP(true))
+	if client == nil {
+		t.Fatal("NewDefaultClient(WithPlainHTTP(true)) returned nil")
+	}
+}
+
+func TestRegistryAuthEnvVar(t *testing.T) {
+	if RegistryAuthEnvVar != "KLAUSCTL_REGISTRY_AUTH" {
+		t.Errorf("RegistryAuthEnvVar = %q, want %q", RegistryAuthEnvVar, "KLAUSCTL_REGISTRY_AUTH")
+	}
+}
+
 func TestToolchainRegistryRefFullPath(t *testing.T) {
 	full := "gsoci.azurecr.io/giantswarm/klaus-go"
 	got := ToolchainRegistryRef(full)

@@ -80,7 +80,7 @@ func listRemoteTags(ctx context.Context, cacheDir string) ([]remoteTag, error) {
 		return nil, nil
 	}
 
-	client := oci.NewClient()
+	client := oci.NewDefaultClient()
 	var tags []remoteTag
 
 	seen := make(map[string]bool)
@@ -103,16 +103,37 @@ func listRemoteTags(ctx context.Context, cacheDir string) ([]remoteTag, error) {
 	return tags, nil
 }
 
+// pullResult describes the outcome of pulling an OCI artifact, used for
+// --output json on pull commands.
+type pullResult struct {
+	Name   string `json:"name"`
+	Ref    string `json:"ref"`
+	Digest string `json:"digest"`
+	Cached bool   `json:"cached"`
+}
+
 // pullArtifact pulls an OCI artifact by reference to a cache directory.
-// The artifact is stored at <cacheDir>/<shortName>/.
-func pullArtifact(ctx context.Context, ref string, cacheDir string, kind oci.ArtifactKind, out io.Writer) error {
-	shortName := oci.ShortName(ref)
+// The artifact is stored at <cacheDir>/<shortName>/. The shortName is
+// extracted from the repository portion of the reference (tag/digest stripped).
+func pullArtifact(ctx context.Context, ref string, cacheDir string, kind oci.ArtifactKind, out io.Writer, outputFmt string) error {
+	shortName := oci.ShortName(repositoryFromRef(ref))
 	destDir := filepath.Join(cacheDir, shortName)
 
-	client := oci.NewClient()
+	client := oci.NewDefaultClient()
 	result, err := client.Pull(ctx, ref, destDir, kind)
 	if err != nil {
 		return err
+	}
+
+	if outputFmt == "json" {
+		enc := json.NewEncoder(out)
+		enc.SetIndent("", "  ")
+		return enc.Encode(pullResult{
+			Name:   shortName,
+			Ref:    ref,
+			Digest: result.Digest,
+			Cached: result.Cached,
+		})
 	}
 
 	if result.Cached {

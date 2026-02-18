@@ -2,7 +2,9 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -15,8 +17,10 @@ import (
 )
 
 var (
-	personalityListOut    string
-	personalityListRemote bool
+	personalityValidateOut string
+	personalityPullOut     string
+	personalityListOut     string
+	personalityListRemote  bool
 )
 
 var personalityCmd = &cobra.Command{
@@ -62,7 +66,18 @@ With --remote, shows available tags for locally cached personality repositories.
 	RunE: runPersonalityList,
 }
 
+// personalityValidation is the JSON representation of a successful personality validation.
+type personalityValidation struct {
+	Valid       bool   `json:"valid"`
+	Directory   string `json:"directory"`
+	Description string `json:"description,omitempty"`
+	Image       string `json:"image,omitempty"`
+	Plugins     int    `json:"plugins,omitempty"`
+}
+
 func init() {
+	personalityValidateCmd.Flags().StringVarP(&personalityValidateOut, "output", "o", "text", "output format: text, json")
+	personalityPullCmd.Flags().StringVarP(&personalityPullOut, "output", "o", "text", "output format: text, json")
 	personalityListCmd.Flags().StringVarP(&personalityListOut, "output", "o", "text", "output format: text, json")
 	personalityListCmd.Flags().BoolVar(&personalityListRemote, "remote", false, "list remote registry tags instead of local cache")
 
@@ -72,13 +87,12 @@ func init() {
 	rootCmd.AddCommand(personalityCmd)
 }
 
-func runPersonalityValidate(_ *cobra.Command, args []string) error {
-	dir := args[0]
-	return validatePersonalityDir(dir)
+func runPersonalityValidate(cmd *cobra.Command, args []string) error {
+	return validatePersonalityDir(args[0], cmd.OutOrStdout(), personalityValidateOut)
 }
 
 // validatePersonalityDir checks that a directory has a valid personality structure.
-func validatePersonalityDir(dir string) error {
+func validatePersonalityDir(dir string, out io.Writer, outputFmt string) error {
 	info, err := os.Stat(dir)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -104,15 +118,27 @@ func validatePersonalityDir(dir string) error {
 		return fmt.Errorf("parsing personality.yaml: %w", err)
 	}
 
-	fmt.Printf("Valid personality directory: %s\n", dir)
+	if outputFmt == "json" {
+		enc := json.NewEncoder(out)
+		enc.SetIndent("", "  ")
+		return enc.Encode(personalityValidation{
+			Valid:       true,
+			Directory:   dir,
+			Description: spec.Description,
+			Image:       spec.Image,
+			Plugins:     len(spec.Plugins),
+		})
+	}
+
+	fmt.Fprintf(out, "Valid personality directory: %s\n", dir)
 	if spec.Description != "" {
-		fmt.Printf("  Description: %s\n", spec.Description)
+		fmt.Fprintf(out, "  Description: %s\n", spec.Description)
 	}
 	if spec.Image != "" {
-		fmt.Printf("  Image: %s\n", spec.Image)
+		fmt.Fprintf(out, "  Image: %s\n", spec.Image)
 	}
 	if len(spec.Plugins) > 0 {
-		fmt.Printf("  Plugins: %d\n", len(spec.Plugins))
+		fmt.Fprintf(out, "  Plugins: %d\n", len(spec.Plugins))
 	}
 	return nil
 }
@@ -130,7 +156,7 @@ func runPersonalityPull(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("creating personalities directory: %w", err)
 	}
 
-	return pullArtifact(ctx, args[0], paths.PersonalitiesDir, oci.PersonalityArtifact, cmd.OutOrStdout())
+	return pullArtifact(ctx, args[0], paths.PersonalitiesDir, oci.PersonalityArtifact, cmd.OutOrStdout(), personalityPullOut)
 }
 
 func runPersonalityList(cmd *cobra.Command, _ []string) error {

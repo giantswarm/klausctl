@@ -1,6 +1,9 @@
 package cmd
 
 import (
+	"bytes"
+	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -43,7 +46,7 @@ plugins:
 		t.Fatal(err)
 	}
 
-	err := validatePersonalityDir(dir)
+	err := validatePersonalityDir(dir, io.Discard, "text")
 	if err != nil {
 		t.Errorf("validatePersonalityDir() error = %v", err)
 	}
@@ -56,7 +59,7 @@ func TestValidatePersonalityDirMinimal(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err := validatePersonalityDir(dir)
+	err := validatePersonalityDir(dir, io.Discard, "text")
 	if err != nil {
 		t.Errorf("validatePersonalityDir() error = %v", err)
 	}
@@ -65,7 +68,7 @@ func TestValidatePersonalityDirMinimal(t *testing.T) {
 func TestValidatePersonalityDirMissingSpec(t *testing.T) {
 	dir := t.TempDir()
 
-	err := validatePersonalityDir(dir)
+	err := validatePersonalityDir(dir, io.Discard, "text")
 	if err == nil {
 		t.Fatal("expected error for missing personality.yaml")
 	}
@@ -81,7 +84,7 @@ func TestValidatePersonalityDirInvalidYAML(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err := validatePersonalityDir(dir)
+	err := validatePersonalityDir(dir, io.Discard, "text")
 	if err == nil {
 		t.Fatal("expected error for invalid YAML")
 	}
@@ -91,7 +94,7 @@ func TestValidatePersonalityDirInvalidYAML(t *testing.T) {
 }
 
 func TestValidatePersonalityDirNotExist(t *testing.T) {
-	err := validatePersonalityDir("/nonexistent/path")
+	err := validatePersonalityDir("/nonexistent/path", io.Discard, "text")
 	if err == nil {
 		t.Fatal("expected error for nonexistent directory")
 	}
@@ -106,7 +109,7 @@ func TestValidatePersonalityDirNotADirectory(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err := validatePersonalityDir(f)
+	err := validatePersonalityDir(f, io.Discard, "text")
 	if err == nil {
 		t.Fatal("expected error for file (not directory)")
 	}
@@ -115,11 +118,75 @@ func TestValidatePersonalityDirNotADirectory(t *testing.T) {
 	}
 }
 
-func TestPersonalityListFlagsRegistered(t *testing.T) {
+func TestValidatePersonalityDirTextOutput(t *testing.T) {
+	dir := t.TempDir()
+	spec := `description: SRE personality
+image: gsoci.azurecr.io/giantswarm/klaus-go:1.0.0
+plugins:
+  - repository: gsoci.azurecr.io/giantswarm/klaus-plugins/gs-base
+    tag: v0.6.0
+`
+	if err := os.WriteFile(filepath.Join(dir, "personality.yaml"), []byte(spec), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var buf bytes.Buffer
+	if err := validatePersonalityDir(dir, &buf, "text"); err != nil {
+		t.Fatalf("validatePersonalityDir() error = %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "Valid personality directory") {
+		t.Error("expected text output to contain 'Valid personality directory'")
+	}
+	if !strings.Contains(output, "Description: SRE personality") {
+		t.Error("expected text output to contain description")
+	}
+}
+
+func TestValidatePersonalityDirJSONOutput(t *testing.T) {
+	dir := t.TempDir()
+	spec := `description: SRE personality
+image: gsoci.azurecr.io/giantswarm/klaus-go:1.0.0
+plugins:
+  - repository: gsoci.azurecr.io/giantswarm/klaus-plugins/gs-base
+    tag: v0.6.0
+`
+	if err := os.WriteFile(filepath.Join(dir, "personality.yaml"), []byte(spec), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var buf bytes.Buffer
+	if err := validatePersonalityDir(dir, &buf, "json"); err != nil {
+		t.Fatalf("validatePersonalityDir() error = %v", err)
+	}
+
+	var result personalityValidation
+	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
+		t.Fatalf("JSON parse error: %v", err)
+	}
+	if !result.Valid {
+		t.Error("expected valid=true")
+	}
+	if result.Description != "SRE personality" {
+		t.Errorf("description = %q, want %q", result.Description, "SRE personality")
+	}
+	if result.Plugins != 1 {
+		t.Errorf("plugins = %d, want 1", result.Plugins)
+	}
+}
+
+func TestPersonalityFlagsRegistered(t *testing.T) {
+	if f := personalityValidateCmd.Flags().Lookup("output"); f == nil {
+		t.Error("expected --output flag on validate")
+	}
+	if f := personalityPullCmd.Flags().Lookup("output"); f == nil {
+		t.Error("expected --output flag on pull")
+	}
 	if f := personalityListCmd.Flags().Lookup("output"); f == nil {
-		t.Error("expected --output flag")
+		t.Error("expected --output flag on list")
 	}
 	if f := personalityListCmd.Flags().Lookup("remote"); f == nil {
-		t.Error("expected --remote flag")
+		t.Error("expected --remote flag on list")
 	}
 }

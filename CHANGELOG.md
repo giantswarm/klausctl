@@ -16,11 +16,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `klausctl personality validate|pull|list [--remote]` -- manage OCI personality artifacts.
   - `klausctl toolchain validate|pull` -- validate toolchain directories and pull images.
   - `klausctl toolchain list --remote` -- query remote registry tags for locally cached toolchain images.
+  - All subcommands support `--output json` for scripting (consistent with `status` and `toolchain list`).
 - Add `PersonalitiesDir` to config paths for OCI personality cache storage. ([#31](https://github.com/giantswarm/klausctl/issues/31))
 
 ### Changed
 
 - Refactor `pkg/oci/` to import shared `giantswarm/klaus-oci` library for media type constants, metadata types, OCI annotations, and the ORAS client. klausctl-specific helpers (cache paths, container mount paths) remain in `pkg/oci/`. ([#31](https://github.com/giantswarm/klausctl/issues/31))
+
+### Fixed
+
+- Wire up `KLAUSCTL_REGISTRY_AUTH` env var for OCI credential resolution. After the migration to `klaus-oci`, the env var was no longer passed to the client. All OCI operations now use `NewDefaultClient()` which includes both Docker/Podman config file auth and the env var. ([#31](https://github.com/giantswarm/klausctl/issues/31))
+- Fix `ShortName` extracting name with tag suffix when called on a full OCI reference (e.g. `gs-base:v0.6.0` instead of `gs-base`). The repository portion is now stripped of tag/digest before name extraction. ([#31](https://github.com/giantswarm/klausctl/issues/31))
+- Fix validate commands writing to `os.Stdout` instead of `cmd.OutOrStdout()`, making output testable and consistent with the rest of the CLI. ([#31](https://github.com/giantswarm/klausctl/issues/31))
 
 ### Added
 

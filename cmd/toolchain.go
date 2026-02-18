@@ -26,11 +26,13 @@ import (
 const toolchainImageSubstring = "klaus-"
 
 var (
-	toolchainInitName  string
-	toolchainInitDir   string
-	toolchainListOut   string
-	toolchainListWide  bool
-	toolchainListRemot bool
+	toolchainInitName    string
+	toolchainInitDir     string
+	toolchainValidateOut string
+	toolchainPullOut     string
+	toolchainListOut     string
+	toolchainListWide    bool
+	toolchainListRemot   bool
 )
 
 var toolchainCmd = &cobra.Command{
@@ -90,7 +92,21 @@ The reference should be a full image reference:
 	RunE: runToolchainPull,
 }
 
+// toolchainValidation is the JSON representation of a successful toolchain validation.
+type toolchainValidation struct {
+	Valid     bool   `json:"valid"`
+	Directory string `json:"directory"`
+}
+
+// toolchainPullResult is the JSON representation of a successful toolchain pull.
+type toolchainPullResult struct {
+	Ref    string `json:"ref"`
+	Status string `json:"status"`
+}
+
 func init() {
+	toolchainValidateCmd.Flags().StringVarP(&toolchainValidateOut, "output", "o", "text", "output format: text, json")
+	toolchainPullCmd.Flags().StringVarP(&toolchainPullOut, "output", "o", "text", "output format: text, json")
 	toolchainListCmd.Flags().StringVarP(&toolchainListOut, "output", "o", "text", "output format: text, json")
 	toolchainListCmd.Flags().BoolVar(&toolchainListWide, "wide", false, "show additional columns (ID, size)")
 	toolchainListCmd.Flags().BoolVar(&toolchainListRemot, "remote", false, "list remote registry tags instead of local images")
@@ -170,7 +186,7 @@ func runToolchainListRemote(ctx context.Context, out io.Writer) error {
 		return nil
 	}
 
-	client := oci.NewClient()
+	client := oci.NewDefaultClient()
 	var tags []remoteTag
 	for _, repo := range repos {
 		repoTags, err := client.List(ctx, repo)
@@ -240,13 +256,12 @@ func printImageTable(out io.Writer, images []runtime.ImageInfo, wide bool) error
 	return w.Flush()
 }
 
-func runToolchainValidate(_ *cobra.Command, args []string) error {
-	dir := args[0]
-	return validateToolchainDir(dir)
+func runToolchainValidate(cmd *cobra.Command, args []string) error {
+	return validateToolchainDir(args[0], cmd.OutOrStdout(), toolchainValidateOut)
 }
 
 // validateToolchainDir checks that a directory has a valid toolchain structure.
-func validateToolchainDir(dir string) error {
+func validateToolchainDir(dir string, out io.Writer, outputFmt string) error {
 	info, err := os.Stat(dir)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -266,7 +281,16 @@ func validateToolchainDir(dir string) error {
 		return fmt.Errorf("checking Dockerfile: %w", err)
 	}
 
-	fmt.Printf("Valid toolchain directory: %s\n", dir)
+	if outputFmt == "json" {
+		enc := json.NewEncoder(out)
+		enc.SetIndent("", "  ")
+		return enc.Encode(toolchainValidation{
+			Valid:     true,
+			Directory: dir,
+		})
+	}
+
+	fmt.Fprintf(out, "Valid toolchain directory: %s\n", dir)
 	return nil
 }
 
@@ -288,9 +312,24 @@ func runToolchainPull(cmd *cobra.Command, args []string) error {
 	}
 
 	ref := args[0]
-	fmt.Fprintf(out, "Pulling %s...\n", ref)
-	if err := rt.Pull(ctx, ref, out); err != nil {
+
+	progressOut := out
+	if toolchainPullOut == "json" {
+		progressOut = cmd.ErrOrStderr()
+	}
+
+	fmt.Fprintf(progressOut, "Pulling %s...\n", ref)
+	if err := rt.Pull(ctx, ref, progressOut); err != nil {
 		return fmt.Errorf("pulling image: %w", err)
+	}
+
+	if toolchainPullOut == "json" {
+		enc := json.NewEncoder(out)
+		enc.SetIndent("", "  ")
+		return enc.Encode(toolchainPullResult{
+			Ref:    ref,
+			Status: "pulled",
+		})
 	}
 
 	fmt.Fprintf(out, "Successfully pulled %s\n", ref)

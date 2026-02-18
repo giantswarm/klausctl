@@ -10,6 +10,8 @@ import (
 	"time"
 
 	klausoci "github.com/giantswarm/klaus-oci"
+
+	"github.com/giantswarm/klausctl/pkg/oci"
 )
 
 func TestListLocalArtifacts(t *testing.T) {
@@ -200,6 +202,39 @@ func TestPrintRemoteTagsJSON(t *testing.T) {
 	}
 	if len(result) != 1 {
 		t.Errorf("expected 1 tag in JSON, got %d", len(result))
+	}
+}
+
+func TestShortNameFromRef(t *testing.T) {
+	tests := []struct {
+		ref  string
+		want string
+	}{
+		{
+			ref:  "gsoci.azurecr.io/giantswarm/klaus-plugins/gs-base:v0.6.0",
+			want: "gs-base",
+		},
+		{
+			ref:  "gsoci.azurecr.io/giantswarm/klaus-plugins/gs-base@sha256:abc123",
+			want: "gs-base",
+		},
+		{
+			ref:  "gsoci.azurecr.io/giantswarm/klaus-plugins/gs-base",
+			want: "gs-base",
+		},
+		{
+			ref:  "example.com/plugin:v1",
+			want: "plugin",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.ref, func(t *testing.T) {
+			got := oci.ShortName(repositoryFromRef(tt.ref))
+			if got != tt.want {
+				t.Errorf("ShortName(repositoryFromRef(%q)) = %q, want %q", tt.ref, got, tt.want)
+			}
+		})
 	}
 }
 

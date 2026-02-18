@@ -2,7 +2,9 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -14,8 +16,10 @@ import (
 )
 
 var (
-	pluginListOut    string
-	pluginListRemote bool
+	pluginValidateOut string
+	pluginPullOut     string
+	pluginListOut     string
+	pluginListRemote  bool
 )
 
 var pluginCmd = &cobra.Command{
@@ -64,7 +68,16 @@ With --remote, shows available tags for locally cached plugin repositories.`,
 	RunE: runPluginList,
 }
 
+// pluginValidation is the JSON representation of a successful plugin validation.
+type pluginValidation struct {
+	Valid     bool     `json:"valid"`
+	Directory string   `json:"directory"`
+	Found     []string `json:"found"`
+}
+
 func init() {
+	pluginValidateCmd.Flags().StringVarP(&pluginValidateOut, "output", "o", "text", "output format: text, json")
+	pluginPullCmd.Flags().StringVarP(&pluginPullOut, "output", "o", "text", "output format: text, json")
 	pluginListCmd.Flags().StringVarP(&pluginListOut, "output", "o", "text", "output format: text, json")
 	pluginListCmd.Flags().BoolVar(&pluginListRemote, "remote", false, "list remote registry tags instead of local cache")
 
@@ -74,13 +87,12 @@ func init() {
 	rootCmd.AddCommand(pluginCmd)
 }
 
-func runPluginValidate(_ *cobra.Command, args []string) error {
-	dir := args[0]
-	return validatePluginDir(dir)
+func runPluginValidate(cmd *cobra.Command, args []string) error {
+	return validatePluginDir(args[0], cmd.OutOrStdout(), pluginValidateOut)
 }
 
 // validatePluginDir checks that a directory has a valid plugin structure.
-func validatePluginDir(dir string) error {
+func validatePluginDir(dir string, out io.Writer, outputFmt string) error {
 	info, err := os.Stat(dir)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -104,8 +116,18 @@ func validatePluginDir(dir string) error {
 		return fmt.Errorf("no recognized plugin content found in %s\nExpected at least one of: skills/, agents/, hooks/, .mcp.json", dir)
 	}
 
-	fmt.Printf("Valid plugin directory: %s\n", dir)
-	fmt.Printf("  Found: %v\n", found)
+	if outputFmt == "json" {
+		enc := json.NewEncoder(out)
+		enc.SetIndent("", "  ")
+		return enc.Encode(pluginValidation{
+			Valid:     true,
+			Directory: dir,
+			Found:     found,
+		})
+	}
+
+	fmt.Fprintf(out, "Valid plugin directory: %s\n", dir)
+	fmt.Fprintf(out, "  Found: %v\n", found)
 	return nil
 }
 
@@ -122,7 +144,7 @@ func runPluginPull(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("creating plugins directory: %w", err)
 	}
 
-	return pullArtifact(ctx, args[0], paths.PluginsDir, oci.PluginArtifact, cmd.OutOrStdout())
+	return pullArtifact(ctx, args[0], paths.PluginsDir, oci.PluginArtifact, cmd.OutOrStdout(), pluginPullOut)
 }
 
 func runPluginList(cmd *cobra.Command, _ []string) error {
