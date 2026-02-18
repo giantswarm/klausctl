@@ -122,10 +122,10 @@ func pullArtifact(ctx context.Context, ref string, cacheDir string, kind oci.Art
 // remoteArtifactEntry describes a remote OCI artifact with its latest
 // available tag, resolved digest, and local pull timestamp.
 type remoteArtifactEntry struct {
-	Name      string    `json:"name"`
-	Ref       string    `json:"ref"`
-	Digest    string    `json:"digest"`
-	PulledAt  time.Time `json:"pulledAt,omitempty"`
+	Name     string    `json:"name"`
+	Ref      string    `json:"ref"`
+	Digest   string    `json:"digest"`
+	PulledAt time.Time `json:"pulledAt,omitempty"`
 }
 
 // remoteListOptions customises how listLatestRemoteArtifacts discovers and
