@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -194,48 +195,6 @@ func TestPrintEmptyText(t *testing.T) {
 	}
 }
 
-func TestPrintRemoteTagsText(t *testing.T) {
-	var buf bytes.Buffer
-	tags := []remoteTag{
-		{Repository: "example.com/plugin", Tag: "v1.0.0"},
-		{Repository: "example.com/plugin", Tag: "v2.0.0"},
-	}
-
-	if err := printRemoteTags(&buf, tags, "text"); err != nil {
-		t.Fatalf("printRemoteTags() error = %v", err)
-	}
-
-	output := buf.String()
-	if !strings.Contains(output, "REPOSITORY") {
-		t.Error("expected header with REPOSITORY column")
-	}
-	if !strings.Contains(output, "TAG") {
-		t.Error("expected header with TAG column")
-	}
-	if !strings.Contains(output, "v1.0.0") {
-		t.Error("expected output to contain v1.0.0")
-	}
-}
-
-func TestPrintRemoteTagsJSON(t *testing.T) {
-	var buf bytes.Buffer
-	tags := []remoteTag{
-		{Repository: "example.com/plugin", Tag: "v1.0.0"},
-	}
-
-	if err := printRemoteTags(&buf, tags, "json"); err != nil {
-		t.Fatalf("printRemoteTags() error = %v", err)
-	}
-
-	var result []remoteTag
-	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
-		t.Fatalf("JSON parse error: %v", err)
-	}
-	if len(result) != 1 {
-		t.Errorf("expected 1 tag in JSON, got %d", len(result))
-	}
-}
-
 func TestShortNameFromRef(t *testing.T) {
 	tests := []struct {
 		ref  string
@@ -307,6 +266,166 @@ func TestRepositoryFromRef(t *testing.T) {
 				t.Errorf("repositoryFromRef(%q) = %q, want %q", tt.ref, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestLatestSemverTag(t *testing.T) {
+	tests := []struct {
+		name string
+		tags []string
+		want string
+	}{
+		{
+			name: "multiple versions",
+			tags: []string{"v0.0.1", "v0.0.3", "v0.0.2"},
+			want: "v0.0.3",
+		},
+		{
+			name: "single version",
+			tags: []string{"v1.0.0"},
+			want: "v1.0.0",
+		},
+		{
+			name: "mixed valid and invalid",
+			tags: []string{"latest", "v0.0.6", "main", "v0.0.7"},
+			want: "v0.0.7",
+		},
+		{
+			name: "no valid semver",
+			tags: []string{"latest", "main", "dev"},
+			want: "",
+		},
+		{
+			name: "empty",
+			tags: nil,
+			want: "",
+		},
+		{
+			name: "prerelease lower than release",
+			tags: []string{"v1.0.0-rc.1", "v0.9.0"},
+			want: "v1.0.0-rc.1",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := latestSemverTag(tt.tags)
+			if got != tt.want {
+				t.Errorf("latestSemverTag(%v) = %q, want %q", tt.tags, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestPrintRemoteArtifactsText(t *testing.T) {
+	var buf bytes.Buffer
+	entries := []remoteArtifactEntry{
+		{
+			Name: "gs-base", Ref: "example.com/plugins/gs-base:v0.0.7",
+			Digest: "sha256:abc123def456", PulledAt: time.Now().Add(-2 * time.Hour),
+		},
+		{
+			Name: "gs-sre", Ref: "example.com/plugins/gs-sre:v0.0.7",
+			Digest: "sha256:def789abc012",
+		},
+	}
+
+	if err := printRemoteArtifacts(&buf, entries, "text"); err != nil {
+		t.Fatalf("printRemoteArtifacts() error = %v", err)
+	}
+
+	output := buf.String()
+	for _, col := range []string{"NAME", "REF", "DIGEST", "PULLED"} {
+		if !strings.Contains(output, col) {
+			t.Errorf("expected header with %s column", col)
+		}
+	}
+	if !strings.Contains(output, "gs-base") {
+		t.Error("expected output to contain gs-base")
+	}
+	if !strings.Contains(output, "sha256:abc123def456") {
+		t.Error("expected output to contain digest")
+	}
+	if !strings.Contains(output, "h ago") {
+		t.Error("expected pulled time for cached artifact")
+	}
+	if !strings.Contains(output, "-") {
+		t.Error("expected dash for unpulled artifact")
+	}
+}
+
+func TestPrintRemoteArtifactsJSON(t *testing.T) {
+	var buf bytes.Buffer
+	entries := []remoteArtifactEntry{
+		{
+			Name: "gs-base", Ref: "example.com/plugins/gs-base:v0.0.7",
+			Digest: "sha256:abc123",
+		},
+	}
+
+	if err := printRemoteArtifacts(&buf, entries, "json"); err != nil {
+		t.Fatalf("printRemoteArtifacts() error = %v", err)
+	}
+
+	var result []remoteArtifactEntry
+	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
+		t.Fatalf("JSON parse error: %v", err)
+	}
+	if len(result) != 1 {
+		t.Fatalf("expected 1 entry in JSON, got %d", len(result))
+	}
+	if result[0].Ref != "example.com/plugins/gs-base:v0.0.7" {
+		t.Errorf("ref = %q, want full ref", result[0].Ref)
+	}
+	if result[0].Digest != "sha256:abc123" {
+		t.Errorf("digest = %q, want %q", result[0].Digest, "sha256:abc123")
+	}
+}
+
+func TestSplitNameTag(t *testing.T) {
+	tests := []struct {
+		ref      string
+		wantName string
+		wantTag  string
+	}{
+		{"gs-ae", "gs-ae", ""},
+		{"gs-ae:v0.0.7", "gs-ae", "v0.0.7"},
+		{"my-plugin:latest", "my-plugin", "latest"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.ref, func(t *testing.T) {
+			name, tag := splitNameTag(tt.ref)
+			if name != tt.wantName {
+				t.Errorf("name = %q, want %q", name, tt.wantName)
+			}
+			if tag != tt.wantTag {
+				t.Errorf("tag = %q, want %q", tag, tt.wantTag)
+			}
+		})
+	}
+}
+
+func TestResolveArtifactRefFullRef(t *testing.T) {
+	ctx := context.Background()
+	ref, err := resolveArtifactRef(ctx, "gsoci.azurecr.io/giantswarm/klaus-plugins/gs-base:v0.0.7", "gsoci.azurecr.io/giantswarm/klaus-plugins")
+	if err != nil {
+		t.Fatalf("resolveArtifactRef() error = %v", err)
+	}
+	if ref != "gsoci.azurecr.io/giantswarm/klaus-plugins/gs-base:v0.0.7" {
+		t.Errorf("ref = %q, want full ref unchanged", ref)
+	}
+}
+
+func TestResolveArtifactRefShortWithTag(t *testing.T) {
+	ctx := context.Background()
+	ref, err := resolveArtifactRef(ctx, "gs-base:v0.0.7", "gsoci.azurecr.io/giantswarm/klaus-plugins")
+	if err != nil {
+		t.Fatalf("resolveArtifactRef() error = %v", err)
+	}
+	want := "gsoci.azurecr.io/giantswarm/klaus-plugins/gs-base:v0.0.7"
+	if ref != want {
+		t.Errorf("ref = %q, want %q", ref, want)
 	}
 }
 

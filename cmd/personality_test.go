@@ -132,5 +132,5 @@ func TestPersonalityFlagsRegistered(t *testing.T) {
 	assertFlagRegistered(t, personalityValidateCmd, "output")
 	assertFlagRegistered(t, personalityPullCmd, "output")
 	assertFlagRegistered(t, personalityListCmd, "output")
-	assertFlagRegistered(t, personalityListCmd, "remote")
+	assertFlagRegistered(t, personalityListCmd, "local")
 }

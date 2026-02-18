@@ -33,7 +33,7 @@ var (
 	toolchainPullOut     string
 	toolchainListOut     string
 	toolchainListWide    bool
-	toolchainListRemote  bool
+	toolchainListLocal   bool
 )
 
 var toolchainCmd = &cobra.Command{
@@ -49,14 +49,12 @@ responsibility.`,
 var toolchainListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List toolchain images",
-	Long: `List locally cached or remote klaus toolchain images.
+	Long: `List available toolchain images from the remote OCI registry.
 
-Without --remote, shows all Docker/Podman images matching the klaus-*
-naming pattern, typically pulled from the registry by CI or during
-'klausctl start'.
+By default, discovers toolchain images from the registry, shows the latest
+version of each, and indicates whether it has been pulled locally.
 
-With --remote, queries the registry for available tags of locally cached
-toolchain images.`,
+With --local, shows Docker/Podman images matching the klaus-* naming pattern.`,
 	RunE: runToolchainList,
 }
 
@@ -109,8 +107,8 @@ func init() {
 	toolchainValidateCmd.Flags().StringVarP(&toolchainValidateOut, "output", "o", "text", "output format: text, json")
 	toolchainPullCmd.Flags().StringVarP(&toolchainPullOut, "output", "o", "text", "output format: text, json")
 	toolchainListCmd.Flags().StringVarP(&toolchainListOut, "output", "o", "text", "output format: text, json")
-	toolchainListCmd.Flags().BoolVar(&toolchainListWide, "wide", false, "show additional columns (ID, size)")
-	toolchainListCmd.Flags().BoolVar(&toolchainListRemote, "remote", false, "list remote registry tags instead of local images")
+	toolchainListCmd.Flags().BoolVar(&toolchainListWide, "wide", false, "show additional columns (ID, size) in --local mode")
+	toolchainListCmd.Flags().BoolVar(&toolchainListLocal, "local", false, "list only locally pulled toolchain images")
 
 	toolchainInitCmd.Flags().StringVar(&toolchainInitName, "name", "", "toolchain name (required)")
 	toolchainInitCmd.Flags().StringVar(&toolchainInitDir, "dir", "", "output directory (default: ./klaus-<name>)")
@@ -142,62 +140,51 @@ func runToolchainList(cmd *cobra.Command, _ []string) error {
 
 	out := cmd.OutOrStdout()
 
-	if toolchainListRemote {
-		return runToolchainListRemote(ctx, out)
+	if toolchainListLocal {
+		rt, err := loadRuntime()
+		if err != nil {
+			return err
+		}
+		return toolchainList(ctx, out, rt, toolchainListOptions{
+			output: toolchainListOut,
+			wide:   toolchainListWide,
+		})
 	}
 
-	rt, err := loadRuntime()
-	if err != nil {
-		return err
-	}
-
-	return toolchainList(ctx, out, rt, toolchainListOptions{
-		output: toolchainListOut,
-		wide:   toolchainListWide,
-	})
+	return runToolchainListRemote(ctx, out)
 }
 
-// runToolchainListRemote queries remote tags for locally cached toolchain images.
+// isToolchainRepo returns true if the fully-qualified repository name
+// matches the toolchain pattern (host/org/klaus-<name>), excluding
+// plugin and personality sub-namespaces.
+func isToolchainRepo(repo string) bool {
+	parts := strings.Split(repo, "/")
+	if len(parts) != 3 {
+		return false
+	}
+	return strings.HasPrefix(parts[2], toolchainImageSubstring)
+}
+
+// runToolchainListRemote discovers toolchain images from the registry,
+// resolves the latest semver tag and digest for each, and checks local
+// pull status. Toolchains don't use the OCI cache directory so cacheDir
+// is empty, which means the PULLED column will always show "-".
 func runToolchainListRemote(ctx context.Context, out io.Writer) error {
-	rt, err := loadRuntime()
+	entries, err := listLatestRemoteArtifacts(ctx, "", oci.DefaultToolchainRegistry, &remoteListOptions{
+		Filter:    isToolchainRepo,
+		ShortName: oci.ShortToolchainName,
+	})
 	if err != nil {
 		return err
 	}
 
-	all, err := rt.Images(ctx, "")
-	if err != nil {
-		return fmt.Errorf("listing images: %w", err)
-	}
-
-	seen := make(map[string]bool)
-	var repos []string
-	for _, img := range all {
-		if strings.Contains(img.Repository, toolchainImageSubstring) && !seen[img.Repository] {
-			seen[img.Repository] = true
-			repos = append(repos, img.Repository)
-		}
-	}
-
-	if len(repos) == 0 {
+	if len(entries) == 0 {
 		return printEmpty(out, toolchainListOut,
-			"No locally cached toolchain images to query remote tags for.",
-			"Use 'klausctl toolchain pull <ref>' to pull a toolchain image first.",
+			"No toolchain images found in the remote registry.",
 		)
 	}
 
-	client := oci.NewDefaultClient()
-	var tags []remoteTag
-	for _, repo := range repos {
-		repoTags, err := client.List(ctx, repo)
-		if err != nil {
-			return fmt.Errorf("listing tags for %s: %w", repo, err)
-		}
-		for _, tag := range repoTags {
-			tags = append(tags, remoteTag{Repository: repo, Tag: tag})
-		}
-	}
-
-	return printRemoteTags(out, tags, toolchainListOut)
+	return printRemoteArtifacts(out, entries, toolchainListOut)
 }
 
 // toolchainListOptions controls output formatting for the toolchain list.

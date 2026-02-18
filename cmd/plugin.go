@@ -20,7 +20,7 @@ var (
 	pluginValidateOut string
 	pluginPullOut     string
 	pluginListOut     string
-	pluginListRemote  bool
+	pluginListLocal   bool
 )
 
 var pluginCmd = &cobra.Command{
@@ -52,9 +52,11 @@ var pluginPullCmd = &cobra.Command{
 	Short: "Pull a plugin from the OCI registry",
 	Long: `Pull a plugin OCI artifact from the registry to the local cache.
 
-The reference must include a tag or digest:
+Accepts a short name, short name with tag, or full OCI reference:
 
-  klausctl plugin pull gsoci.azurecr.io/giantswarm/klaus-plugins/gs-base:v0.6.0`,
+  klausctl plugin pull gs-base              (resolves latest version)
+  klausctl plugin pull gs-base:v0.0.7       (specific version)
+  klausctl plugin pull gsoci.azurecr.io/giantswarm/klaus-plugins/gs-base:v0.0.7`,
 	Args: cobra.ExactArgs(1),
 	RunE: runPluginPull,
 }
@@ -62,10 +64,12 @@ The reference must include a tag or digest:
 var pluginListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List plugins",
-	Long: `List locally cached plugins, or query the remote registry with --remote.
+	Long: `List available plugins from the remote OCI registry.
 
-Without --remote, shows plugins downloaded to the local cache.
-With --remote, shows available tags for locally cached plugin repositories.`,
+By default, discovers plugins from the registry, shows the latest version
+of each, and indicates whether it is cached locally.
+
+With --local, shows only locally cached plugins with full detail.`,
 	RunE: runPluginList,
 }
 
@@ -80,7 +84,7 @@ func init() {
 	pluginValidateCmd.Flags().StringVarP(&pluginValidateOut, "output", "o", "text", "output format: text, json")
 	pluginPullCmd.Flags().StringVarP(&pluginPullOut, "output", "o", "text", "output format: text, json")
 	pluginListCmd.Flags().StringVarP(&pluginListOut, "output", "o", "text", "output format: text, json")
-	pluginListCmd.Flags().BoolVar(&pluginListRemote, "remote", false, "list remote registry tags instead of local cache")
+	pluginListCmd.Flags().BoolVar(&pluginListLocal, "local", false, "list only locally cached plugins")
 
 	pluginCmd.AddCommand(pluginValidateCmd)
 	pluginCmd.AddCommand(pluginPullCmd)
@@ -152,7 +156,12 @@ func runPluginPull(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("creating plugins directory: %w", err)
 	}
 
-	return pullArtifact(ctx, args[0], paths.PluginsDir, oci.PluginArtifact, cmd.OutOrStdout(), pluginPullOut)
+	ref, err := resolveArtifactRef(ctx, args[0], oci.DefaultPluginRegistry)
+	if err != nil {
+		return err
+	}
+
+	return pullArtifact(ctx, ref, paths.PluginsDir, oci.PluginArtifact, cmd.OutOrStdout(), pluginPullOut)
 }
 
 func runPluginList(cmd *cobra.Command, _ []string) error {
@@ -168,5 +177,5 @@ func runPluginList(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	return listOCIArtifacts(ctx, cmd.OutOrStdout(), paths.PluginsDir, pluginListOut, "plugin", "plugins", pluginListRemote)
+	return listOCIArtifacts(ctx, cmd.OutOrStdout(), paths.PluginsDir, pluginListOut, "plugin", "plugins", oci.DefaultPluginRegistry, pluginListLocal)
 }

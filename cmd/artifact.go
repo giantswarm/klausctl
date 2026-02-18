@@ -13,6 +13,8 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/Masterminds/semver/v3"
+
 	"github.com/giantswarm/klausctl/pkg/oci"
 )
 
@@ -35,12 +37,6 @@ type cachedArtifact struct {
 	Ref      string    `json:"ref"`
 	Digest   string    `json:"digest"`
 	PulledAt time.Time `json:"pulledAt"`
-}
-
-// remoteTag describes a tag available in a remote registry.
-type remoteTag struct {
-	Repository string `json:"repository"`
-	Tag        string `json:"tag"`
 }
 
 // listLocalArtifacts scans a cache directory for downloaded OCI artifacts.
@@ -79,42 +75,6 @@ func listLocalArtifacts(cacheDir string) ([]cachedArtifact, error) {
 	})
 
 	return artifacts, nil
-}
-
-// listRemoteTags queries the registry for available tags of locally cached
-// artifacts in the given cache directory. Each cached artifact's Ref is used
-// to derive the repository to query.
-func listRemoteTags(ctx context.Context, cacheDir string) ([]remoteTag, error) {
-	artifacts, err := listLocalArtifacts(cacheDir)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(artifacts) == 0 {
-		return nil, nil
-	}
-
-	client := oci.NewDefaultClient()
-	var tags []remoteTag
-
-	seen := make(map[string]bool)
-	for _, a := range artifacts {
-		repo := repositoryFromRef(a.Ref)
-		if repo == "" || seen[repo] {
-			continue
-		}
-		seen[repo] = true
-
-		repoTags, err := client.List(ctx, repo)
-		if err != nil {
-			return nil, fmt.Errorf("listing tags for %s: %w", repo, err)
-		}
-		for _, tag := range repoTags {
-			tags = append(tags, remoteTag{Repository: repo, Tag: tag})
-		}
-	}
-
-	return tags, nil
 }
 
 // pullResult describes the outcome of pulling an OCI artifact, used for
@@ -159,35 +119,169 @@ func pullArtifact(ctx context.Context, ref string, cacheDir string, kind oci.Art
 	return nil
 }
 
+// remoteArtifactEntry describes a remote OCI artifact with its latest
+// available tag, resolved digest, and local pull timestamp.
+type remoteArtifactEntry struct {
+	Name     string    `json:"name"`
+	Ref      string    `json:"ref"`
+	Digest   string    `json:"digest"`
+	PulledAt time.Time `json:"pulledAt,omitempty"`
+}
+
+// remoteListOptions customises how listLatestRemoteArtifacts discovers and
+// names repositories.
+type remoteListOptions struct {
+	// Filter, when non-nil, is called for each discovered repository.
+	// Only repositories for which it returns true are included.
+	Filter func(repo string) bool
+	// ShortName extracts a display name from a repository path.
+	// Defaults to oci.ShortName when nil.
+	ShortName func(repo string) string
+}
+
+// listLatestRemoteArtifacts discovers repositories from the registry,
+// resolves the latest semver tag and digest for each, and checks local
+// pull status. Pass nil opts for default behaviour (no filtering,
+// oci.ShortName for display names).
+func listLatestRemoteArtifacts(ctx context.Context, cacheDir, registryBase string, opts *remoteListOptions) ([]remoteArtifactEntry, error) {
+	client := oci.NewDefaultClient()
+
+	repos, err := client.ListRepositories(ctx, registryBase)
+	if err != nil {
+		return nil, fmt.Errorf("discovering remote repositories: %w", err)
+	}
+
+	if opts != nil && opts.Filter != nil {
+		filtered := repos[:0]
+		for _, r := range repos {
+			if opts.Filter(r) {
+				filtered = append(filtered, r)
+			}
+		}
+		repos = filtered
+	}
+
+	shortNameFn := oci.ShortName
+	if opts != nil && opts.ShortName != nil {
+		shortNameFn = opts.ShortName
+	}
+
+	// Errors from listLocalArtifacts are intentionally ignored so the
+	// command works on a clean machine with no local cache directory.
+	localArtifacts, _ := listLocalArtifacts(cacheDir)
+	cacheByName := make(map[string]cachedArtifact, len(localArtifacts))
+	for _, a := range localArtifacts {
+		cacheByName[a.Name] = a
+	}
+
+	var entries []remoteArtifactEntry
+	for _, repo := range repos {
+		tags, err := client.List(ctx, repo)
+		if err != nil {
+			return nil, fmt.Errorf("listing tags for %s: %w", repo, err)
+		}
+
+		latest := latestSemverTag(tags)
+		if latest == "" {
+			continue
+		}
+
+		ref := repo + ":" + latest
+		digest, err := client.Resolve(ctx, ref)
+		if err != nil {
+			return nil, fmt.Errorf("resolving digest for %s: %w", ref, err)
+		}
+
+		name := shortNameFn(repo)
+		entry := remoteArtifactEntry{
+			Name:   name,
+			Ref:    ref,
+			Digest: digest,
+		}
+
+		if cached, ok := cacheByName[name]; ok {
+			entry.PulledAt = cached.PulledAt
+		}
+
+		entries = append(entries, entry)
+	}
+
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].Name < entries[j].Name
+	})
+
+	return entries, nil
+}
+
+// latestSemverTag returns the highest semver tag from the given list.
+// Tags that are not valid semver are ignored.
+func latestSemverTag(tags []string) string {
+	var best *semver.Version
+	var bestTag string
+
+	for _, tag := range tags {
+		v, err := semver.NewVersion(tag)
+		if err != nil {
+			continue
+		}
+		if best == nil || v.GreaterThan(best) {
+			best = v
+			bestTag = tag
+		}
+	}
+
+	return bestTag
+}
+
+// printRemoteArtifacts prints remote artifacts in table or JSON format.
+func printRemoteArtifacts(out io.Writer, entries []remoteArtifactEntry, outputFmt string) error {
+	if outputFmt == "json" {
+		enc := json.NewEncoder(out)
+		enc.SetIndent("", "  ")
+		return enc.Encode(entries)
+	}
+
+	w := tabwriter.NewWriter(out, 0, 0, 3, ' ', 0)
+	fmt.Fprintln(w, "NAME\tREF\tDIGEST\tPULLED")
+	for _, e := range entries {
+		pulled := "-"
+		if !e.PulledAt.IsZero() {
+			pulled = formatAge(e.PulledAt)
+		}
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", e.Name, e.Ref, oci.TruncateDigest(e.Digest), pulled)
+	}
+	return w.Flush()
+}
+
 // listOCIArtifacts implements the common list subcommand for OCI-cached artifact
-// types (plugins, personalities). It handles both local and remote listing,
-// empty-state messaging, and output formatting.
-func listOCIArtifacts(ctx context.Context, out io.Writer, cacheDir, outputFmt, typeName, typePlural string, remote bool) error {
-	if remote {
-		tags, err := listRemoteTags(ctx, cacheDir)
+// types (plugins, personalities). By default it queries the remote registry for
+// the latest available version of each artifact and indicates local cache status.
+// With --local, it shows only locally cached artifacts.
+func listOCIArtifacts(ctx context.Context, out io.Writer, cacheDir, outputFmt, typeName, typePlural, registryBase string, local bool) error {
+	if local {
+		artifacts, err := listLocalArtifacts(cacheDir)
 		if err != nil {
 			return err
 		}
-		if len(tags) == 0 {
+		if len(artifacts) == 0 {
 			return printEmpty(out, outputFmt,
-				fmt.Sprintf("No locally cached %s to query remote tags for.", typePlural),
-				fmt.Sprintf("Use 'klausctl %s pull <ref>' to pull a %s first.", typeName, typeName),
+				fmt.Sprintf("No %s cached locally.", typePlural),
+				fmt.Sprintf("Use 'klausctl %s pull <ref>' to pull a %s.", typeName, typeName),
 			)
 		}
-		return printRemoteTags(out, tags, outputFmt)
+		return printLocalArtifacts(out, artifacts, outputFmt)
 	}
 
-	artifacts, err := listLocalArtifacts(cacheDir)
+	entries, err := listLatestRemoteArtifacts(ctx, cacheDir, registryBase, nil)
 	if err != nil {
 		return err
 	}
-	if len(artifacts) == 0 {
+	if len(entries) == 0 {
 		return printEmpty(out, outputFmt,
-			fmt.Sprintf("No %s cached locally.", typePlural),
-			fmt.Sprintf("Use 'klausctl %s pull <ref>' to pull a %s.", typeName, typeName),
+			fmt.Sprintf("No %s found in the remote registry.", typePlural),
 		)
 	}
-	return printLocalArtifacts(out, artifacts, outputFmt)
+	return printRemoteArtifacts(out, entries, outputFmt)
 }
 
 // printEmpty writes an empty result. For JSON, it emits []; for text, it
@@ -224,20 +318,44 @@ func printLocalArtifacts(out io.Writer, artifacts []cachedArtifact, outputFmt st
 	return w.Flush()
 }
 
-// printRemoteTags prints remote tags in table or JSON format.
-func printRemoteTags(out io.Writer, tags []remoteTag, outputFmt string) error {
-	if outputFmt == "json" {
-		enc := json.NewEncoder(out)
-		enc.SetIndent("", "  ")
-		return enc.Encode(tags)
+// resolveArtifactRef resolves a short artifact name to a full OCI reference.
+// Short names like "gs-ae" or "gs-ae:v0.0.7" are expanded using the
+// registryBase (e.g., "gsoci.azurecr.io/giantswarm/klaus-plugins").
+// If no tag is specified, the latest semver tag is resolved from the registry.
+// Full OCI references (containing "/") are returned as-is.
+func resolveArtifactRef(ctx context.Context, ref, registryBase string) (string, error) {
+	if strings.Contains(ref, "/") {
+		return ref, nil
 	}
 
-	w := tabwriter.NewWriter(out, 0, 0, 3, ' ', 0)
-	fmt.Fprintln(w, "REPOSITORY\tTAG")
-	for _, t := range tags {
-		fmt.Fprintf(w, "%s\t%s\n", t.Repository, t.Tag)
+	name, tag := splitNameTag(ref)
+	fullRepo := registryBase + "/" + name
+
+	if tag != "" {
+		return fullRepo + ":" + tag, nil
 	}
-	return w.Flush()
+
+	client := oci.NewDefaultClient()
+	tags, err := client.List(ctx, fullRepo)
+	if err != nil {
+		return "", fmt.Errorf("listing tags for %s: %w", fullRepo, err)
+	}
+
+	latest := latestSemverTag(tags)
+	if latest == "" {
+		return "", fmt.Errorf("no semver tags found for %s", fullRepo)
+	}
+
+	return fullRepo + ":" + latest, nil
+}
+
+// splitNameTag splits "name:tag" into name and tag. If no colon is present,
+// tag is empty.
+func splitNameTag(ref string) (name, tag string) {
+	if idx := strings.LastIndex(ref, ":"); idx >= 0 {
+		return ref[:idx], ref[idx+1:]
+	}
+	return ref, ""
 }
 
 // repositoryFromRef extracts the repository part from an OCI reference,
