@@ -248,6 +248,206 @@ func TestFormatDuration(t *testing.T) {
 	}
 }
 
+func TestApplyCreateOverrides(t *testing.T) {
+	tests := []struct {
+		name    string
+		args    map[string]any
+		check   func(t *testing.T, cfg *config.Config)
+		wantErr bool
+	}{
+		{
+			name: "envVars sets environment variables",
+			args: map[string]any{
+				"envVars": map[string]any{
+					"GITHUB_TOKEN": "tok-123",
+					"MY_VAR":       "hello",
+				},
+			},
+			check: func(t *testing.T, cfg *config.Config) {
+				if cfg.EnvVars["GITHUB_TOKEN"] != "tok-123" {
+					t.Errorf("expected GITHUB_TOKEN=tok-123, got %q", cfg.EnvVars["GITHUB_TOKEN"])
+				}
+				if cfg.EnvVars["MY_VAR"] != "hello" {
+					t.Errorf("expected MY_VAR=hello, got %q", cfg.EnvVars["MY_VAR"])
+				}
+			},
+		},
+		{
+			name: "envVars rejects non-string value",
+			args: map[string]any{
+				"envVars": map[string]any{"BAD": 42},
+			},
+			wantErr: true,
+		},
+		{
+			name: "envVars rejects non-object",
+			args: map[string]any{
+				"envVars": "not-an-object",
+			},
+			wantErr: true,
+		},
+		{
+			name: "envForward appends forwarded vars",
+			args: map[string]any{
+				"envForward": []any{"SSH_AUTH_SOCK", "HOME"},
+			},
+			check: func(t *testing.T, cfg *config.Config) {
+				if len(cfg.EnvForward) != 2 {
+					t.Fatalf("expected 2 envForward entries, got %d", len(cfg.EnvForward))
+				}
+				if cfg.EnvForward[0] != "SSH_AUTH_SOCK" || cfg.EnvForward[1] != "HOME" {
+					t.Errorf("unexpected envForward: %v", cfg.EnvForward)
+				}
+			},
+		},
+		{
+			name: "mcpServers sets MCP server config",
+			args: map[string]any{
+				"mcpServers": map[string]any{
+					"github": map[string]any{
+						"type": "http",
+						"url":  "https://api.example.com/mcp/",
+					},
+				},
+			},
+			check: func(t *testing.T, cfg *config.Config) {
+				if cfg.McpServers == nil {
+					t.Fatal("mcpServers is nil")
+				}
+				gh, ok := cfg.McpServers["github"]
+				if !ok {
+					t.Fatal("expected 'github' key in mcpServers")
+				}
+				m := gh.(map[string]any)
+				if m["type"] != "http" {
+					t.Errorf("expected type=http, got %v", m["type"])
+				}
+			},
+		},
+		{
+			name: "mcpServers rejects non-object",
+			args: map[string]any{
+				"mcpServers": "bad",
+			},
+			wantErr: true,
+		},
+		{
+			name: "maxBudgetUsd sets budget",
+			args: map[string]any{
+				"maxBudgetUsd": float64(10),
+			},
+			check: func(t *testing.T, cfg *config.Config) {
+				if cfg.Claude.MaxBudgetUSD != 10 {
+					t.Errorf("expected maxBudgetUsd=10, got %f", cfg.Claude.MaxBudgetUSD)
+				}
+			},
+		},
+		{
+			name: "permissionMode sets mode",
+			args: map[string]any{
+				"permissionMode": "dontAsk",
+			},
+			check: func(t *testing.T, cfg *config.Config) {
+				if cfg.Claude.PermissionMode != "dontAsk" {
+					t.Errorf("expected permissionMode=dontAsk, got %q", cfg.Claude.PermissionMode)
+				}
+			},
+		},
+		{
+			name: "invalid permissionMode rejected by validation",
+			args: map[string]any{
+				"permissionMode": "invalid",
+			},
+			wantErr: true,
+		},
+		{
+			name: "model sets Claude model",
+			args: map[string]any{
+				"model": "opus",
+			},
+			check: func(t *testing.T, cfg *config.Config) {
+				if cfg.Claude.Model != "opus" {
+					t.Errorf("expected model=opus, got %q", cfg.Claude.Model)
+				}
+			},
+		},
+		{
+			name: "systemPrompt sets prompt",
+			args: map[string]any{
+				"systemPrompt": "You are a helpful assistant.",
+			},
+			check: func(t *testing.T, cfg *config.Config) {
+				if cfg.Claude.SystemPrompt != "You are a helpful assistant." {
+					t.Errorf("expected systemPrompt override, got %q", cfg.Claude.SystemPrompt)
+				}
+			},
+		},
+		{
+			name: "all overrides combined",
+			args: map[string]any{
+				"envVars":        map[string]any{"KEY": "val"},
+				"envForward":     []any{"HOME"},
+				"maxBudgetUsd":   float64(5),
+				"permissionMode": "acceptEdits",
+				"model":          "sonnet",
+				"systemPrompt":   "Be concise.",
+			},
+			check: func(t *testing.T, cfg *config.Config) {
+				if cfg.EnvVars["KEY"] != "val" {
+					t.Error("envVars not applied")
+				}
+				if len(cfg.EnvForward) != 1 || cfg.EnvForward[0] != "HOME" {
+					t.Error("envForward not applied")
+				}
+				if cfg.Claude.MaxBudgetUSD != 5 {
+					t.Error("maxBudgetUsd not applied")
+				}
+				if cfg.Claude.PermissionMode != "acceptEdits" {
+					t.Error("permissionMode not applied")
+				}
+				if cfg.Claude.Model != "sonnet" {
+					t.Error("model not applied")
+				}
+				if cfg.Claude.SystemPrompt != "Be concise." {
+					t.Error("systemPrompt not applied")
+				}
+			},
+		},
+		{
+			name: "no overrides leaves defaults untouched",
+			args: map[string]any{},
+			check: func(t *testing.T, cfg *config.Config) {
+				if cfg.Claude.PermissionMode != "bypassPermissions" {
+					t.Errorf("default permissionMode changed to %q", cfg.Claude.PermissionMode)
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := config.DefaultConfig()
+			cfg.Workspace = "/tmp"
+
+			req := callToolRequest(tt.args)
+			err := applyCreateOverrides(req, cfg)
+
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if tt.check != nil {
+				tt.check(t, cfg)
+			}
+		})
+	}
+}
+
 func TestShortToolchainName(t *testing.T) {
 	tests := []struct {
 		image string

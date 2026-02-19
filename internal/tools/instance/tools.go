@@ -46,6 +46,13 @@ func registerCreate(s *mcpserver.MCPServer, sc *server.ServerContext) {
 		mcp.WithString("personality", mcp.Description("Personality short name or OCI reference")),
 		mcp.WithString("toolchain", mcp.Description("Toolchain short name or OCI reference")),
 		mcp.WithArray("plugin", mcp.Description("Additional plugin short names or OCI references")),
+		mcp.WithObject("envVars", mcp.Description("Environment variable key-value pairs to set in the container")),
+		mcp.WithArray("envForward", mcp.Description("Host environment variable names to forward to the container")),
+		mcp.WithObject("mcpServers", mcp.Description("MCP server configurations (rendered to .mcp.json)")),
+		mcp.WithNumber("maxBudgetUsd", mcp.Description("Maximum dollar budget for the Claude agent per invocation (0 = no limit)")),
+		mcp.WithString("permissionMode", mcp.Description("Claude permission mode: default, acceptEdits, bypassPermissions, dontAsk, plan, delegate")),
+		mcp.WithString("model", mcp.Description("Claude model (e.g. sonnet, opus, claude-sonnet-4-20250514)")),
+		mcp.WithString("systemPrompt", mcp.Description("System prompt override for the Claude agent")),
 	)
 	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		return handleCreate(ctx, req, sc)
@@ -182,6 +189,10 @@ func handleCreate(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 		return mcp.NewToolResultError(fmt.Sprintf("generating config: %v", err)), nil
 	}
 
+	if err := applyCreateOverrides(req, cfg); err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
 	if err := config.EnsureDir(instancePaths.InstanceDir); err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("creating instance directory: %v", err)), nil
 	}
@@ -203,6 +214,64 @@ func handleCreate(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 	return server.JSONResult(result)
+}
+
+// applyCreateOverrides extracts optional config overrides from the MCP request
+// and applies them to the generated config before it is persisted.
+func applyCreateOverrides(req mcp.CallToolRequest, cfg *config.Config) error {
+	args := req.GetArguments()
+
+	if raw, ok := args["envVars"]; ok && raw != nil {
+		m, ok := raw.(map[string]any)
+		if !ok {
+			return fmt.Errorf("envVars must be an object with string values")
+		}
+		if cfg.EnvVars == nil {
+			cfg.EnvVars = make(map[string]string, len(m))
+		}
+		for k, v := range m {
+			s, ok := v.(string)
+			if !ok {
+				return fmt.Errorf("envVars value for %q must be a string", k)
+			}
+			cfg.EnvVars[k] = s
+		}
+	}
+
+	if fwd := req.GetStringSlice("envForward", nil); len(fwd) > 0 {
+		cfg.EnvForward = append(cfg.EnvForward, fwd...)
+	}
+
+	if raw, ok := args["mcpServers"]; ok && raw != nil {
+		m, ok := raw.(map[string]any)
+		if !ok {
+			return fmt.Errorf("mcpServers must be an object")
+		}
+		if cfg.McpServers == nil {
+			cfg.McpServers = make(map[string]any, len(m))
+		}
+		for k, v := range m {
+			cfg.McpServers[k] = v
+		}
+	}
+
+	if budget := req.GetFloat("maxBudgetUsd", 0); budget != 0 {
+		cfg.Claude.MaxBudgetUSD = budget
+	}
+
+	if pm := req.GetString("permissionMode", ""); pm != "" {
+		cfg.Claude.PermissionMode = pm
+	}
+
+	if model := req.GetString("model", ""); model != "" {
+		cfg.Claude.Model = model
+	}
+
+	if sp := req.GetString("systemPrompt", ""); sp != "" {
+		cfg.Claude.SystemPrompt = sp
+	}
+
+	return cfg.Validate()
 }
 
 func handleStart(ctx context.Context, req mcp.CallToolRequest, sc *server.ServerContext) (*mcp.CallToolResult, error) {
