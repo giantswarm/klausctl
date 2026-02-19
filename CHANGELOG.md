@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add `klausctl serve` command that runs an MCP (Model Context Protocol) server over stdio, exposing klausctl's container lifecycle and artifact management as MCP tools for IDE integration (Cursor, Claude Code). ([#35](https://github.com/giantswarm/klausctl/issues/35))
+  - Instance lifecycle tools: `klaus_create`, `klaus_start`, `klaus_stop`, `klaus_delete`, `klaus_status`, `klaus_logs`, `klaus_list`.
+  - Artifact discovery tools: `klaus_toolchain_list`, `klaus_personality_list`, `klaus_plugin_list`.
+- Add `LogsCapture` method to `Runtime` interface for programmatic log retrieval (returns string instead of streaming to stdout). ([#35](https://github.com/giantswarm/klausctl/issues/35))
+- Add `pkg/orchestrator` package extracting shared container orchestration logic (`BuildRunOptions`, `BuildEnvVars`, `BuildVolumes`) for reuse by both CLI commands and MCP tool handlers. ([#35](https://github.com/giantswarm/klausctl/issues/35))
+- Add `github.com/mark3labs/mcp-go` dependency for MCP protocol support. ([#35](https://github.com/giantswarm/klausctl/issues/35))
+
 ### Changed
 
 - `plugin list` and `personality list` now default to remote registry listing, showing the latest version of each artifact and whether it is cached locally. Use `--local` for the previous local-only behavior. ([#42](https://github.com/giantswarm/klausctl/issues/42))
