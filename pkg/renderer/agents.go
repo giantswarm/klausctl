@@ -20,6 +20,9 @@ func (r *Renderer) renderAgentFiles(agentFiles map[string]config.AgentFile) erro
 	sort.Strings(names)
 
 	for _, name := range names {
+		if err := validateName(name); err != nil {
+			return fmt.Errorf("invalid agent file name: %w", err)
+		}
 		agent := agentFiles[name]
 		content := ensureTrailingNewline(agent.Content)
 

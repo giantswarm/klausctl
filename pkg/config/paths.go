@@ -127,62 +127,52 @@ const (
 	DefaultToolchainRegistry = "gsoci.azurecr.io/giantswarm"
 )
 
-// ResolvePersonalityRef resolves full references and short names to OCI refs.
+// ResolvePersonalityRef expands a short personality name to a full OCI
+// repository path. Existing tags and digests are preserved; no tag is
+// appended when absent -- runtime resolution (oci.ResolveArtifactRef)
+// handles that.
 func ResolvePersonalityRef(ref string) string {
-	return resolveArtifactRef(ref, DefaultPersonalityRegistry, "")
+	return expandArtifactRef(ref, DefaultPersonalityRegistry, "")
 }
 
-// ResolveToolchainRef resolves full references and short names to OCI refs.
+// ResolveToolchainRef expands a short toolchain name to a full OCI
+// repository path with the "klaus-" prefix convention.
 func ResolveToolchainRef(ref string) string {
-	return resolveArtifactRef(ref, DefaultToolchainRegistry, "klaus-")
+	return expandArtifactRef(ref, DefaultToolchainRegistry, "klaus-")
 }
 
-// ResolvePluginRef resolves full references and short names to OCI refs.
+// ResolvePluginRef expands a short plugin name to a full OCI repository path.
 func ResolvePluginRef(ref string) string {
-	return resolveArtifactRef(ref, DefaultPluginRegistry, "")
+	return expandArtifactRef(ref, DefaultPluginRegistry, "")
 }
 
-func resolveArtifactRef(ref, base, namePrefix string) string {
+// expandArtifactRef expands short names (no "/") into fully-qualified
+// repository paths. Full OCI refs and any existing tag/digest suffix are
+// kept as-is. Unlike oci.ResolveArtifactRef this is offline and never
+// appends ":latest" -- tag resolution is deferred to start time.
+func expandArtifactRef(ref, base, namePrefix string) string {
 	ref = strings.TrimSpace(ref)
 	if ref == "" {
 		return ref
 	}
 
-	// Full OCI refs keep their repository and only get :latest when no suffix exists.
 	if strings.Contains(ref, "/") {
-		if hasTagOrDigest(ref) {
-			return ref
-		}
-		return ref + ":latest"
+		return ref
 	}
 
-	name, suffix := splitTagOrDigest(ref)
+	name, suffix := splitNameSuffix(ref)
 	if namePrefix != "" && !strings.HasPrefix(name, namePrefix) {
 		name = namePrefix + name
-	}
-	if suffix == "" {
-		suffix = ":latest"
 	}
 	return base + "/" + name + suffix
 }
 
-func hasTagOrDigest(ref string) bool {
-	if strings.Contains(ref, "@") {
-		return true
-	}
-	nameStart := strings.LastIndex(ref, "/")
-	tagIdx := strings.LastIndex(ref, ":")
-	return tagIdx > nameStart
-}
-
-func splitTagOrDigest(ref string) (string, string) {
+func splitNameSuffix(ref string) (string, string) {
 	if idx := strings.Index(ref, "@"); idx >= 0 {
 		return ref[:idx], ref[idx:]
 	}
-	nameStart := strings.LastIndex(ref, "/")
-	tagIdx := strings.LastIndex(ref, ":")
-	if tagIdx > nameStart {
-		return ref[:tagIdx], ref[tagIdx:]
+	if idx := strings.LastIndex(ref, ":"); idx >= 0 {
+		return ref[:idx], ref[idx:]
 	}
 	return ref, ""
 }

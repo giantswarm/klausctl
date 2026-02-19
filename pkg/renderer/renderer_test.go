@@ -285,6 +285,65 @@ func TestRenderCleansPreviousOutput(t *testing.T) {
 	}
 }
 
+func TestRenderRejectsPathTraversal(t *testing.T) {
+	paths := testPaths(t)
+	r := New(paths)
+
+	tests := []struct {
+		name string
+		cfg  *config.Config
+	}{
+		{
+			name: "skill with path separator",
+			cfg: &config.Config{
+				Workspace: "/tmp", Port: 8080,
+				Skills: map[string]config.Skill{
+					"../../evil": {Content: "pwned\n"},
+				},
+			},
+		},
+		{
+			name: "agent with path separator",
+			cfg: &config.Config{
+				Workspace: "/tmp", Port: 8080,
+				AgentFiles: map[string]config.AgentFile{
+					"../evil": {Content: "pwned\n"},
+				},
+			},
+		},
+		{
+			name: "hook script with path separator",
+			cfg: &config.Config{
+				Workspace: "/tmp", Port: 8080,
+				HookScripts: map[string]string{
+					"../../evil.sh": "#!/bin/bash\necho pwned\n",
+				},
+			},
+		},
+		{
+			name: "skill named dotdot",
+			cfg: &config.Config{
+				Workspace: "/tmp", Port: 8080,
+				Skills: map[string]config.Skill{
+					"..": {Content: "pwned\n"},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := r.Render(tt.cfg)
+			if err == nil {
+				t.Fatal("Render() should return error for path traversal attempt")
+			}
+			if !strings.Contains(err.Error(), "path separator") && !strings.Contains(err.Error(), "relative path") {
+				t.Errorf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
 func TestHasExtensions(t *testing.T) {
 	tests := []struct {
 		name string

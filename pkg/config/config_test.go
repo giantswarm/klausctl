@@ -163,13 +163,12 @@ func TestValidate(t *testing.T) {
 			errMsg:  "maxBudgetUsd must be >= 0",
 		},
 		{
-			name: "plugin missing tag and digest",
+			name: "plugin without tag or digest is valid",
 			cfg: Config{
 				Workspace: "/tmp", Port: 8080,
 				Plugins: []Plugin{{Repository: "example.com/plugin"}},
 			},
-			wantErr: true,
-			errMsg:  "requires either tag or digest",
+			wantErr: false,
 		},
 		{
 			name: "plugin missing repository",

@@ -92,3 +92,18 @@ func ensureTrailingNewline(s string) string {
 	}
 	return s
 }
+
+// validateName rejects names that contain path separators or ".." components
+// to prevent path traversal when names are used in filepath.Join.
+func validateName(name string) error {
+	if name == "" {
+		return fmt.Errorf("name must not be empty")
+	}
+	if strings.ContainsAny(name, "/\\") {
+		return fmt.Errorf("name %q must not contain path separators", name)
+	}
+	if name == ".." || name == "." {
+		return fmt.Errorf("name %q must not be a relative path component", name)
+	}
+	return nil
+}

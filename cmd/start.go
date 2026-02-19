@@ -150,7 +150,7 @@ func startInstance(cmd *cobra.Command, instanceName, workspaceOverride, configPa
 
 		// Use personality image if the user didn't explicitly set one.
 		if !cfg.ImageExplicitlySet() && pr.Spec.Image != "" {
-			resolved, err := oci.ResolveArtifactRef(ctx, pr.Spec.Image, oci.DefaultToolchainRegistry, "")
+			resolved, err := oci.ResolveArtifactRef(ctx, pr.Spec.Image, oci.DefaultToolchainRegistry, "klaus-")
 			if err != nil {
 				return fmt.Errorf("resolving personality image: %w", err)
 			}

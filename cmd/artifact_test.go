@@ -340,7 +340,6 @@ func TestPrintRemoteArtifactsJSON(t *testing.T) {
 	}
 }
 
-
 func TestFormatAge(t *testing.T) {
 	tests := []struct {
 		name     string

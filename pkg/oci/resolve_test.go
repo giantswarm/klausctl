@@ -140,10 +140,11 @@ func TestExtractTag(t *testing.T) {
 func TestResolveArtifactRef(t *testing.T) {
 	lister := &mockTagLister{
 		tags: map[string][]string{
-			"gsoci.azurecr.io/giantswarm/klaus-plugins/gs-ae":        {"v0.0.1", "v0.0.3", "v0.0.2"},
-			"gsoci.azurecr.io/giantswarm/klaus-go":                   {"v1.0.0", "v1.1.0"},
-			"gsoci.azurecr.io/giantswarm/klaus-personalities/sre":    {"v0.1.0", "v0.2.0"},
-			"custom.registry.io/org/my-plugin":                       {"v2.0.0"},
+			"gsoci.azurecr.io/giantswarm/klaus-plugins/gs-ae":     {"v0.0.1", "v0.0.3", "v0.0.2"},
+			"gsoci.azurecr.io/giantswarm/klaus-go":                {"v1.0.0", "v1.1.0"},
+			"gsoci.azurecr.io/giantswarm/klaus-personalities/sre": {"v0.1.0", "v0.2.0"},
+			"custom.registry.io/org/my-plugin":                    {"v2.0.0"},
+			"custom.registry.io/org/no-semver":                    {"latest", "main", "dev"},
 		},
 	}
 	ctx := context.Background()
@@ -154,6 +155,7 @@ func TestResolveArtifactRef(t *testing.T) {
 		registryBase string
 		namePrefix   string
 		want         string
+		wantErr      bool
 	}{
 		{
 			name:         "empty ref",
@@ -223,11 +225,35 @@ func TestResolveArtifactRef(t *testing.T) {
 			registryBase: "gsoci.azurecr.io/giantswarm/klaus-plugins",
 			want:         "gsoci.azurecr.io/giantswarm/klaus-plugins/gs-ae:v0.0.2",
 		},
+		{
+			name:         "unknown short name returns error",
+			ref:          "nonexistent",
+			registryBase: "gsoci.azurecr.io/giantswarm/klaus-plugins",
+			wantErr:      true,
+		},
+		{
+			name:         "full ref with no semver tags returns error",
+			ref:          "custom.registry.io/org/no-semver",
+			registryBase: "gsoci.azurecr.io/giantswarm/klaus-plugins",
+			wantErr:      true,
+		},
+		{
+			name:         "full ref with latest tag and no semver tags returns error",
+			ref:          "custom.registry.io/org/no-semver:latest",
+			registryBase: "gsoci.azurecr.io/giantswarm/klaus-plugins",
+			wantErr:      true,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := resolveArtifactRef(ctx, lister, tt.ref, tt.registryBase, tt.namePrefix)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("resolveArtifactRef() = %q, want error", got)
+				}
+				return
+			}
 			if err != nil {
 				t.Fatalf("resolveArtifactRef() error = %v", err)
 			}
