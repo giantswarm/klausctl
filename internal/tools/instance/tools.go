@@ -4,12 +4,13 @@ package instance
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -134,10 +135,6 @@ func handleCreate(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 	toolchain := req.GetString("toolchain", "")
 	pluginArgs := req.GetStringSlice("plugin", nil)
 
-	if err := config.MigrateLayout(sc.Paths); err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("migrating config layout: %v", err)), nil
-	}
-
 	instancePaths := sc.InstancePaths(name)
 	if _, err := os.Stat(instancePaths.InstanceDir); err == nil {
 		return mcp.NewToolResultError(fmt.Sprintf("instance %q already exists", name)), nil
@@ -192,7 +189,7 @@ func handleCreate(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
-	return jsonResult(result)
+	return server.JSONResult(result)
 }
 
 func handleStart(ctx context.Context, req mcp.CallToolRequest, sc *server.ServerContext) (*mcp.CallToolResult, error) {
@@ -201,15 +198,11 @@ func handleStart(ctx context.Context, req mcp.CallToolRequest, sc *server.Server
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	if err := config.MigrateLayout(sc.Paths); err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("migrating config layout: %v", err)), nil
-	}
-
 	result, err := startExistingInstance(ctx, name, sc)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
-	return jsonResult(result)
+	return server.JSONResult(result)
 }
 
 func handleStop(ctx context.Context, req mcp.CallToolRequest, sc *server.ServerContext) (*mcp.CallToolResult, error) {
@@ -221,10 +214,6 @@ func handleStop(ctx context.Context, req mcp.CallToolRequest, sc *server.ServerC
 	}
 	if name != "" && all {
 		return mcp.NewToolResultError("name and all=true are mutually exclusive"), nil
-	}
-
-	if err := config.MigrateLayout(sc.Paths); err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("migrating config layout: %v", err)), nil
 	}
 
 	if all {
@@ -243,13 +232,9 @@ func handleDelete(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	if err := config.MigrateLayout(sc.Paths); err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("migrating config layout: %v", err)), nil
-	}
-
 	paths := sc.InstancePaths(name)
 	if _, err := os.Stat(paths.InstanceDir); err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, os.ErrNotExist) {
 			return mcp.NewToolResultError(fmt.Sprintf("instance %q does not exist", name)), nil
 		}
 		return mcp.NewToolResultError(err.Error()), nil
@@ -263,7 +248,7 @@ func handleDelete(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 		return mcp.NewToolResultError(fmt.Sprintf("deleting instance directory: %v", err)), nil
 	}
 
-	return jsonResult(map[string]string{
+	return server.JSONResult(map[string]string{
 		"instance": name,
 		"status":   "deleted",
 	})
@@ -285,10 +270,6 @@ func handleStatus(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 	name, err := req.RequireString("name")
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
-	}
-
-	if err := config.MigrateLayout(sc.Paths); err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("migrating config layout: %v", err)), nil
 	}
 
 	paths := sc.InstancePaths(name)
@@ -327,7 +308,7 @@ func handleStatus(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 		}
 	}
 
-	return jsonResult(result)
+	return server.JSONResult(result)
 }
 
 func handleLogs(ctx context.Context, req mcp.CallToolRequest, sc *server.ServerContext) (*mcp.CallToolResult, error) {
@@ -337,10 +318,6 @@ func handleLogs(ctx context.Context, req mcp.CallToolRequest, sc *server.ServerC
 	}
 
 	tail := int(req.GetFloat("tail", 100))
-
-	if err := config.MigrateLayout(sc.Paths); err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("migrating config layout: %v", err)), nil
-	}
 
 	paths := sc.InstancePaths(name)
 	inst, err := instance.Load(paths)
@@ -372,14 +349,10 @@ type listEntry struct {
 }
 
 func handleList(ctx context.Context, _ mcp.CallToolRequest, sc *server.ServerContext) (*mcp.CallToolResult, error) {
-	if err := config.MigrateLayout(sc.Paths); err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("migrating config layout: %v", err)), nil
-	}
-
 	dirEntries, err := os.ReadDir(sc.Paths.InstancesDir)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return jsonResult([]listEntry{})
+		if errors.Is(err, os.ErrNotExist) {
+			return server.JSONResult([]listEntry{})
 		}
 		return mcp.NewToolResultError(fmt.Sprintf("reading instances directory: %v", err)), nil
 	}
@@ -439,7 +412,7 @@ func handleList(ctx context.Context, _ mcp.CallToolRequest, sc *server.ServerCon
 		return list[i].Name < list[j].Name
 	})
 
-	return jsonResult(list)
+	return server.JSONResult(list)
 }
 
 // --- Helpers ---
@@ -465,7 +438,7 @@ func startExistingInstance(ctx context.Context, name string, sc *server.ServerCo
 
 	workspace := config.ExpandPath(cfg.Workspace)
 	if _, err := os.Stat(workspace); err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, os.ErrNotExist) {
 			return nil, fmt.Errorf("workspace directory does not exist: %s", workspace)
 		}
 		return nil, fmt.Errorf("checking workspace directory: %w", err)
@@ -562,7 +535,7 @@ func stopOne(ctx context.Context, name string, sc *server.ServerContext) (*mcp.C
 	paths := sc.InstancePaths(name)
 	inst, err := instance.Load(paths)
 	if err != nil {
-		return jsonResult(map[string]string{
+		return server.JSONResult(map[string]string{
 			"instance": name,
 			"status":   "not running",
 		})
@@ -577,7 +550,7 @@ func stopOne(ctx context.Context, name string, sc *server.ServerContext) (*mcp.C
 	status, err := rt.Status(ctx, containerName)
 	if err != nil || status == "" {
 		_ = instance.Clear(paths)
-		return jsonResult(map[string]string{
+		return server.JSONResult(map[string]string{
 			"instance": name,
 			"status":   "not found (cleared stale state)",
 		})
@@ -595,7 +568,7 @@ func stopOne(ctx context.Context, name string, sc *server.ServerContext) (*mcp.C
 		return mcp.NewToolResultError(fmt.Sprintf("clearing instance state: %v", err)), nil
 	}
 
-	return jsonResult(map[string]string{
+	return server.JSONResult(map[string]string{
 		"instance": name,
 		"status":   "stopped",
 	})
@@ -633,7 +606,7 @@ func stopAll(ctx context.Context, sc *server.ServerContext) (*mcp.CallToolResult
 		stopped = append(stopped, inst.Name)
 	}
 
-	return jsonResult(map[string]any{
+	return server.JSONResult(map[string]any{
 		"status":  "all stopped",
 		"stopped": stopped,
 	})
@@ -645,23 +618,7 @@ func cleanupContainer(ctx context.Context, name string, inst *instance.Instance)
 		containerName = inst.ContainerName()
 	}
 
-	candidates := []string{}
-	if inst != nil && inst.Runtime != "" {
-		candidates = append(candidates, inst.Runtime)
-	}
-	for _, rtName := range []string{"docker", "podman"} {
-		found := false
-		for _, c := range candidates {
-			if c == rtName {
-				found = true
-				break
-			}
-		}
-		if !found {
-			candidates = append(candidates, rtName)
-		}
-	}
-
+	candidates := uniqueRuntimes(inst)
 	for _, rtName := range candidates {
 		rt, err := runtime.New(rtName)
 		if err != nil {
@@ -684,6 +641,20 @@ func cleanupContainer(ctx context.Context, name string, inst *instance.Instance)
 	return nil
 }
 
+func uniqueRuntimes(inst *instance.Instance) []string {
+	all := []string{"docker", "podman"}
+	if inst == nil || inst.Runtime == "" {
+		return all
+	}
+	result := []string{inst.Runtime}
+	for _, rt := range all {
+		if rt != inst.Runtime {
+			result = append(result, rt)
+		}
+	}
+	return result
+}
+
 func shortToolchainName(cfg *config.Config) string {
 	ref := cfg.Toolchain
 	if ref == "" {
@@ -691,10 +662,7 @@ func shortToolchainName(cfg *config.Config) string {
 	}
 	repo := repositoryFromRef(ref)
 	name := filepath.Base(repo)
-	if len(name) > 6 && name[:6] == "klaus-" {
-		return name[6:]
-	}
-	return name
+	return strings.TrimPrefix(name, "klaus-")
 }
 
 func shortRefName(ref string) string {
@@ -705,33 +673,15 @@ func shortRefName(ref string) string {
 }
 
 func repositoryFromRef(ref string) string {
-	if idx := indexOf(ref, "@"); idx > 0 {
+	if idx := strings.Index(ref, "@"); idx > 0 {
 		return ref[:idx]
 	}
-	lastSlash := lastIndexOf(ref, "/")
-	lastColon := lastIndexOf(ref, ":")
+	lastSlash := strings.LastIndex(ref, "/")
+	lastColon := strings.LastIndex(ref, ":")
 	if lastColon > lastSlash {
 		return ref[:lastColon]
 	}
 	return ref
-}
-
-func indexOf(s, sub string) int {
-	for i := range s {
-		if i+len(sub) <= len(s) && s[i:i+len(sub)] == sub {
-			return i
-		}
-	}
-	return -1
-}
-
-func lastIndexOf(s, sub string) int {
-	for i := len(s) - len(sub); i >= 0; i-- {
-		if s[i:i+len(sub)] == sub {
-			return i
-		}
-	}
-	return -1
 }
 
 func formatDuration(d time.Duration) string {
@@ -749,10 +699,3 @@ func formatDuration(d time.Duration) string {
 	return fmt.Sprintf("%dd%dh", days, hours)
 }
 
-func jsonResult(v any) (*mcp.CallToolResult, error) {
-	data, err := json.MarshalIndent(v, "", "  ")
-	if err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("marshaling result: %v", err)), nil
-	}
-	return mcp.NewToolResultText(string(data)), nil
-}

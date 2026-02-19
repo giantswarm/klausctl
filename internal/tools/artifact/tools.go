@@ -4,7 +4,6 @@ package artifact
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -17,8 +16,8 @@ import (
 	mcpserver "github.com/mark3labs/mcp-go/server"
 
 	"github.com/giantswarm/klausctl/internal/server"
+	"github.com/giantswarm/klausctl/pkg/config"
 	"github.com/giantswarm/klausctl/pkg/oci"
-	"github.com/giantswarm/klausctl/pkg/runtime"
 )
 
 // RegisterTools registers all artifact discovery tools on the MCP server.
@@ -76,11 +75,11 @@ func handleToolchainList(ctx context.Context, req mcp.CallToolRequest, sc *serve
 		return toolchainListRemote(ctx)
 	}
 
-	return toolchainListLocal(ctx)
+	return toolchainListLocal(ctx, sc)
 }
 
-func toolchainListLocal(ctx context.Context) (*mcp.CallToolResult, error) {
-	rt, err := runtime.New("")
+func toolchainListLocal(ctx context.Context, sc *server.ServerContext) (*mcp.CallToolResult, error) {
+	rt, err := sc.DetectRuntime(&config.Config{})
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("detecting runtime: %v", err)), nil
 	}
@@ -102,7 +101,7 @@ func toolchainListLocal(ctx context.Context) (*mcp.CallToolResult, error) {
 		}
 	}
 
-	return jsonResult(entries)
+	return server.JSONResult(entries)
 }
 
 func toolchainListRemote(ctx context.Context) (*mcp.CallToolResult, error) {
@@ -119,7 +118,7 @@ func toolchainListRemote(ctx context.Context) (*mcp.CallToolResult, error) {
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("listing remote toolchains: %v", err)), nil
 	}
-	return jsonResult(entries)
+	return server.JSONResult(entries)
 }
 
 func handlePersonalityList(ctx context.Context, req mcp.CallToolRequest, sc *server.ServerContext) (*mcp.CallToolResult, error) {
@@ -130,14 +129,14 @@ func handlePersonalityList(ctx context.Context, req mcp.CallToolRequest, sc *ser
 		if err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("listing remote personalities: %v", err)), nil
 		}
-		return jsonResult(entries)
+		return server.JSONResult(entries)
 	}
 
 	artifacts, err := listLocalArtifacts(sc.Paths.PersonalitiesDir)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("listing local personalities: %v", err)), nil
 	}
-	return jsonResult(artifacts)
+	return server.JSONResult(artifacts)
 }
 
 func handlePluginList(ctx context.Context, req mcp.CallToolRequest, sc *server.ServerContext) (*mcp.CallToolResult, error) {
@@ -148,14 +147,14 @@ func handlePluginList(ctx context.Context, req mcp.CallToolRequest, sc *server.S
 		if err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("listing remote plugins: %v", err)), nil
 		}
-		return jsonResult(entries)
+		return server.JSONResult(entries)
 	}
 
 	artifacts, err := listLocalArtifacts(sc.Paths.PluginsDir)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("listing local plugins: %v", err)), nil
 	}
-	return jsonResult(artifacts)
+	return server.JSONResult(artifacts)
 }
 
 // --- Shared helpers ---
@@ -279,10 +278,3 @@ func latestSemverTag(tags []string) string {
 	return bestTag
 }
 
-func jsonResult(v any) (*mcp.CallToolResult, error) {
-	data, err := json.MarshalIndent(v, "", "  ")
-	if err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("marshaling result: %v", err)), nil
-	}
-	return mcp.NewToolResultText(string(data)), nil
-}

@@ -246,7 +246,7 @@ func (r *execRuntime) LogsCapture(ctx context.Context, name string, tail int) (s
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("%s logs failed: %s\n%s", r.binary, err, stderr.String())
+		return "", fmt.Errorf("%s logs failed: %w (stderr: %s)", r.binary, err, strings.TrimSpace(stderr.String()))
 	}
 	return stdout.String(), nil
 }
