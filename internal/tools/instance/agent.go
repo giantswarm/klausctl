@@ -128,12 +128,12 @@ func agentBaseURL(ctx context.Context, name string, sc *server.ServerContext) (s
 	paths := sc.InstancePaths(name)
 	inst, err := instance.Load(paths)
 	if err != nil {
-		return "", fmt.Errorf("instance %q not found; use klaus_create first", name)
+		return "", fmt.Errorf("instance %q not found; use klaus_create first: %w", name, err)
 	}
 
 	rt, err := runtime.New(inst.Runtime)
 	if err != nil {
-		return "", fmt.Errorf("runtime error for %q: %v", name, err)
+		return "", fmt.Errorf("runtime error for %q: %w", name, err)
 	}
 
 	status, err := rt.Status(ctx, inst.ContainerName())
@@ -142,6 +142,13 @@ func agentBaseURL(ctx context.Context, name string, sc *server.ServerContext) (s
 	}
 
 	return fmt.Sprintf("http://localhost:%d/mcp", inst.Port), nil
+}
+
+// terminalStatuses are the agent statuses that indicate the task is done.
+var terminalStatuses = map[string]bool{
+	"completed": true,
+	"error":     true,
+	"failed":    true,
 }
 
 // waitForResult polls the agent's status tool until the task completes or the
@@ -162,8 +169,7 @@ func waitForResult(ctx context.Context, name, baseURL string, sc *server.ServerC
 			return "", fmt.Errorf("polling status: %w", err)
 		}
 
-		text := extractText(statusResult)
-		if strings.Contains(text, "completed") || strings.Contains(text, "error") {
+		if terminalStatuses[parseStatusField(statusResult)] {
 			break
 		}
 
@@ -203,8 +209,24 @@ func extractText(result *mcp.CallToolResult) string {
 	return string(raw)
 }
 
+// parseStatusField extracts the "status" field from a JSON tool result.
+// Returns the status string if found, or empty string otherwise.
+func parseStatusField(result *mcp.CallToolResult) string {
+	text := extractText(result)
+	if text == "" {
+		return ""
+	}
+	var parsed struct {
+		Status string `json:"status"`
+	}
+	if err := json.Unmarshal([]byte(text), &parsed); err == nil && parsed.Status != "" {
+		return parsed.Status
+	}
+	return text
+}
+
 // queryAgentStatus probes the agent's internal status through its MCP endpoint.
-// Returns the agent status string or empty if the agent is unreachable.
+// Returns the parsed status string or empty if the agent is unreachable.
 func queryAgentStatus(ctx context.Context, name string, port int, sc *server.ServerContext) string {
 	baseURL := fmt.Sprintf("http://localhost:%d/mcp", port)
 
@@ -216,5 +238,5 @@ func queryAgentStatus(ctx context.Context, name string, port int, sc *server.Ser
 		return ""
 	}
 
-	return extractText(result)
+	return parseStatusField(result)
 }

@@ -7,45 +7,46 @@ import (
 	"context"
 	"fmt"
 	"sync"
-	"time"
 
 	mcpclient "github.com/mark3labs/mcp-go/client"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
-// session tracks a cached MCP client connection.
-type session struct {
-	client    *mcpclient.Client
-	createdAt time.Time
-}
-
 // Client manages MCP connections to klaus agent instances. It caches sessions
 // per instance to avoid re-initializing on every call.
 type Client struct {
 	mu       sync.Mutex
-	sessions map[string]*session
+	sessions map[string]*mcpclient.Client
+	version  string
 }
 
-// New creates a new mcpclient.Client.
-func New() *Client {
+// New creates a new Client. The version string is sent during MCP session
+// initialization so the remote agent knows which klausctl build is calling.
+func New(version string) *Client {
 	return &Client{
-		sessions: make(map[string]*session),
+		sessions: make(map[string]*mcpclient.Client),
+		version:  version,
 	}
 }
 
 // getOrCreateSession returns a cached MCP client for the given instance or
-// creates a new one. The baseURL should be the agent's MCP endpoint
-// (e.g. http://localhost:8080/mcp).
+// creates a new one. Network I/O (ping, connect, initialize) happens outside
+// the lock so concurrent callers targeting different instances aren't blocked.
 func (c *Client) getOrCreateSession(ctx context.Context, instanceName, baseURL string) (*mcpclient.Client, error) {
 	c.mu.Lock()
-	defer c.mu.Unlock()
+	cached, ok := c.sessions[instanceName]
+	c.mu.Unlock()
 
-	if s, ok := c.sessions[instanceName]; ok {
-		if err := s.client.Ping(ctx); err == nil {
-			return s.client, nil
+	if ok {
+		if err := cached.Ping(ctx); err == nil {
+			return cached, nil
 		}
-		_ = s.client.Close()
-		delete(c.sessions, instanceName)
+		c.mu.Lock()
+		if cur, ok := c.sessions[instanceName]; ok && cur == cached {
+			_ = cached.Close()
+			delete(c.sessions, instanceName)
+		}
+		c.mu.Unlock()
 	}
 
 	mc, err := mcpclient.NewStreamableHttpClient(baseURL)
@@ -61,22 +62,26 @@ func (c *Client) getOrCreateSession(ctx context.Context, instanceName, baseURL s
 	initReq.Params.ProtocolVersion = mcp.LATEST_PROTOCOL_VERSION
 	initReq.Params.ClientInfo = mcp.Implementation{
 		Name:    "klausctl",
-		Version: "1.0.0",
+		Version: c.version,
 	}
 	if _, err := mc.Initialize(ctx, initReq); err != nil {
 		_ = mc.Close()
 		return nil, fmt.Errorf("initializing MCP session for %s: %w", baseURL, err)
 	}
 
-	c.sessions[instanceName] = &session{
-		client:    mc,
-		createdAt: time.Now(),
+	c.mu.Lock()
+	if existing, ok := c.sessions[instanceName]; ok {
+		_ = mc.Close()
+		c.mu.Unlock()
+		return existing, nil
 	}
+	c.sessions[instanceName] = mc
+	c.mu.Unlock()
 
 	return mc, nil
 }
 
-// callTool invokes a named tool on the agent instance and returns the raw text result.
+// callTool invokes a named tool on the agent instance.
 func (c *Client) callTool(ctx context.Context, instanceName, baseURL, toolName string, args map[string]any) (*mcp.CallToolResult, error) {
 	mc, err := c.getOrCreateSession(ctx, instanceName, baseURL)
 	if err != nil {
@@ -118,8 +123,8 @@ func (c *Client) SessionID(instanceName string) string {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if s, ok := c.sessions[instanceName]; ok {
-		return s.client.GetSessionId()
+	if mc, ok := c.sessions[instanceName]; ok {
+		return mc.GetSessionId()
 	}
 	return ""
 }
@@ -129,8 +134,8 @@ func (c *Client) invalidateSession(instanceName string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if s, ok := c.sessions[instanceName]; ok {
-		_ = s.client.Close()
+	if mc, ok := c.sessions[instanceName]; ok {
+		_ = mc.Close()
 		delete(c.sessions, instanceName)
 	}
 }
@@ -140,8 +145,8 @@ func (c *Client) Close() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	for name, s := range c.sessions {
-		_ = s.client.Close()
+	for name, mc := range c.sessions {
+		_ = mc.Close()
 		delete(c.sessions, name)
 	}
 }

@@ -28,7 +28,7 @@ func testServerContext(t *testing.T) *server.ServerContext {
 	if err := config.EnsureDir(paths.InstancesDir); err != nil {
 		t.Fatal(err)
 	}
-	return &server.ServerContext{Paths: paths, MCPClient: mcpclient.New()}
+	return &server.ServerContext{Paths: paths, MCPClient: mcpclient.New("test")}
 }
 
 func TestRegisterTools(t *testing.T) {

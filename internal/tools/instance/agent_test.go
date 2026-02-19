@@ -97,6 +97,61 @@ func TestExtractText(t *testing.T) {
 	}
 }
 
+func TestParseStatusField(t *testing.T) {
+	tests := []struct {
+		name   string
+		result *mcp.CallToolResult
+		want   string
+	}{
+		{
+			name:   "nil result",
+			result: nil,
+			want:   "",
+		},
+		{
+			name:   "json with status field",
+			result: mcp.NewToolResultText(`{"status":"completed","detail":"all done"}`),
+			want:   "completed",
+		},
+		{
+			name:   "json with error status",
+			result: mcp.NewToolResultText(`{"status":"error","message":"something broke"}`),
+			want:   "error",
+		},
+		{
+			name:   "non-json text falls through",
+			result: mcp.NewToolResultText("some plain text"),
+			want:   "some plain text",
+		},
+		{
+			name:   "json without status field falls through",
+			result: mcp.NewToolResultText(`{"message":"no status here"}`),
+			want:   `{"message":"no status here"}`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := parseStatusField(tt.result)
+			if got != tt.want {
+				t.Errorf("parseStatusField() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestTerminalStatuses(t *testing.T) {
+	for _, status := range []string{"completed", "error", "failed"} {
+		if !terminalStatuses[status] {
+			t.Errorf("expected %q to be terminal", status)
+		}
+	}
+	for _, status := range []string{"running", "idle", "processing"} {
+		if terminalStatuses[status] {
+			t.Errorf("expected %q to NOT be terminal", status)
+		}
+	}
+}
+
 func TestAgentBaseURLInstanceNotFound(t *testing.T) {
 	sc := testServerContext(t)
 	_, err := agentBaseURL(context.Background(), "nonexistent", sc)

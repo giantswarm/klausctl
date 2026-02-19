@@ -44,7 +44,7 @@ func runServe(_ *cobra.Command, _ []string) error {
 		return err
 	}
 
-	agentClient := mcpclient.New()
+	agentClient := mcpclient.New(buildVersion)
 	defer agentClient.Close()
 
 	serverCtx := &server.ServerContext{

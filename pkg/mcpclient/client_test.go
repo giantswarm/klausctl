@@ -6,24 +6,27 @@ import (
 )
 
 func TestNewClient(t *testing.T) {
-	c := New()
+	c := New("test")
 	if c == nil {
 		t.Fatal("expected non-nil client")
 	}
 	if c.sessions == nil {
 		t.Fatal("expected non-nil sessions map")
 	}
+	if c.version != "test" {
+		t.Errorf("expected version %q, got %q", "test", c.version)
+	}
 }
 
 func TestSessionIDMissing(t *testing.T) {
-	c := New()
+	c := New("test")
 	if id := c.SessionID("nonexistent"); id != "" {
 		t.Errorf("expected empty session ID, got %q", id)
 	}
 }
 
 func TestClose(t *testing.T) {
-	c := New()
+	c := New("test")
 	c.Close()
 	if len(c.sessions) != 0 {
 		t.Errorf("expected empty sessions after close")
@@ -31,7 +34,7 @@ func TestClose(t *testing.T) {
 }
 
 func TestPromptUnreachable(t *testing.T) {
-	c := New()
+	c := New("test")
 	defer c.Close()
 
 	ctx := context.Background()
@@ -42,7 +45,7 @@ func TestPromptUnreachable(t *testing.T) {
 }
 
 func TestStatusUnreachable(t *testing.T) {
-	c := New()
+	c := New("test")
 	defer c.Close()
 
 	ctx := context.Background()
@@ -53,7 +56,7 @@ func TestStatusUnreachable(t *testing.T) {
 }
 
 func TestResultUnreachable(t *testing.T) {
-	c := New()
+	c := New("test")
 	defer c.Close()
 
 	ctx := context.Background()
@@ -64,7 +67,7 @@ func TestResultUnreachable(t *testing.T) {
 }
 
 func TestInvalidateSession(t *testing.T) {
-	c := New()
+	c := New("test")
 	defer c.Close()
 
 	c.invalidateSession("nonexistent")
