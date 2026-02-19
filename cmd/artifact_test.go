@@ -309,9 +309,9 @@ func TestLatestSemverTag(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := latestSemverTag(tt.tags)
+			got := oci.LatestSemverTag(tt.tags)
 			if got != tt.want {
-				t.Errorf("latestSemverTag(%v) = %q, want %q", tt.tags, got, tt.want)
+				t.Errorf("LatestSemverTag(%v) = %q, want %q", tt.tags, got, tt.want)
 			}
 		})
 	}

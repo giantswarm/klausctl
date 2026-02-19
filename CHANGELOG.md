@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fix `:latest` tag resolution for personality, plugin, and toolchain short names. Short names without explicit tags (e.g. `--personality sre`) now query the registry for the highest semver tag instead of blindly appending `:latest`. Plugin references from personality specs with `:latest` or empty tags are also resolved. ([#47](https://github.com/giantswarm/klausctl/issues/47))
 - Fix `plugin list` and `personality list` remote discovery failing when no local cache exists. The commands now discover repositories directly from the OCI registry catalog via `klaus-oci` v0.0.3. ([#42](https://github.com/giantswarm/klausctl/issues/42))
 
 ### Added

@@ -52,6 +52,8 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		workspace = cwd
 	}
 
+	ctx := context.Background()
+
 	paths, err := config.DefaultPaths()
 	if err != nil {
 		return err
@@ -65,14 +67,19 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("instance %q already exists", instanceName)
 	}
 
+	personality, toolchain, plugins, err := resolveCreateRefs(ctx, createPersonality, createToolchain, createPlugins)
+	if err != nil {
+		return err
+	}
+
 	cfg, err := config.GenerateInstanceConfig(paths, config.CreateOptions{
 		Name:        instanceName,
 		Workspace:   workspace,
-		Personality: createPersonality,
-		Toolchain:   createToolchain,
-		Plugins:     createPlugins,
+		Personality: personality,
+		Toolchain:   toolchain,
+		Plugins:     plugins,
 		Port:        createPort,
-		Context:     context.Background(),
+		Context:     ctx,
 		Output:      cmd.OutOrStdout(),
 		ResolvePersonality: func(ctx context.Context, ref string, outWriter io.Writer) (*config.ResolvedPersonality, error) {
 			if err := config.EnsureDir(paths.PersonalitiesDir); err != nil {
@@ -83,9 +90,9 @@ func runCreate(cmd *cobra.Command, args []string) error {
 				return nil, err
 			}
 
-			plugins := make([]config.Plugin, 0, len(pr.Spec.Plugins))
-			for _, p := range pr.Spec.Plugins {
-				plugins = append(plugins, oci.PluginFromReference(p))
+			plugins, err := oci.ResolvePluginRefs(ctx, pluginRefsFromSpec(pr.Spec.Plugins))
+			if err != nil {
+				return nil, fmt.Errorf("resolving personality plugins: %w", err)
 			}
 
 			return &config.ResolvedPersonality{
@@ -115,4 +122,44 @@ func runCreate(cmd *cobra.Command, args []string) error {
 	}
 
 	return startInstance(cmd, instanceName, "", instancePaths.ConfigFile)
+}
+
+// resolveCreateRefs resolves personality, toolchain, and plugin short names
+// to full OCI references with proper semver tags from the registry.
+func resolveCreateRefs(ctx context.Context, personality, toolchain string, plugins []string) (string, string, []string, error) {
+	if personality != "" {
+		ref, err := oci.ResolveArtifactRef(ctx, personality, oci.DefaultPersonalityRegistry, "")
+		if err != nil {
+			return "", "", nil, fmt.Errorf("resolving personality: %w", err)
+		}
+		personality = ref
+	}
+
+	if toolchain != "" {
+		ref, err := oci.ResolveArtifactRef(ctx, toolchain, oci.DefaultToolchainRegistry, "klaus-")
+		if err != nil {
+			return "", "", nil, fmt.Errorf("resolving toolchain: %w", err)
+		}
+		toolchain = ref
+	}
+
+	resolved := make([]string, 0, len(plugins))
+	for _, p := range plugins {
+		ref, err := oci.ResolveArtifactRef(ctx, p, oci.DefaultPluginRegistry, "")
+		if err != nil {
+			return "", "", nil, fmt.Errorf("resolving plugin: %w", err)
+		}
+		resolved = append(resolved, ref)
+	}
+
+	return personality, toolchain, resolved, nil
+}
+
+// pluginRefsFromSpec converts personality spec plugin references to config.Plugin entries.
+func pluginRefsFromSpec(refs []oci.PluginReference) []config.Plugin {
+	plugins := make([]config.Plugin, 0, len(refs))
+	for _, p := range refs {
+		plugins = append(plugins, oci.PluginFromReference(p))
+	}
+	return plugins
 }

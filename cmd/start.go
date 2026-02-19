@@ -125,6 +125,14 @@ func startInstance(cmd *cobra.Command, instanceName, workspaceOverride, configPa
 	var personalityDir string
 	if cfg.Personality != "" {
 		fmt.Fprintln(out, "Resolving personality...")
+
+		// Resolve :latest tags to actual semver before pulling.
+		resolvedRef, err := oci.ResolveArtifactRef(ctx, cfg.Personality, oci.DefaultPersonalityRegistry, "")
+		if err != nil {
+			return fmt.Errorf("resolving personality ref: %w", err)
+		}
+		cfg.Personality = resolvedRef
+
 		if err := config.EnsureDir(paths.PersonalitiesDir); err != nil {
 			return fmt.Errorf("creating personalities directory: %w", err)
 		}

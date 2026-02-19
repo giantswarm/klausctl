@@ -13,8 +13,6 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/Masterminds/semver/v3"
-
 	"github.com/giantswarm/klausctl/pkg/oci"
 )
 
@@ -181,7 +179,7 @@ func listLatestRemoteArtifacts(ctx context.Context, cacheDir, registryBase strin
 			return nil, fmt.Errorf("listing tags for %s: %w", repo, err)
 		}
 
-		latest := latestSemverTag(tags)
+		latest := oci.LatestSemverTag(tags)
 		if latest == "" {
 			continue
 		}
@@ -211,26 +209,6 @@ func listLatestRemoteArtifacts(ctx context.Context, cacheDir, registryBase strin
 	})
 
 	return entries, nil
-}
-
-// latestSemverTag returns the highest semver tag from the given list.
-// Tags that are not valid semver are ignored.
-func latestSemverTag(tags []string) string {
-	var best *semver.Version
-	var bestTag string
-
-	for _, tag := range tags {
-		v, err := semver.NewVersion(tag)
-		if err != nil {
-			continue
-		}
-		if best == nil || v.GreaterThan(best) {
-			best = v
-			bestTag = tag
-		}
-	}
-
-	return bestTag
 }
 
 // printRemoteArtifacts prints remote artifacts in table or JSON format.
@@ -324,29 +302,7 @@ func printLocalArtifacts(out io.Writer, artifacts []cachedArtifact, outputFmt st
 // If no tag is specified, the latest semver tag is resolved from the registry.
 // Full OCI references (containing "/") are returned as-is.
 func resolveArtifactRef(ctx context.Context, ref, registryBase string) (string, error) {
-	if strings.Contains(ref, "/") {
-		return ref, nil
-	}
-
-	name, tag := splitNameTag(ref)
-	fullRepo := registryBase + "/" + name
-
-	if tag != "" {
-		return fullRepo + ":" + tag, nil
-	}
-
-	client := oci.NewDefaultClient()
-	tags, err := client.List(ctx, fullRepo)
-	if err != nil {
-		return "", fmt.Errorf("listing tags for %s: %w", fullRepo, err)
-	}
-
-	latest := latestSemverTag(tags)
-	if latest == "" {
-		return "", fmt.Errorf("no semver tags found for %s", fullRepo)
-	}
-
-	return fullRepo + ":" + latest, nil
+	return oci.ResolveArtifactRef(ctx, ref, registryBase, "")
 }
 
 // splitNameTag splits "name:tag" into name and tag. If no colon is present,

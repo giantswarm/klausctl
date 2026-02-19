@@ -29,10 +29,18 @@ func NewDefaultClient(opts ...ClientOption) *Client {
 // PullPlugins pulls all configured plugins to the local plugins directory.
 // Each plugin is stored at <pluginsDir>/<shortName>/. Plugins are cached by
 // digest and skipped if already up-to-date. Progress messages are written to w.
+//
+// Plugins with a "latest" tag or no tag are resolved to the latest semver
+// tag from the registry before pulling.
 func PullPlugins(ctx context.Context, plugins []config.Plugin, pluginsDir string, w io.Writer) error {
+	resolved, err := ResolvePluginRefs(ctx, plugins)
+	if err != nil {
+		return err
+	}
+
 	client := NewDefaultClient()
 
-	for _, plugin := range plugins {
+	for _, plugin := range resolved {
 		shortName := ShortPluginName(plugin.Repository)
 		destDir := filepath.Join(pluginsDir, shortName)
 		ref := BuildRef(plugin)
