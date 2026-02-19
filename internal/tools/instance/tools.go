@@ -713,4 +713,3 @@ func formatDuration(d time.Duration) string {
 	hours := int(d.Hours()) % 24
 	return fmt.Sprintf("%dd%dh", days, hours)
 }
-

@@ -73,4 +73,3 @@ Typical workflow:
 4. Use klaus_logs to inspect container output when troubleshooting.
 5. Use klaus_stop or klaus_delete to clean up.`
 }
-

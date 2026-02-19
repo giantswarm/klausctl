@@ -228,7 +228,7 @@ func (f *fakeRuntime) Logs(_ context.Context, _ string, _ bool, _ int) error { r
 func (f *fakeRuntime) LogsCapture(_ context.Context, _ string, _ int) (string, error) {
 	return "", nil
 }
-func (f *fakeRuntime) Pull(_ context.Context, _ string, _ io.Writer) error   { return nil }
+func (f *fakeRuntime) Pull(_ context.Context, _ string, _ io.Writer) error { return nil }
 func (f *fakeRuntime) Images(_ context.Context, _ string) ([]runtimepkg.ImageInfo, error) {
 	return nil, nil
 }

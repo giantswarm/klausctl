@@ -277,4 +277,3 @@ func latestSemverTag(tags []string) string {
 	}
 	return bestTag
 }
-
