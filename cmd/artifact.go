@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 	"text/tabwriter"
 	"time"
 
@@ -88,7 +87,7 @@ type pullResult struct {
 // The artifact is stored at <cacheDir>/<shortName>/. The shortName is
 // extracted from the repository portion of the reference (tag/digest stripped).
 func pullArtifact(ctx context.Context, ref string, cacheDir string, kind oci.ArtifactKind, out io.Writer, outputFmt string) error {
-	shortName := oci.ShortName(repositoryFromRef(ref))
+	shortName := oci.ShortName(oci.RepositoryFromRef(ref))
 	destDir := filepath.Join(cacheDir, shortName)
 
 	client := oci.NewDefaultClient()
@@ -294,40 +293,6 @@ func printLocalArtifacts(out io.Writer, artifacts []cachedArtifact, outputFmt st
 		)
 	}
 	return w.Flush()
-}
-
-// resolveArtifactRef resolves a short artifact name to a full OCI reference.
-// Short names like "gs-ae" or "gs-ae:v0.0.7" are expanded using the
-// registryBase (e.g., "gsoci.azurecr.io/giantswarm/klaus-plugins").
-// If no tag is specified, the latest semver tag is resolved from the registry.
-// Full OCI references (containing "/") are returned as-is.
-func resolveArtifactRef(ctx context.Context, ref, registryBase string) (string, error) {
-	return oci.ResolveArtifactRef(ctx, ref, registryBase, "")
-}
-
-// splitNameTag splits "name:tag" into name and tag. If no colon is present,
-// tag is empty.
-func splitNameTag(ref string) (name, tag string) {
-	if idx := strings.LastIndex(ref, ":"); idx >= 0 {
-		return ref[:idx], ref[idx+1:]
-	}
-	return ref, ""
-}
-
-// repositoryFromRef extracts the repository part from an OCI reference,
-// stripping the tag or digest suffix. Handles both repo:tag and
-// repo@sha256:digest formats. Port-only colons (e.g. localhost:5000/repo)
-// are preserved.
-func repositoryFromRef(ref string) string {
-	if idx := strings.Index(ref, "@"); idx > 0 {
-		return ref[:idx]
-	}
-	if idx := strings.LastIndex(ref, ":"); idx > 0 {
-		if !strings.Contains(ref[idx+1:], "/") {
-			return ref[:idx]
-		}
-	}
-	return ref
 }
 
 // formatAge returns a human-readable age string from a timestamp.

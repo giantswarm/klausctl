@@ -225,9 +225,9 @@ func TestRepositoryFromRef(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := repositoryFromRef(tt.ref)
+			got := RepositoryFromRef(tt.ref)
 			if got != tt.want {
-				t.Errorf("repositoryFromRef(%q) = %q, want %q", tt.ref, got, tt.want)
+				t.Errorf("RepositoryFromRef(%q) = %q, want %q", tt.ref, got, tt.want)
 			}
 		})
 	}

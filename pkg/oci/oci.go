@@ -127,7 +127,7 @@ type PersonalityResult struct {
 // ResolvePersonality pulls a personality OCI artifact and parses its spec.
 // The personality is stored at <personalitiesDir>/<shortName>/.
 func ResolvePersonality(ctx context.Context, ref, personalitiesDir string, w io.Writer) (*PersonalityResult, error) {
-	repo := repositoryFromRef(ref)
+	repo := RepositoryFromRef(ref)
 	shortName := ShortName(repo)
 	destDir := filepath.Join(personalitiesDir, shortName)
 
@@ -215,9 +215,11 @@ func MergePlugins(personalityPlugins []PluginReference, userPlugins []config.Plu
 	return merged
 }
 
-// repositoryFromRef extracts the repository part from an OCI reference,
-// stripping the tag or digest suffix.
-func repositoryFromRef(ref string) string {
+// RepositoryFromRef extracts the repository part from an OCI reference,
+// stripping the tag or digest suffix. Handles both repo:tag and
+// repo@sha256:digest formats. Port-only colons (e.g. localhost:5000/repo)
+// are preserved.
+func RepositoryFromRef(ref string) string {
 	if idx := strings.Index(ref, "@"); idx > 0 {
 		return ref[:idx]
 	}

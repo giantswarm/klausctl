@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -220,50 +219,9 @@ func TestShortNameFromRef(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.ref, func(t *testing.T) {
-			got := oci.ShortName(repositoryFromRef(tt.ref))
+			got := oci.ShortName(oci.RepositoryFromRef(tt.ref))
 			if got != tt.want {
-				t.Errorf("ShortName(repositoryFromRef(%q)) = %q, want %q", tt.ref, got, tt.want)
-			}
-		})
-	}
-}
-
-func TestRepositoryFromRef(t *testing.T) {
-	tests := []struct {
-		ref  string
-		want string
-	}{
-		{
-			ref:  "example.com/repo:v1.0.0",
-			want: "example.com/repo",
-		},
-		{
-			ref:  "example.com/repo@sha256:abc123",
-			want: "example.com/repo",
-		},
-		{
-			ref:  "example.com/repo",
-			want: "example.com/repo",
-		},
-		{
-			ref:  "localhost:5000/repo",
-			want: "localhost:5000/repo",
-		},
-		{
-			ref:  "localhost:5000/repo:v1.0.0",
-			want: "localhost:5000/repo",
-		},
-		{
-			ref:  "localhost:5000/org/repo@sha256:abc123",
-			want: "localhost:5000/org/repo",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.ref, func(t *testing.T) {
-			got := repositoryFromRef(tt.ref)
-			if got != tt.want {
-				t.Errorf("repositoryFromRef(%q) = %q, want %q", tt.ref, got, tt.want)
+				t.Errorf("ShortName(RepositoryFromRef(%q)) = %q, want %q", tt.ref, got, tt.want)
 			}
 		})
 	}
@@ -382,52 +340,6 @@ func TestPrintRemoteArtifactsJSON(t *testing.T) {
 	}
 }
 
-func TestSplitNameTag(t *testing.T) {
-	tests := []struct {
-		ref      string
-		wantName string
-		wantTag  string
-	}{
-		{"gs-ae", "gs-ae", ""},
-		{"gs-ae:v0.0.7", "gs-ae", "v0.0.7"},
-		{"my-plugin:latest", "my-plugin", "latest"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.ref, func(t *testing.T) {
-			name, tag := splitNameTag(tt.ref)
-			if name != tt.wantName {
-				t.Errorf("name = %q, want %q", name, tt.wantName)
-			}
-			if tag != tt.wantTag {
-				t.Errorf("tag = %q, want %q", tag, tt.wantTag)
-			}
-		})
-	}
-}
-
-func TestResolveArtifactRefFullRef(t *testing.T) {
-	ctx := context.Background()
-	ref, err := resolveArtifactRef(ctx, "gsoci.azurecr.io/giantswarm/klaus-plugins/gs-base:v0.0.7", "gsoci.azurecr.io/giantswarm/klaus-plugins")
-	if err != nil {
-		t.Fatalf("resolveArtifactRef() error = %v", err)
-	}
-	if ref != "gsoci.azurecr.io/giantswarm/klaus-plugins/gs-base:v0.0.7" {
-		t.Errorf("ref = %q, want full ref unchanged", ref)
-	}
-}
-
-func TestResolveArtifactRefShortWithTag(t *testing.T) {
-	ctx := context.Background()
-	ref, err := resolveArtifactRef(ctx, "gs-base:v0.0.7", "gsoci.azurecr.io/giantswarm/klaus-plugins")
-	if err != nil {
-		t.Fatalf("resolveArtifactRef() error = %v", err)
-	}
-	want := "gsoci.azurecr.io/giantswarm/klaus-plugins/gs-base:v0.0.7"
-	if ref != want {
-		t.Errorf("ref = %q, want %q", ref, want)
-	}
-}
 
 func TestFormatAge(t *testing.T) {
 	tests := []struct {

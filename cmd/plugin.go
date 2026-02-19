@@ -156,7 +156,7 @@ func runPluginPull(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("creating plugins directory: %w", err)
 	}
 
-	ref, err := resolveArtifactRef(ctx, args[0], oci.DefaultPluginRegistry)
+	ref, err := oci.ResolveArtifactRef(ctx, args[0], oci.DefaultPluginRegistry, "")
 	if err != nil {
 		return err
 	}

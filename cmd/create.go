@@ -67,7 +67,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("instance %q already exists", instanceName)
 	}
 
-	personality, toolchain, plugins, err := resolveCreateRefs(ctx, createPersonality, createToolchain, createPlugins)
+	personality, toolchain, plugins, err := oci.ResolveCreateRefs(ctx, createPersonality, createToolchain, createPlugins)
 	if err != nil {
 		return err
 	}
@@ -90,7 +90,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 				return nil, err
 			}
 
-			plugins, err := oci.ResolvePluginRefs(ctx, pluginRefsFromSpec(pr.Spec.Plugins))
+			plugins, err := oci.ResolvePluginRefs(ctx, oci.PluginRefsFromSpec(pr.Spec.Plugins))
 			if err != nil {
 				return nil, fmt.Errorf("resolving personality plugins: %w", err)
 			}
@@ -122,44 +122,4 @@ func runCreate(cmd *cobra.Command, args []string) error {
 	}
 
 	return startInstance(cmd, instanceName, "", instancePaths.ConfigFile)
-}
-
-// resolveCreateRefs resolves personality, toolchain, and plugin short names
-// to full OCI references with proper semver tags from the registry.
-func resolveCreateRefs(ctx context.Context, personality, toolchain string, plugins []string) (string, string, []string, error) {
-	if personality != "" {
-		ref, err := oci.ResolveArtifactRef(ctx, personality, oci.DefaultPersonalityRegistry, "")
-		if err != nil {
-			return "", "", nil, fmt.Errorf("resolving personality: %w", err)
-		}
-		personality = ref
-	}
-
-	if toolchain != "" {
-		ref, err := oci.ResolveArtifactRef(ctx, toolchain, oci.DefaultToolchainRegistry, "klaus-")
-		if err != nil {
-			return "", "", nil, fmt.Errorf("resolving toolchain: %w", err)
-		}
-		toolchain = ref
-	}
-
-	resolved := make([]string, 0, len(plugins))
-	for _, p := range plugins {
-		ref, err := oci.ResolveArtifactRef(ctx, p, oci.DefaultPluginRegistry, "")
-		if err != nil {
-			return "", "", nil, fmt.Errorf("resolving plugin: %w", err)
-		}
-		resolved = append(resolved, ref)
-	}
-
-	return personality, toolchain, resolved, nil
-}
-
-// pluginRefsFromSpec converts personality spec plugin references to config.Plugin entries.
-func pluginRefsFromSpec(refs []oci.PluginReference) []config.Plugin {
-	plugins := make([]config.Plugin, 0, len(refs))
-	for _, p := range refs {
-		plugins = append(plugins, oci.PluginFromReference(p))
-	}
-	return plugins
 }

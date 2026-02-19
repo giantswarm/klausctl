@@ -135,7 +135,7 @@ func handleCreate(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 	toolchain := req.GetString("toolchain", "")
 	pluginArgs := req.GetStringSlice("plugin", nil)
 
-	personality, toolchain, pluginArgs, err = resolveCreateRefs(ctx, personality, toolchain, pluginArgs)
+	personality, toolchain, pluginArgs, err = oci.ResolveCreateRefs(ctx, personality, toolchain, pluginArgs)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("resolving refs: %v", err)), nil
 	}
@@ -161,7 +161,7 @@ func handleCreate(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 			if err != nil {
 				return nil, err
 			}
-			plugins, err := oci.ResolvePluginRefs(ctx, pluginRefsFromSpec(pr.Spec.Plugins))
+			plugins, err := oci.ResolvePluginRefs(ctx, oci.PluginRefsFromSpec(pr.Spec.Plugins))
 			if err != nil {
 				return nil, fmt.Errorf("resolving personality plugins: %w", err)
 			}
@@ -680,7 +680,7 @@ func shortToolchainName(cfg *config.Config) string {
 	if ref == "" {
 		ref = cfg.Image
 	}
-	repo := repositoryFromRef(ref)
+	repo := oci.RepositoryFromRef(ref)
 	name := filepath.Base(repo)
 	return strings.TrimPrefix(name, "klaus-")
 }
@@ -689,19 +689,7 @@ func shortRefName(ref string) string {
 	if ref == "" {
 		return ""
 	}
-	return filepath.Base(repositoryFromRef(ref))
-}
-
-func repositoryFromRef(ref string) string {
-	if idx := strings.Index(ref, "@"); idx > 0 {
-		return ref[:idx]
-	}
-	lastSlash := strings.LastIndex(ref, "/")
-	lastColon := strings.LastIndex(ref, ":")
-	if lastColon > lastSlash {
-		return ref[:lastColon]
-	}
-	return ref
+	return filepath.Base(oci.RepositoryFromRef(ref))
 }
 
 func formatDuration(d time.Duration) string {
@@ -717,44 +705,4 @@ func formatDuration(d time.Duration) string {
 	days := int(d.Hours()) / 24
 	hours := int(d.Hours()) % 24
 	return fmt.Sprintf("%dd%dh", days, hours)
-}
-
-// resolveCreateRefs resolves personality, toolchain, and plugin short names
-// to full OCI references with proper semver tags from the registry.
-func resolveCreateRefs(ctx context.Context, personality, toolchain string, plugins []string) (string, string, []string, error) {
-	if personality != "" {
-		ref, err := oci.ResolveArtifactRef(ctx, personality, oci.DefaultPersonalityRegistry, "")
-		if err != nil {
-			return "", "", nil, fmt.Errorf("resolving personality: %w", err)
-		}
-		personality = ref
-	}
-
-	if toolchain != "" {
-		ref, err := oci.ResolveArtifactRef(ctx, toolchain, oci.DefaultToolchainRegistry, "klaus-")
-		if err != nil {
-			return "", "", nil, fmt.Errorf("resolving toolchain: %w", err)
-		}
-		toolchain = ref
-	}
-
-	resolved := make([]string, 0, len(plugins))
-	for _, p := range plugins {
-		ref, err := oci.ResolveArtifactRef(ctx, p, oci.DefaultPluginRegistry, "")
-		if err != nil {
-			return "", "", nil, fmt.Errorf("resolving plugin: %w", err)
-		}
-		resolved = append(resolved, ref)
-	}
-
-	return personality, toolchain, resolved, nil
-}
-
-// pluginRefsFromSpec converts personality spec plugin references to config.Plugin entries.
-func pluginRefsFromSpec(refs []oci.PluginReference) []config.Plugin {
-	plugins := make([]config.Plugin, 0, len(refs))
-	for _, p := range refs {
-		plugins = append(plugins, oci.PluginFromReference(p))
-	}
-	return plugins
 }
