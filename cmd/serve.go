@@ -8,6 +8,7 @@ import (
 	artifacttools "github.com/giantswarm/klausctl/internal/tools/artifact"
 	instancetools "github.com/giantswarm/klausctl/internal/tools/instance"
 	"github.com/giantswarm/klausctl/pkg/config"
+	"github.com/giantswarm/klausctl/pkg/mcpclient"
 )
 
 var serveCmd = &cobra.Command{
@@ -43,8 +44,12 @@ func runServe(_ *cobra.Command, _ []string) error {
 		return err
 	}
 
+	agentClient := mcpclient.New(buildVersion)
+	defer agentClient.Close()
+
 	serverCtx := &server.ServerContext{
-		Paths: paths,
+		Paths:     paths,
+		MCPClient: agentClient,
 	}
 
 	mcpSrv := mcpserver.NewMCPServer(
@@ -65,11 +70,14 @@ func serverInstructions() string {
 
 Use the instance tools to create, start, stop, delete, and inspect local klaus instances.
 Use the artifact tools to discover available toolchains, personalities, and plugins.
+Use the agent tools to send prompts to and retrieve results from running instances.
 
 Typical workflow:
 1. Use klaus_list to see existing instances.
 2. Use klaus_create to create a new instance with a name, workspace, and optional personality/toolchain.
-3. Use klaus_status to check if an instance is running.
-4. Use klaus_logs to inspect container output when troubleshooting.
-5. Use klaus_stop or klaus_delete to clean up.`
+3. Use klaus_status to check if an instance is running (includes agent status).
+4. Use klaus_prompt to send a task to an agent instance.
+5. Use klaus_result to retrieve the agent's response.
+6. Use klaus_logs to inspect container output when troubleshooting.
+7. Use klaus_stop or klaus_delete to clean up.`
 }

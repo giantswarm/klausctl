@@ -34,6 +34,8 @@ func RegisterTools(s *mcpserver.MCPServer, sc *server.ServerContext) {
 	registerStatus(s, sc)
 	registerLogs(s, sc)
 	registerList(s, sc)
+	registerPrompt(s, sc)
+	registerResult(s, sc)
 }
 
 func registerCreate(s *mcpserver.MCPServer, sc *server.ServerContext) {
@@ -268,6 +270,7 @@ func handleDelete(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 type statusResult struct {
 	Instance    string `json:"instance"`
 	Status      string `json:"status"`
+	AgentStatus string `json:"agent_status,omitempty"`
 	Personality string `json:"personality,omitempty"`
 	Container   string `json:"container"`
 	Runtime     string `json:"runtime"`
@@ -327,6 +330,9 @@ func handleStatus(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 			result.Uptime = formatDuration(time.Since(info.StartedAt))
 		} else if !inst.StartedAt.IsZero() {
 			result.Uptime = formatDuration(time.Since(inst.StartedAt))
+		}
+		if agentStatus := queryAgentStatus(ctx, inst.Name, inst.Port, sc); agentStatus != "" {
+			result.AgentStatus = agentStatus
 		}
 	}
 

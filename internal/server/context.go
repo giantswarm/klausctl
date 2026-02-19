@@ -8,14 +8,16 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 
 	"github.com/giantswarm/klausctl/pkg/config"
+	"github.com/giantswarm/klausctl/pkg/mcpclient"
 	"github.com/giantswarm/klausctl/pkg/runtime"
 )
 
 // ServerContext is a lightweight dependency container passed to MCP tool
-// handlers. It provides access to klausctl paths and runtime detection
-// without requiring auth, federation, or instrumentation.
+// handlers. It provides access to klausctl paths, runtime detection, and
+// the MCP client for agent communication.
 type ServerContext struct {
-	Paths *config.Paths
+	Paths     *config.Paths
+	MCPClient *mcpclient.Client
 }
 
 // InstancePaths returns config paths scoped to a named instance.

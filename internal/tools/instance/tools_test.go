@@ -13,6 +13,7 @@ import (
 
 	"github.com/giantswarm/klausctl/internal/server"
 	"github.com/giantswarm/klausctl/pkg/config"
+	"github.com/giantswarm/klausctl/pkg/mcpclient"
 )
 
 func testServerContext(t *testing.T) *server.ServerContext {
@@ -27,7 +28,7 @@ func testServerContext(t *testing.T) *server.ServerContext {
 	if err := config.EnsureDir(paths.InstancesDir); err != nil {
 		t.Fatal(err)
 	}
-	return &server.ServerContext{Paths: paths}
+	return &server.ServerContext{Paths: paths, MCPClient: mcpclient.New("test")}
 }
 
 func TestRegisterTools(t *testing.T) {

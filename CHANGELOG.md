@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add `klaus_prompt` and `klaus_result` MCP tools to bridge the management and agent planes. `klaus_prompt` sends prompts to running instances with optional blocking mode, and `klaus_result` retrieves the agent's last response. Includes a lightweight MCP HTTP client (`pkg/mcpclient/`) with per-instance session caching. ([#45](https://github.com/giantswarm/klausctl/issues/45))
+- Enhance `klaus_status` to include the agent's internal status (`agent_status` field) alongside the container status when the instance is running, eliminating an extra round-trip. ([#45](https://github.com/giantswarm/klausctl/issues/45))
 - Add `klausctl serve` command that runs an MCP (Model Context Protocol) server over stdio, exposing klausctl's container lifecycle and artifact management as MCP tools for IDE integration (Cursor, Claude Code). ([#35](https://github.com/giantswarm/klausctl/issues/35))
   - Instance lifecycle tools: `klaus_create`, `klaus_start`, `klaus_stop`, `klaus_delete`, `klaus_status`, `klaus_logs`, `klaus_list`.
   - Artifact discovery tools: `klaus_toolchain_list`, `klaus_personality_list`, `klaus_plugin_list`.
