@@ -9,11 +9,8 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 	"text/tabwriter"
 	"time"
-
-	"github.com/Masterminds/semver/v3"
 
 	"github.com/giantswarm/klausctl/pkg/oci"
 )
@@ -90,7 +87,7 @@ type pullResult struct {
 // The artifact is stored at <cacheDir>/<shortName>/. The shortName is
 // extracted from the repository portion of the reference (tag/digest stripped).
 func pullArtifact(ctx context.Context, ref string, cacheDir string, kind oci.ArtifactKind, out io.Writer, outputFmt string) error {
-	shortName := oci.ShortName(repositoryFromRef(ref))
+	shortName := oci.ShortName(oci.RepositoryFromRef(ref))
 	destDir := filepath.Join(cacheDir, shortName)
 
 	client := oci.NewDefaultClient()
@@ -181,7 +178,7 @@ func listLatestRemoteArtifacts(ctx context.Context, cacheDir, registryBase strin
 			return nil, fmt.Errorf("listing tags for %s: %w", repo, err)
 		}
 
-		latest := latestSemverTag(tags)
+		latest := oci.LatestSemverTag(tags)
 		if latest == "" {
 			continue
 		}
@@ -211,26 +208,6 @@ func listLatestRemoteArtifacts(ctx context.Context, cacheDir, registryBase strin
 	})
 
 	return entries, nil
-}
-
-// latestSemverTag returns the highest semver tag from the given list.
-// Tags that are not valid semver are ignored.
-func latestSemverTag(tags []string) string {
-	var best *semver.Version
-	var bestTag string
-
-	for _, tag := range tags {
-		v, err := semver.NewVersion(tag)
-		if err != nil {
-			continue
-		}
-		if best == nil || v.GreaterThan(best) {
-			best = v
-			bestTag = tag
-		}
-	}
-
-	return bestTag
 }
 
 // printRemoteArtifacts prints remote artifacts in table or JSON format.
@@ -316,62 +293,6 @@ func printLocalArtifacts(out io.Writer, artifacts []cachedArtifact, outputFmt st
 		)
 	}
 	return w.Flush()
-}
-
-// resolveArtifactRef resolves a short artifact name to a full OCI reference.
-// Short names like "gs-ae" or "gs-ae:v0.0.7" are expanded using the
-// registryBase (e.g., "gsoci.azurecr.io/giantswarm/klaus-plugins").
-// If no tag is specified, the latest semver tag is resolved from the registry.
-// Full OCI references (containing "/") are returned as-is.
-func resolveArtifactRef(ctx context.Context, ref, registryBase string) (string, error) {
-	if strings.Contains(ref, "/") {
-		return ref, nil
-	}
-
-	name, tag := splitNameTag(ref)
-	fullRepo := registryBase + "/" + name
-
-	if tag != "" {
-		return fullRepo + ":" + tag, nil
-	}
-
-	client := oci.NewDefaultClient()
-	tags, err := client.List(ctx, fullRepo)
-	if err != nil {
-		return "", fmt.Errorf("listing tags for %s: %w", fullRepo, err)
-	}
-
-	latest := latestSemverTag(tags)
-	if latest == "" {
-		return "", fmt.Errorf("no semver tags found for %s", fullRepo)
-	}
-
-	return fullRepo + ":" + latest, nil
-}
-
-// splitNameTag splits "name:tag" into name and tag. If no colon is present,
-// tag is empty.
-func splitNameTag(ref string) (name, tag string) {
-	if idx := strings.LastIndex(ref, ":"); idx >= 0 {
-		return ref[:idx], ref[idx+1:]
-	}
-	return ref, ""
-}
-
-// repositoryFromRef extracts the repository part from an OCI reference,
-// stripping the tag or digest suffix. Handles both repo:tag and
-// repo@sha256:digest formats. Port-only colons (e.g. localhost:5000/repo)
-// are preserved.
-func repositoryFromRef(ref string) string {
-	if idx := strings.Index(ref, "@"); idx > 0 {
-		return ref[:idx]
-	}
-	if idx := strings.LastIndex(ref, ":"); idx > 0 {
-		if !strings.Contains(ref[idx+1:], "/") {
-			return ref[:idx]
-		}
-	}
-	return ref
 }
 
 // formatAge returns a human-readable age string from a timestamp.

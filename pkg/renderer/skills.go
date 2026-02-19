@@ -36,6 +36,9 @@ func (r *Renderer) renderSkills(skills map[string]config.Skill) error {
 	sort.Strings(names)
 
 	for _, name := range names {
+		if err := validateName(name); err != nil {
+			return fmt.Errorf("invalid skill name: %w", err)
+		}
 		skill := skills[name]
 		content, err := renderSkillContent(skill)
 		if err != nil {

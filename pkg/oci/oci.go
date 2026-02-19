@@ -29,10 +29,18 @@ func NewDefaultClient(opts ...ClientOption) *Client {
 // PullPlugins pulls all configured plugins to the local plugins directory.
 // Each plugin is stored at <pluginsDir>/<shortName>/. Plugins are cached by
 // digest and skipped if already up-to-date. Progress messages are written to w.
+//
+// Plugins with a "latest" tag or no tag are resolved to the latest semver
+// tag from the registry before pulling.
 func PullPlugins(ctx context.Context, plugins []config.Plugin, pluginsDir string, w io.Writer) error {
 	client := NewDefaultClient()
 
-	for _, plugin := range plugins {
+	resolved, err := resolvePluginRefs(ctx, client, plugins)
+	if err != nil {
+		return err
+	}
+
+	for _, plugin := range resolved {
 		shortName := ShortPluginName(plugin.Repository)
 		destDir := filepath.Join(pluginsDir, shortName)
 		ref := BuildRef(plugin)
@@ -119,7 +127,7 @@ type PersonalityResult struct {
 // ResolvePersonality pulls a personality OCI artifact and parses its spec.
 // The personality is stored at <personalitiesDir>/<shortName>/.
 func ResolvePersonality(ctx context.Context, ref, personalitiesDir string, w io.Writer) (*PersonalityResult, error) {
-	repo := repositoryFromRef(ref)
+	repo := RepositoryFromRef(ref)
 	shortName := ShortName(repo)
 	destDir := filepath.Join(personalitiesDir, shortName)
 
@@ -207,9 +215,11 @@ func MergePlugins(personalityPlugins []PluginReference, userPlugins []config.Plu
 	return merged
 }
 
-// repositoryFromRef extracts the repository part from an OCI reference,
-// stripping the tag or digest suffix.
-func repositoryFromRef(ref string) string {
+// RepositoryFromRef extracts the repository part from an OCI reference,
+// stripping the tag or digest suffix. Handles both repo:tag and
+// repo@sha256:digest formats. Port-only colons (e.g. localhost:5000/repo)
+// are preserved.
+func RepositoryFromRef(ref string) string {
 	if idx := strings.Index(ref, "@"); idx > 0 {
 		return ref[:idx]
 	}

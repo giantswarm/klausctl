@@ -33,20 +33,26 @@ func TestGenerateInstanceConfig(t *testing.T) {
 		t.Fatalf("GenerateInstanceConfig() returned error: %v", err)
 	}
 
-	if cfg.Personality != "gsoci.azurecr.io/giantswarm/klaus-personalities/sre:latest" {
+	if cfg.Personality != "gsoci.azurecr.io/giantswarm/klaus-personalities/sre" {
 		t.Fatalf("unexpected personality: %s", cfg.Personality)
 	}
-	if cfg.Image != "gsoci.azurecr.io/giantswarm/klaus-go:latest" {
+	if cfg.Image != "gsoci.azurecr.io/giantswarm/klaus-go" {
 		t.Fatalf("unexpected image: %s", cfg.Image)
 	}
-	if cfg.Toolchain != "gsoci.azurecr.io/giantswarm/klaus-go:latest" {
+	if cfg.Toolchain != "gsoci.azurecr.io/giantswarm/klaus-go" {
 		t.Fatalf("unexpected toolchain: %s", cfg.Toolchain)
 	}
 	if cfg.Port != 8080 {
 		t.Fatalf("unexpected port: %d", cfg.Port)
 	}
-	if len(cfg.Plugins) != 1 || cfg.Plugins[0].Repository != "gsoci.azurecr.io/giantswarm/klaus-plugins/gs-platform" {
-		t.Fatalf("unexpected plugins: %+v", cfg.Plugins)
+	if len(cfg.Plugins) != 1 {
+		t.Fatalf("unexpected plugins count: %+v", cfg.Plugins)
+	}
+	if cfg.Plugins[0].Repository != "gsoci.azurecr.io/giantswarm/klaus-plugins/gs-platform" {
+		t.Fatalf("unexpected plugin repository: %s", cfg.Plugins[0].Repository)
+	}
+	if cfg.Plugins[0].Tag != "" {
+		t.Fatalf("plugin tag should be empty (resolved at start time), got %s", cfg.Plugins[0].Tag)
 	}
 }
 

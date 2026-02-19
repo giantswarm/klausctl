@@ -52,6 +52,8 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		workspace = cwd
 	}
 
+	ctx := context.Background()
+
 	paths, err := config.DefaultPaths()
 	if err != nil {
 		return err
@@ -65,14 +67,19 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("instance %q already exists", instanceName)
 	}
 
+	personality, toolchain, plugins, err := oci.ResolveCreateRefs(ctx, createPersonality, createToolchain, createPlugins)
+	if err != nil {
+		return err
+	}
+
 	cfg, err := config.GenerateInstanceConfig(paths, config.CreateOptions{
 		Name:        instanceName,
 		Workspace:   workspace,
-		Personality: createPersonality,
-		Toolchain:   createToolchain,
-		Plugins:     createPlugins,
+		Personality: personality,
+		Toolchain:   toolchain,
+		Plugins:     plugins,
 		Port:        createPort,
-		Context:     context.Background(),
+		Context:     ctx,
 		Output:      cmd.OutOrStdout(),
 		ResolvePersonality: func(ctx context.Context, ref string, outWriter io.Writer) (*config.ResolvedPersonality, error) {
 			if err := config.EnsureDir(paths.PersonalitiesDir); err != nil {
@@ -83,14 +90,19 @@ func runCreate(cmd *cobra.Command, args []string) error {
 				return nil, err
 			}
 
-			plugins := make([]config.Plugin, 0, len(pr.Spec.Plugins))
-			for _, p := range pr.Spec.Plugins {
-				plugins = append(plugins, oci.PluginFromReference(p))
+			plugins, err := oci.ResolvePluginRefs(ctx, oci.PluginRefsFromSpec(pr.Spec.Plugins))
+			if err != nil {
+				return nil, fmt.Errorf("resolving personality plugins: %w", err)
+			}
+
+			image, err := oci.ResolveArtifactRef(ctx, pr.Spec.Image, oci.DefaultToolchainRegistry, "klaus-")
+			if err != nil {
+				return nil, fmt.Errorf("resolving personality image: %w", err)
 			}
 
 			return &config.ResolvedPersonality{
 				Plugins: plugins,
-				Image:   pr.Spec.Image,
+				Image:   image,
 			}, nil
 		},
 	})

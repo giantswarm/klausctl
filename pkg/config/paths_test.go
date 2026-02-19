@@ -152,13 +152,68 @@ func TestValidateInstanceName(t *testing.T) {
 }
 
 func TestResolveRefs(t *testing.T) {
-	if got := ResolvePersonalityRef("sre"); got != "gsoci.azurecr.io/giantswarm/klaus-personalities/sre:latest" {
-		t.Fatalf("ResolvePersonalityRef short = %q", got)
+	tests := []struct {
+		name string
+		fn   func(string) string
+		ref  string
+		want string
+	}{
+		{
+			name: "personality short name",
+			fn:   ResolvePersonalityRef,
+			ref:  "sre",
+			want: "gsoci.azurecr.io/giantswarm/klaus-personalities/sre",
+		},
+		{
+			name: "personality short name with tag",
+			fn:   ResolvePersonalityRef,
+			ref:  "sre:v0.2.0",
+			want: "gsoci.azurecr.io/giantswarm/klaus-personalities/sre:v0.2.0",
+		},
+		{
+			name: "personality full ref unchanged",
+			fn:   ResolvePersonalityRef,
+			ref:  "custom.io/org/my-personality:v1.0.0",
+			want: "custom.io/org/my-personality:v1.0.0",
+		},
+		{
+			name: "toolchain short name with tag",
+			fn:   ResolveToolchainRef,
+			ref:  "go:v1.0.0",
+			want: "gsoci.azurecr.io/giantswarm/klaus-go:v1.0.0",
+		},
+		{
+			name: "toolchain short name without tag",
+			fn:   ResolveToolchainRef,
+			ref:  "go",
+			want: "gsoci.azurecr.io/giantswarm/klaus-go",
+		},
+		{
+			name: "plugin short name",
+			fn:   ResolvePluginRef,
+			ref:  "gs-platform",
+			want: "gsoci.azurecr.io/giantswarm/klaus-plugins/gs-platform",
+		},
+		{
+			name: "plugin short name with tag",
+			fn:   ResolvePluginRef,
+			ref:  "gs-platform:v0.0.5",
+			want: "gsoci.azurecr.io/giantswarm/klaus-plugins/gs-platform:v0.0.5",
+		},
+		{
+			name: "empty ref",
+			fn:   ResolvePluginRef,
+			ref:  "",
+			want: "",
+		},
 	}
-	if got := ResolveToolchainRef("go:v1.0.0"); got != "gsoci.azurecr.io/giantswarm/klaus-go:v1.0.0" {
-		t.Fatalf("ResolveToolchainRef short = %q", got)
-	}
-	if got := ResolvePluginRef("gs-platform"); got != "gsoci.azurecr.io/giantswarm/klaus-plugins/gs-platform:latest" {
-		t.Fatalf("ResolvePluginRef short = %q", got)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.fn(tt.ref)
+			if got != tt.want {
+				t.Errorf("got %q, want %q", got, tt.want)
+			}
+		})
 	}
 }

@@ -15,6 +15,7 @@ import (
 
 	"github.com/giantswarm/klausctl/pkg/config"
 	"github.com/giantswarm/klausctl/pkg/instance"
+	"github.com/giantswarm/klausctl/pkg/oci"
 	"github.com/giantswarm/klausctl/pkg/runtime"
 )
 
@@ -162,7 +163,7 @@ func toolchainLabel(cfg *config.Config) string {
 }
 
 func shortToolchain(image string) string {
-	repo := repositoryFromRef(image)
+	repo := oci.RepositoryFromRef(image)
 	name := filepath.Base(repo)
 	if strings.HasPrefix(name, "klaus-") {
 		return strings.TrimPrefix(name, "klaus-")
@@ -174,7 +175,7 @@ func shortRefName(ref string) string {
 	if ref == "" {
 		return ""
 	}
-	return filepath.Base(repositoryFromRef(ref))
+	return filepath.Base(oci.RepositoryFromRef(ref))
 }
 
 func valueOrDash(v string) string {

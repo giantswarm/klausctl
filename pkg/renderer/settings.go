@@ -37,9 +37,11 @@ func (r *Renderer) renderHookScripts(scripts map[string]string) error {
 	sort.Strings(names)
 
 	for _, name := range names {
+		if err := validateName(name); err != nil {
+			return fmt.Errorf("invalid hook script name: %w", err)
+		}
 		content := scripts[name]
 		path := filepath.Join(r.paths.RenderedDir, "hooks", name)
-		// Hook scripts need to be executable.
 		if err := writeFile(path, []byte(content), 0o755); err != nil {
 			return fmt.Errorf("writing hook script %q: %w", name, err)
 		}

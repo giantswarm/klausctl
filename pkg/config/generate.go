@@ -164,7 +164,7 @@ func UsedPorts(paths *Paths) (map[int]bool, error) {
 // ParsePluginRef resolves a plugin reference into config.Plugin fields.
 func ParsePluginRef(ref string) Plugin {
 	resolved := ResolvePluginRef(ref)
-	repository, suffix := splitTagOrDigest(resolved)
+	repository, suffix := splitNameSuffix(resolved)
 
 	plugin := Plugin{Repository: repository}
 	if len(suffix) > 0 {

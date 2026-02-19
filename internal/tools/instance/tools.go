@@ -135,6 +135,11 @@ func handleCreate(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 	toolchain := req.GetString("toolchain", "")
 	pluginArgs := req.GetStringSlice("plugin", nil)
 
+	personality, toolchain, pluginArgs, err = oci.ResolveCreateRefs(ctx, personality, toolchain, pluginArgs)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("resolving refs: %v", err)), nil
+	}
+
 	instancePaths := sc.InstancePaths(name)
 	if _, err := os.Stat(instancePaths.InstanceDir); err == nil {
 		return mcp.NewToolResultError(fmt.Sprintf("instance %q already exists", name)), nil
@@ -156,13 +161,18 @@ func handleCreate(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 			if err != nil {
 				return nil, err
 			}
-			plugins := make([]config.Plugin, 0, len(pr.Spec.Plugins))
-			for _, p := range pr.Spec.Plugins {
-				plugins = append(plugins, oci.PluginFromReference(p))
+			plugins, err := oci.ResolvePluginRefs(ctx, oci.PluginRefsFromSpec(pr.Spec.Plugins))
+			if err != nil {
+				return nil, fmt.Errorf("resolving personality plugins: %w", err)
 			}
+			image, err := oci.ResolveArtifactRef(ctx, pr.Spec.Image, oci.DefaultToolchainRegistry, "klaus-")
+			if err != nil {
+				return nil, fmt.Errorf("resolving personality image: %w", err)
+			}
+
 			return &config.ResolvedPersonality{
 				Plugins: plugins,
-				Image:   pr.Spec.Image,
+				Image:   image,
 			}, nil
 		},
 	})
@@ -487,7 +497,11 @@ func startExistingInstance(ctx context.Context, name string, sc *server.ServerCo
 		personalityDir = pr.Dir
 		cfg.Plugins = oci.MergePlugins(pr.Spec.Plugins, cfg.Plugins)
 		if !cfg.ImageExplicitlySet() && pr.Spec.Image != "" {
-			cfg.Image = pr.Spec.Image
+			resolved, err := oci.ResolveArtifactRef(ctx, pr.Spec.Image, oci.DefaultToolchainRegistry, "")
+			if err != nil {
+				return nil, fmt.Errorf("resolving personality image: %w", err)
+			}
+			cfg.Image = resolved
 		}
 	}
 
@@ -675,7 +689,7 @@ func shortToolchainName(cfg *config.Config) string {
 	if ref == "" {
 		ref = cfg.Image
 	}
-	repo := repositoryFromRef(ref)
+	repo := oci.RepositoryFromRef(ref)
 	name := filepath.Base(repo)
 	return strings.TrimPrefix(name, "klaus-")
 }
@@ -684,19 +698,7 @@ func shortRefName(ref string) string {
 	if ref == "" {
 		return ""
 	}
-	return filepath.Base(repositoryFromRef(ref))
-}
-
-func repositoryFromRef(ref string) string {
-	if idx := strings.Index(ref, "@"); idx > 0 {
-		return ref[:idx]
-	}
-	lastSlash := strings.LastIndex(ref, "/")
-	lastColon := strings.LastIndex(ref, ":")
-	if lastColon > lastSlash {
-		return ref[:lastColon]
-	}
-	return ref
+	return filepath.Base(oci.RepositoryFromRef(ref))
 }
 
 func formatDuration(d time.Duration) string {

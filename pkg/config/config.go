@@ -315,9 +315,6 @@ func (c *Config) Validate() error {
 		if p.Repository == "" {
 			return fmt.Errorf("plugin repository is required")
 		}
-		if p.Tag == "" && p.Digest == "" {
-			return fmt.Errorf("plugin %s requires either tag or digest", p.Repository)
-		}
 	}
 
 	return nil

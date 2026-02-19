@@ -168,7 +168,7 @@ func runPersonalityPull(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("creating personalities directory: %w", err)
 	}
 
-	ref, err := resolveArtifactRef(ctx, args[0], oci.DefaultPersonalityRegistry)
+	ref, err := oci.ResolveArtifactRef(ctx, args[0], oci.DefaultPersonalityRegistry, "")
 	if err != nil {
 		return err
 	}
