@@ -5,7 +5,7 @@ go 1.25
 require (
 	github.com/Masterminds/semver/v3 v3.4.0
 	github.com/creativeprojects/go-selfupdate v1.5.2
-	github.com/giantswarm/klaus-oci v0.0.3
+	github.com/giantswarm/klaus-oci v0.0.4
 	github.com/mark3labs/mcp-go v0.44.0
 	github.com/spf13/cobra v1.10.2
 	gopkg.in/yaml.v3 v3.0.1
