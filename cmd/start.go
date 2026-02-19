@@ -175,7 +175,7 @@ func startInstance(cmd *cobra.Command, instanceName, workspaceOverride, configPa
 		if imgErr != nil || len(images) == 0 {
 			return fmt.Errorf("pulling image: %w", err)
 		}
-		fmt.Fprintf(out, "Pull failed, using locally cached image.\n")
+		_, _ = fmt.Fprintln(out, "Pull failed, using locally cached image.")
 	}
 
 	// Start container.
