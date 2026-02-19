@@ -29,6 +29,9 @@ type Runtime interface {
 	// streams continuously until interrupted. If tail > 0, only the last N
 	// lines are shown.
 	Logs(ctx context.Context, name string, follow bool, tail int) error
+	// LogsCapture returns container log lines as a string instead of
+	// streaming to stdout. Useful for programmatic consumers (e.g. MCP tools).
+	LogsCapture(ctx context.Context, name string, tail int) (string, error)
 	// Pull pulls a container image, streaming progress to w.
 	Pull(ctx context.Context, image string, w io.Writer) error
 	// Images lists locally cached container images matching the given reference

@@ -232,3 +232,21 @@ func (r *execRuntime) Logs(ctx context.Context, name string, follow bool, tail i
 	}
 	return err
 }
+
+func (r *execRuntime) LogsCapture(ctx context.Context, name string, tail int) (string, error) {
+	args := []string{"logs"}
+	if tail > 0 {
+		args = append(args, "--tail", fmt.Sprintf("%d", tail))
+	}
+	args = append(args, name)
+
+	var stdout, stderr bytes.Buffer
+	cmd := exec.CommandContext(ctx, r.binary, args...)
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("%s logs failed: %s\n%s", r.binary, err, stderr.String())
+	}
+	return stdout.String(), nil
+}

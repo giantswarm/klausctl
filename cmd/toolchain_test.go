@@ -31,6 +31,9 @@ func (m *mockRuntime) Inspect(_ context.Context, _ string) (*runtime.ContainerIn
 }
 func (m *mockRuntime) Pull(_ context.Context, _ string, _ io.Writer) error   { return nil }
 func (m *mockRuntime) Logs(_ context.Context, _ string, _ bool, _ int) error { return nil }
+func (m *mockRuntime) LogsCapture(_ context.Context, _ string, _ int) (string, error) {
+	return "", nil
+}
 func (m *mockRuntime) Images(_ context.Context, _ string) ([]runtime.ImageInfo, error) {
 	return m.images, m.err
 }
