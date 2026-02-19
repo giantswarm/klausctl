@@ -165,9 +165,14 @@ func handleCreate(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 			if err != nil {
 				return nil, fmt.Errorf("resolving personality plugins: %w", err)
 			}
+			image, err := oci.ResolveArtifactRef(ctx, pr.Spec.Image, oci.DefaultToolchainRegistry, "")
+			if err != nil {
+				return nil, fmt.Errorf("resolving personality image: %w", err)
+			}
+
 			return &config.ResolvedPersonality{
 				Plugins: plugins,
-				Image:   pr.Spec.Image,
+				Image:   image,
 			}, nil
 		},
 	})
@@ -492,7 +497,11 @@ func startExistingInstance(ctx context.Context, name string, sc *server.ServerCo
 		personalityDir = pr.Dir
 		cfg.Plugins = oci.MergePlugins(pr.Spec.Plugins, cfg.Plugins)
 		if !cfg.ImageExplicitlySet() && pr.Spec.Image != "" {
-			cfg.Image = pr.Spec.Image
+			resolved, err := oci.ResolveArtifactRef(ctx, pr.Spec.Image, oci.DefaultToolchainRegistry, "")
+			if err != nil {
+				return nil, fmt.Errorf("resolving personality image: %w", err)
+			}
+			cfg.Image = resolved
 		}
 	}
 

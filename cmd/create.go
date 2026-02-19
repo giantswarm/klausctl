@@ -95,9 +95,14 @@ func runCreate(cmd *cobra.Command, args []string) error {
 				return nil, fmt.Errorf("resolving personality plugins: %w", err)
 			}
 
+			image, err := oci.ResolveArtifactRef(ctx, pr.Spec.Image, oci.DefaultToolchainRegistry, "")
+			if err != nil {
+				return nil, fmt.Errorf("resolving personality image: %w", err)
+			}
+
 			return &config.ResolvedPersonality{
 				Plugins: plugins,
-				Image:   pr.Spec.Image,
+				Image:   image,
 			}, nil
 		},
 	})

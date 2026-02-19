@@ -127,9 +127,8 @@ func startInstance(cmd *cobra.Command, instanceName, workspaceOverride, configPa
 		fmt.Fprintln(out, "Resolving personality...")
 
 		// Resolve :latest / empty tags to actual semver before pulling.
-		// Plugins and toolchain don't need resolution here -- plugins are
-		// resolved inside PullPlugins, and the toolchain image tag is used
-		// as-is by the container runtime.
+		// Plugins are resolved inside PullPlugins; the toolchain image is
+		// resolved below when the personality spec's Image field is applied.
 		resolvedRef, err := oci.ResolveArtifactRef(ctx, cfg.Personality, oci.DefaultPersonalityRegistry, "")
 		if err != nil {
 			return fmt.Errorf("resolving personality ref: %w", err)
@@ -151,7 +150,11 @@ func startInstance(cmd *cobra.Command, instanceName, workspaceOverride, configPa
 
 		// Use personality image if the user didn't explicitly set one.
 		if !cfg.ImageExplicitlySet() && pr.Spec.Image != "" {
-			cfg.Image = pr.Spec.Image
+			resolved, err := oci.ResolveArtifactRef(ctx, pr.Spec.Image, oci.DefaultToolchainRegistry, "")
+			if err != nil {
+				return fmt.Errorf("resolving personality image: %w", err)
+			}
+			cfg.Image = resolved
 		}
 	}
 
