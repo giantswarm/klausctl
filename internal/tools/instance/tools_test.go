@@ -62,6 +62,44 @@ func TestHandleStatusMissingInstance(t *testing.T) {
 	assertIsError(t, result)
 }
 
+func TestHandleStatusStoppedInstance(t *testing.T) {
+	sc := testServerContext(t)
+
+	instanceDir := filepath.Join(sc.Paths.InstancesDir, "stopped-inst")
+	if err := os.MkdirAll(instanceDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := config.DefaultConfig()
+	cfg.Image = "example.com/test:v1"
+	cfg.Workspace = "/tmp"
+	data, err := cfg.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(instanceDir, "config.yaml"), data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	req := callToolRequest(map[string]any{"name": "stopped-inst"})
+	result, err := handleStatus(context.Background(), req, sc)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	text := extractResultText(t, result)
+	var obj map[string]string
+	if err := json.Unmarshal([]byte(text), &obj); err != nil {
+		t.Fatalf("expected JSON object, got: %s", text)
+	}
+	if obj["status"] != "stopped" {
+		t.Errorf("expected 'stopped' status, got %q", obj["status"])
+	}
+	if obj["instance"] != "stopped-inst" {
+		t.Errorf("expected instance 'stopped-inst', got %q", obj["instance"])
+	}
+}
+
 func TestHandleLogsMissingInstance(t *testing.T) {
 	sc := testServerContext(t)
 

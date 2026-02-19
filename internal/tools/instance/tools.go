@@ -187,6 +187,7 @@ func handleCreate(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 
 	result, err := startExistingInstance(ctx, name, sc)
 	if err != nil {
+		_ = os.RemoveAll(instancePaths.InstanceDir)
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 	return server.JSONResult(result)
@@ -275,7 +276,18 @@ func handleStatus(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 	paths := sc.InstancePaths(name)
 	inst, err := instance.Load(paths)
 	if err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("no instance found for %q; use klaus_create to create one", name)), nil
+		cfg, cfgErr := config.Load(paths.ConfigFile)
+		if cfgErr != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("no instance found for %q; use klaus_create to create one", name)), nil
+		}
+		return server.JSONResult(statusResult{
+			Instance:  name,
+			Status:    "stopped",
+			Container: instance.ContainerName(name),
+			Runtime:   cfg.Runtime,
+			Image:     cfg.Image,
+			Workspace: cfg.Workspace,
+		})
 	}
 
 	rt, err := runtime.New(inst.Runtime)
@@ -498,7 +510,10 @@ func startExistingInstance(ctx context.Context, name string, sc *server.ServerCo
 	}
 
 	if err := rt.Pull(ctx, image, io.Discard); err != nil {
-		return nil, fmt.Errorf("pulling image: %w", err)
+		images, imgErr := rt.Images(ctx, image)
+		if imgErr != nil || len(images) == 0 {
+			return nil, fmt.Errorf("pulling image: %w", err)
+		}
 	}
 
 	containerID, err := rt.Run(ctx, runOpts)

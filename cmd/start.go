@@ -166,10 +166,16 @@ func startInstance(cmd *cobra.Command, instanceName, workspaceOverride, configPa
 		return fmt.Errorf("building run options: %w", err)
 	}
 
-	// Pull the image with streamed progress.
+	// Pull the image with streamed progress. If the pull fails but the
+	// image is already cached locally (e.g. expired registry credentials),
+	// continue with the cached copy.
 	fmt.Fprintf(out, "Pulling %s...\n", image)
 	if err := rt.Pull(ctx, image, out); err != nil {
-		return fmt.Errorf("pulling image: %w", err)
+		images, imgErr := rt.Images(ctx, image)
+		if imgErr != nil || len(images) == 0 {
+			return fmt.Errorf("pulling image: %w", err)
+		}
+		fmt.Fprintf(out, "Pull failed, using locally cached image.\n")
 	}
 
 	// Start container.
