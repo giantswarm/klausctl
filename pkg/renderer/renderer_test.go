@@ -170,6 +170,143 @@ func TestRenderMCPConfig(t *testing.T) {
 	}
 }
 
+func TestRenderMCPConfigInfersHTTPType(t *testing.T) {
+	paths := testPaths(t)
+	r := New(paths)
+
+	cfg := &config.Config{
+		Workspace: "/tmp",
+		Port:      8080,
+		McpServers: map[string]any{
+			"muster": map[string]any{
+				"url": "https://example.com/mcp",
+				"headers": map[string]any{
+					"Authorization": "Bearer tok",
+				},
+			},
+		},
+	}
+
+	if err := r.Render(cfg); err != nil {
+		t.Fatalf("Render() returned error: %v", err)
+	}
+
+	mcpPath := filepath.Join(paths.RenderedDir, "mcp-config.json")
+	data, err := os.ReadFile(mcpPath)
+	if err != nil {
+		t.Fatalf("MCP config not created: %v", err)
+	}
+
+	var result map[string]any
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	servers, ok := result["mcpServers"].(map[string]any)
+	if !ok {
+		t.Fatal("mcpServers is not a map")
+	}
+	muster, ok := servers["muster"].(map[string]any)
+	if !ok {
+		t.Fatal("muster entry is not a map")
+	}
+
+	if muster["type"] != "http" {
+		t.Errorf("expected type=http for URL-based server, got %v", muster["type"])
+	}
+	if muster["url"] != "https://example.com/mcp" {
+		t.Error("url should be preserved")
+	}
+}
+
+func TestRenderMCPConfigInfersStdioType(t *testing.T) {
+	paths := testPaths(t)
+	r := New(paths)
+
+	cfg := &config.Config{
+		Workspace: "/tmp",
+		Port:      8080,
+		McpServers: map[string]any{
+			"local": map[string]any{
+				"command": "my-mcp-server",
+				"args":    []any{"--flag"},
+			},
+		},
+	}
+
+	if err := r.Render(cfg); err != nil {
+		t.Fatalf("Render() returned error: %v", err)
+	}
+
+	mcpPath := filepath.Join(paths.RenderedDir, "mcp-config.json")
+	data, err := os.ReadFile(mcpPath)
+	if err != nil {
+		t.Fatalf("MCP config not created: %v", err)
+	}
+
+	var result map[string]any
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	servers, ok := result["mcpServers"].(map[string]any)
+	if !ok {
+		t.Fatal("mcpServers is not a map")
+	}
+	local, ok := servers["local"].(map[string]any)
+	if !ok {
+		t.Fatal("local entry is not a map")
+	}
+
+	if local["type"] != "stdio" {
+		t.Errorf("expected type=stdio for command-based server, got %v", local["type"])
+	}
+}
+
+func TestRenderMCPConfigPreservesExplicitType(t *testing.T) {
+	paths := testPaths(t)
+	r := New(paths)
+
+	cfg := &config.Config{
+		Workspace: "/tmp",
+		Port:      8080,
+		McpServers: map[string]any{
+			"custom": map[string]any{
+				"type": "sse",
+				"url":  "https://example.com/events",
+			},
+		},
+	}
+
+	if err := r.Render(cfg); err != nil {
+		t.Fatalf("Render() returned error: %v", err)
+	}
+
+	mcpPath := filepath.Join(paths.RenderedDir, "mcp-config.json")
+	data, err := os.ReadFile(mcpPath)
+	if err != nil {
+		t.Fatalf("MCP config not created: %v", err)
+	}
+
+	var result map[string]any
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	servers, ok := result["mcpServers"].(map[string]any)
+	if !ok {
+		t.Fatal("mcpServers is not a map")
+	}
+	custom, ok := servers["custom"].(map[string]any)
+	if !ok {
+		t.Fatal("custom entry is not a map")
+	}
+
+	if custom["type"] != "sse" {
+		t.Errorf("explicit type should be preserved, got %v", custom["type"])
+	}
+}
+
 func TestRenderSettings(t *testing.T) {
 	paths := testPaths(t)
 	r := New(paths)
