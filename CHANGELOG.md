@@ -9,9 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Fix MCP config rendering for HTTP servers: auto-infer `"type": "http"` for URL-based entries and `"type": "stdio"` for command-based entries. Without the explicit type field, Claude Code misidentifies HTTP servers as stdio and hangs during initialization.
+
 ### Added
 
 - Add `--env`, `--env-forward`, `--permission-mode`, `--model`, `--system-prompt`, and `--max-budget` flags to `klausctl create`, unifying config overrides between the CLI and MCP tool.
+- Add `klausctl prompt` and `klausctl result` CLI commands to send prompts to and retrieve results from running klaus instances, mirroring the `klaus_prompt` and `klaus_result` MCP tools. `prompt` supports `--blocking` to wait for completion and `--message`/`-m` for the prompt text; both support `--output json`.
 - Expose full config options in `klaus_create` MCP tool: `envVars`, `envForward`, `mcpServers`, `maxBudgetUsd`, `permissionMode`, `model`, and `systemPrompt` parameters, enabling programmatic instance creation without manual config editing. ([#46](https://github.com/giantswarm/klausctl/issues/46))
 - Add `klaus_prompt` and `klaus_result` MCP tools to bridge the management and agent planes. `klaus_prompt` sends prompts to running instances with optional blocking mode, and `klaus_result` retrieves the agent's last response. Includes a lightweight MCP HTTP client (`pkg/mcpclient/`) with per-instance session caching. ([#45](https://github.com/giantswarm/klausctl/issues/45))
 - Enhance `klaus_status` to include the agent's internal status (`agent_status` field) alongside the container status when the instance is running, eliminating an extra round-trip. ([#45](https://github.com/giantswarm/klausctl/issues/45))

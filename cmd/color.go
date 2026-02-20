@@ -42,3 +42,14 @@ func bold(s string) string {
 	}
 	return "\033[1m" + s + "\033[0m"
 }
+
+func colorStatus(status string) string {
+	switch status {
+	case "started", "completed":
+		return green(status)
+	case "error", "failed":
+		return yellow(status)
+	default:
+		return status
+	}
+}
