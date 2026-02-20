@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"gopkg.in/yaml.v3"
 )
@@ -19,6 +20,15 @@ type CreateOptions struct {
 	Toolchain   string
 	Plugins     []string
 	Port        int
+
+	// Override fields applied after personality resolution.
+	EnvVars        map[string]string
+	EnvForward     []string
+	McpServers     map[string]any
+	MaxBudgetUSD   *float64
+	PermissionMode string
+	Model          string
+	SystemPrompt   string
 
 	// Context and Output are passed to ResolvePersonality when provided.
 	Context context.Context
@@ -102,7 +112,46 @@ func GenerateInstanceConfig(paths *Paths, opts CreateOptions) (*Config, error) {
 		}
 	}
 
+	applyCreateOverrides(cfg, opts)
+
 	return cfg, cfg.Validate()
+}
+
+// applyCreateOverrides merges optional override fields from CreateOptions into
+// the generated config. Called after personality resolution, before validation.
+func applyCreateOverrides(cfg *Config, opts CreateOptions) {
+	for k, v := range opts.EnvVars {
+		if cfg.EnvVars == nil {
+			cfg.EnvVars = make(map[string]string, len(opts.EnvVars))
+		}
+		cfg.EnvVars[k] = v
+	}
+
+	if len(opts.EnvForward) > 0 {
+		cfg.EnvForward = append(cfg.EnvForward, opts.EnvForward...)
+		slices.Sort(cfg.EnvForward)
+		cfg.EnvForward = slices.Compact(cfg.EnvForward)
+	}
+
+	for k, v := range opts.McpServers {
+		if cfg.McpServers == nil {
+			cfg.McpServers = make(map[string]any, len(opts.McpServers))
+		}
+		cfg.McpServers[k] = v
+	}
+
+	if opts.MaxBudgetUSD != nil {
+		cfg.Claude.MaxBudgetUSD = *opts.MaxBudgetUSD
+	}
+	if opts.PermissionMode != "" {
+		cfg.Claude.PermissionMode = opts.PermissionMode
+	}
+	if opts.Model != "" {
+		cfg.Claude.Model = opts.Model
+	}
+	if opts.SystemPrompt != "" {
+		cfg.Claude.SystemPrompt = opts.SystemPrompt
+	}
 }
 
 // NextAvailablePort returns the lowest free port >= start.

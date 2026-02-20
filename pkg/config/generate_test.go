@@ -156,6 +156,254 @@ func TestNextAvailablePort(t *testing.T) {
 	}
 }
 
+func TestGenerateInstanceConfig_Overrides(t *testing.T) {
+	base := t.TempDir()
+	workspace := filepath.Join(base, "workspace")
+	if err := os.MkdirAll(workspace, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	paths := &Paths{
+		ConfigDir:        base,
+		InstancesDir:     filepath.Join(base, "instances"),
+		PluginsDir:       filepath.Join(base, "plugins"),
+		PersonalitiesDir: filepath.Join(base, "personalities"),
+	}
+
+	tests := []struct {
+		name    string
+		opts    func() CreateOptions
+		check   func(t *testing.T, cfg *Config)
+		wantErr bool
+	}{
+		{
+			name: "envVars sets environment variables",
+			opts: func() CreateOptions {
+				return CreateOptions{
+					Name: "test", Workspace: workspace,
+					EnvVars: map[string]string{"GITHUB_TOKEN": "tok-123", "MY_VAR": "hello"},
+				}
+			},
+			check: func(t *testing.T, cfg *Config) {
+				if cfg.EnvVars["GITHUB_TOKEN"] != "tok-123" {
+					t.Errorf("expected GITHUB_TOKEN=tok-123, got %q", cfg.EnvVars["GITHUB_TOKEN"])
+				}
+				if cfg.EnvVars["MY_VAR"] != "hello" {
+					t.Errorf("expected MY_VAR=hello, got %q", cfg.EnvVars["MY_VAR"])
+				}
+			},
+		},
+		{
+			name: "envForward appends forwarded vars",
+			opts: func() CreateOptions {
+				return CreateOptions{
+					Name: "test", Workspace: workspace,
+					EnvForward: []string{"SSH_AUTH_SOCK", "HOME"},
+				}
+			},
+			check: func(t *testing.T, cfg *Config) {
+				if len(cfg.EnvForward) != 2 {
+					t.Fatalf("expected 2 envForward entries, got %d", len(cfg.EnvForward))
+				}
+				if cfg.EnvForward[0] != "HOME" || cfg.EnvForward[1] != "SSH_AUTH_SOCK" {
+					t.Errorf("unexpected envForward: %v", cfg.EnvForward)
+				}
+			},
+		},
+		{
+			name: "envForward deduplicates entries",
+			opts: func() CreateOptions {
+				return CreateOptions{
+					Name: "test", Workspace: workspace,
+					EnvForward: []string{"HOME", "SSH_AUTH_SOCK", "HOME"},
+				}
+			},
+			check: func(t *testing.T, cfg *Config) {
+				want := []string{"HOME", "SSH_AUTH_SOCK"}
+				if len(cfg.EnvForward) != len(want) {
+					t.Fatalf("expected %d envForward entries, got %d: %v", len(want), len(cfg.EnvForward), cfg.EnvForward)
+				}
+				for i, v := range want {
+					if cfg.EnvForward[i] != v {
+						t.Errorf("envForward[%d] = %q, want %q", i, cfg.EnvForward[i], v)
+					}
+				}
+			},
+		},
+		{
+			name: "mcpServers sets MCP server config",
+			opts: func() CreateOptions {
+				return CreateOptions{
+					Name: "test", Workspace: workspace,
+					McpServers: map[string]any{
+						"github": map[string]any{"type": "http", "url": "https://api.example.com/mcp/"},
+					},
+				}
+			},
+			check: func(t *testing.T, cfg *Config) {
+				if cfg.McpServers == nil {
+					t.Fatal("mcpServers is nil")
+				}
+				gh, ok := cfg.McpServers["github"]
+				if !ok {
+					t.Fatal("expected 'github' key in mcpServers")
+				}
+				m := gh.(map[string]any)
+				if m["type"] != "http" {
+					t.Errorf("expected type=http, got %v", m["type"])
+				}
+			},
+		},
+		{
+			name: "maxBudgetUsd sets budget",
+			opts: func() CreateOptions {
+				b := float64(10)
+				return CreateOptions{
+					Name: "test", Workspace: workspace,
+					MaxBudgetUSD: &b,
+				}
+			},
+			check: func(t *testing.T, cfg *Config) {
+				if cfg.Claude.MaxBudgetUSD != 10 {
+					t.Errorf("expected maxBudgetUsd=10, got %f", cfg.Claude.MaxBudgetUSD)
+				}
+			},
+		},
+		{
+			name: "maxBudgetUsd zero explicitly removes limit",
+			opts: func() CreateOptions {
+				b := float64(0)
+				return CreateOptions{
+					Name: "test", Workspace: workspace,
+					MaxBudgetUSD: &b,
+				}
+			},
+			check: func(t *testing.T, cfg *Config) {
+				if cfg.Claude.MaxBudgetUSD != 0 {
+					t.Errorf("expected maxBudgetUsd=0, got %f", cfg.Claude.MaxBudgetUSD)
+				}
+			},
+		},
+		{
+			name: "permissionMode sets mode",
+			opts: func() CreateOptions {
+				return CreateOptions{
+					Name: "test", Workspace: workspace,
+					PermissionMode: "dontAsk",
+				}
+			},
+			check: func(t *testing.T, cfg *Config) {
+				if cfg.Claude.PermissionMode != "dontAsk" {
+					t.Errorf("expected permissionMode=dontAsk, got %q", cfg.Claude.PermissionMode)
+				}
+			},
+		},
+		{
+			name: "invalid permissionMode rejected by validation",
+			opts: func() CreateOptions {
+				return CreateOptions{
+					Name: "test", Workspace: workspace,
+					PermissionMode: "invalid",
+				}
+			},
+			wantErr: true,
+		},
+		{
+			name: "model sets Claude model",
+			opts: func() CreateOptions {
+				return CreateOptions{
+					Name: "test", Workspace: workspace,
+					Model: "opus",
+				}
+			},
+			check: func(t *testing.T, cfg *Config) {
+				if cfg.Claude.Model != "opus" {
+					t.Errorf("expected model=opus, got %q", cfg.Claude.Model)
+				}
+			},
+		},
+		{
+			name: "systemPrompt sets prompt",
+			opts: func() CreateOptions {
+				return CreateOptions{
+					Name: "test", Workspace: workspace,
+					SystemPrompt: "You are a helpful assistant.",
+				}
+			},
+			check: func(t *testing.T, cfg *Config) {
+				if cfg.Claude.SystemPrompt != "You are a helpful assistant." {
+					t.Errorf("expected systemPrompt override, got %q", cfg.Claude.SystemPrompt)
+				}
+			},
+		},
+		{
+			name: "all overrides combined",
+			opts: func() CreateOptions {
+				b := float64(5)
+				return CreateOptions{
+					Name: "test", Workspace: workspace,
+					EnvVars:        map[string]string{"KEY": "val"},
+					EnvForward:     []string{"HOME"},
+					MaxBudgetUSD:   &b,
+					PermissionMode: "acceptEdits",
+					Model:          "sonnet",
+					SystemPrompt:   "Be concise.",
+				}
+			},
+			check: func(t *testing.T, cfg *Config) {
+				if cfg.EnvVars["KEY"] != "val" {
+					t.Error("envVars not applied")
+				}
+				if len(cfg.EnvForward) != 1 || cfg.EnvForward[0] != "HOME" {
+					t.Error("envForward not applied")
+				}
+				if cfg.Claude.MaxBudgetUSD != 5 {
+					t.Error("maxBudgetUsd not applied")
+				}
+				if cfg.Claude.PermissionMode != "acceptEdits" {
+					t.Error("permissionMode not applied")
+				}
+				if cfg.Claude.Model != "sonnet" {
+					t.Error("model not applied")
+				}
+				if cfg.Claude.SystemPrompt != "Be concise." {
+					t.Error("systemPrompt not applied")
+				}
+			},
+		},
+		{
+			name: "no overrides leaves defaults untouched",
+			opts: func() CreateOptions {
+				return CreateOptions{Name: "test", Workspace: workspace}
+			},
+			check: func(t *testing.T, cfg *Config) {
+				if cfg.Claude.PermissionMode != "bypassPermissions" {
+					t.Errorf("default permissionMode changed to %q", cfg.Claude.PermissionMode)
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg, err := GenerateInstanceConfig(paths, tt.opts())
+
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if tt.check != nil {
+				tt.check(t, cfg)
+			}
+		})
+	}
+}
+
 func TestParsePluginRef(t *testing.T) {
 	p := ParsePluginRef("gs-platform:v1.2.0")
 	if p.Repository != "gsoci.azurecr.io/giantswarm/klaus-plugins/gs-platform" {

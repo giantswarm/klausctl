@@ -46,6 +46,13 @@ func registerCreate(s *mcpserver.MCPServer, sc *server.ServerContext) {
 		mcp.WithString("personality", mcp.Description("Personality short name or OCI reference")),
 		mcp.WithString("toolchain", mcp.Description("Toolchain short name or OCI reference")),
 		mcp.WithArray("plugin", mcp.Description("Additional plugin short names or OCI references")),
+		mcp.WithObject("envVars", mcp.Description("Environment variable key-value pairs to set in the container (merged with any existing envVars from the resolved config)")),
+		mcp.WithArray("envForward", mcp.Description("Host environment variable names to forward to the container (merged with any existing envForward entries; duplicates are removed)")),
+		mcp.WithObject("mcpServers", mcp.Description("MCP server configurations rendered to .mcp.json (merged with any existing mcpServers from the resolved config)")),
+		mcp.WithNumber("maxBudgetUsd", mcp.Description("Maximum dollar budget for the Claude agent per invocation; 0 = no limit (overrides personality default if set)")),
+		mcp.WithString("permissionMode", mcp.Description("Claude permission mode (overrides personality default): default, acceptEdits, bypassPermissions, dontAsk, plan, delegate")),
+		mcp.WithString("model", mcp.Description("Claude model (overrides personality default, e.g. sonnet, opus, claude-sonnet-4-20250514)")),
+		mcp.WithString("systemPrompt", mcp.Description("System prompt for the Claude agent (overrides personality default)")),
 	)
 	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		return handleCreate(ctx, req, sc)
@@ -142,19 +149,35 @@ func handleCreate(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 		return mcp.NewToolResultError(fmt.Sprintf("resolving refs: %v", err)), nil
 	}
 
+	args := req.GetArguments()
+	envVars, err := extractStringMap(args, "envVars")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	mcpServers, err := extractObjectMap(args, "mcpServers")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
 	instancePaths := sc.InstancePaths(name)
 	if _, err := os.Stat(instancePaths.InstanceDir); err == nil {
 		return mcp.NewToolResultError(fmt.Sprintf("instance %q already exists", name)), nil
 	}
 
-	cfg, err := config.GenerateInstanceConfig(sc.Paths, config.CreateOptions{
-		Name:        name,
-		Workspace:   workspace,
-		Personality: personality,
-		Toolchain:   toolchain,
-		Plugins:     pluginArgs,
-		Context:     ctx,
-		Output:      io.Discard,
+	createOpts := config.CreateOptions{
+		Name:           name,
+		Workspace:      workspace,
+		Personality:    personality,
+		Toolchain:      toolchain,
+		Plugins:        pluginArgs,
+		EnvVars:        envVars,
+		EnvForward:     req.GetStringSlice("envForward", nil),
+		McpServers:     mcpServers,
+		PermissionMode: req.GetString("permissionMode", ""),
+		Model:          req.GetString("model", ""),
+		SystemPrompt:   req.GetString("systemPrompt", ""),
+		Context:        ctx,
+		Output:         io.Discard,
 		ResolvePersonality: func(ctx context.Context, ref string, w io.Writer) (*config.ResolvedPersonality, error) {
 			if err := config.EnsureDir(sc.Paths.PersonalitiesDir); err != nil {
 				return nil, fmt.Errorf("creating personalities directory: %w", err)
@@ -177,7 +200,13 @@ func handleCreate(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 				Image:   image,
 			}, nil
 		},
-	})
+	}
+	if _, ok := args["maxBudgetUsd"]; ok {
+		b := req.GetFloat("maxBudgetUsd", 0)
+		createOpts.MaxBudgetUSD = &b
+	}
+
+	cfg, err := config.GenerateInstanceConfig(sc.Paths, createOpts)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("generating config: %v", err)), nil
 	}
@@ -203,6 +232,40 @@ func handleCreate(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 	return server.JSONResult(result)
+}
+
+// extractStringMap extracts a map[string]string from MCP request arguments.
+func extractStringMap(args map[string]any, key string) (map[string]string, error) {
+	raw, ok := args[key]
+	if !ok || raw == nil {
+		return nil, nil
+	}
+	m, ok := raw.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("%s must be an object with string values", key)
+	}
+	result := make(map[string]string, len(m))
+	for k, v := range m {
+		s, ok := v.(string)
+		if !ok {
+			return nil, fmt.Errorf("%s value for %q must be a string", key, k)
+		}
+		result[k] = s
+	}
+	return result, nil
+}
+
+// extractObjectMap extracts a map[string]any from MCP request arguments.
+func extractObjectMap(args map[string]any, key string) (map[string]any, error) {
+	raw, ok := args[key]
+	if !ok || raw == nil {
+		return nil, nil
+	}
+	m, ok := raw.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("%s must be an object", key)
+	}
+	return m, nil
 }
 
 func handleStart(ctx context.Context, req mcp.CallToolRequest, sc *server.ServerContext) (*mcp.CallToolResult, error) {
