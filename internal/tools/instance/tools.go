@@ -9,7 +9,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -50,10 +49,10 @@ func registerCreate(s *mcpserver.MCPServer, sc *server.ServerContext) {
 		mcp.WithObject("envVars", mcp.Description("Environment variable key-value pairs to set in the container (merged with any existing envVars from the resolved config)")),
 		mcp.WithArray("envForward", mcp.Description("Host environment variable names to forward to the container (merged with any existing envForward entries; duplicates are removed)")),
 		mcp.WithObject("mcpServers", mcp.Description("MCP server configurations rendered to .mcp.json (merged with any existing mcpServers from the resolved config)")),
-		mcp.WithNumber("maxBudgetUsd", mcp.Description("Maximum dollar budget for the Claude agent per invocation (0 = no limit)")),
-		mcp.WithString("permissionMode", mcp.Description("Claude permission mode: default, acceptEdits, bypassPermissions, dontAsk, plan, delegate")),
-		mcp.WithString("model", mcp.Description("Claude model (e.g. sonnet, opus, claude-sonnet-4-20250514)")),
-		mcp.WithString("systemPrompt", mcp.Description("System prompt override for the Claude agent")),
+		mcp.WithNumber("maxBudgetUsd", mcp.Description("Maximum dollar budget for the Claude agent per invocation; 0 = no limit (overrides personality default if set)")),
+		mcp.WithString("permissionMode", mcp.Description("Claude permission mode (overrides personality default): default, acceptEdits, bypassPermissions, dontAsk, plan, delegate")),
+		mcp.WithString("model", mcp.Description("Claude model (overrides personality default, e.g. sonnet, opus, claude-sonnet-4-20250514)")),
+		mcp.WithString("systemPrompt", mcp.Description("System prompt for the Claude agent (overrides personality default)")),
 	)
 	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		return handleCreate(ctx, req, sc)
@@ -150,19 +149,35 @@ func handleCreate(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 		return mcp.NewToolResultError(fmt.Sprintf("resolving refs: %v", err)), nil
 	}
 
+	args := req.GetArguments()
+	envVars, err := extractStringMap(args, "envVars")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	mcpServers, err := extractObjectMap(args, "mcpServers")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
 	instancePaths := sc.InstancePaths(name)
 	if _, err := os.Stat(instancePaths.InstanceDir); err == nil {
 		return mcp.NewToolResultError(fmt.Sprintf("instance %q already exists", name)), nil
 	}
 
-	cfg, err := config.GenerateInstanceConfig(sc.Paths, config.CreateOptions{
-		Name:        name,
-		Workspace:   workspace,
-		Personality: personality,
-		Toolchain:   toolchain,
-		Plugins:     pluginArgs,
-		Context:     ctx,
-		Output:      io.Discard,
+	createOpts := config.CreateOptions{
+		Name:           name,
+		Workspace:      workspace,
+		Personality:    personality,
+		Toolchain:      toolchain,
+		Plugins:        pluginArgs,
+		EnvVars:        envVars,
+		EnvForward:     req.GetStringSlice("envForward", nil),
+		McpServers:     mcpServers,
+		PermissionMode: req.GetString("permissionMode", ""),
+		Model:          req.GetString("model", ""),
+		SystemPrompt:   req.GetString("systemPrompt", ""),
+		Context:        ctx,
+		Output:         io.Discard,
 		ResolvePersonality: func(ctx context.Context, ref string, w io.Writer) (*config.ResolvedPersonality, error) {
 			if err := config.EnsureDir(sc.Paths.PersonalitiesDir); err != nil {
 				return nil, fmt.Errorf("creating personalities directory: %w", err)
@@ -185,13 +200,15 @@ func handleCreate(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 				Image:   image,
 			}, nil
 		},
-	})
-	if err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("generating config: %v", err)), nil
+	}
+	if _, ok := args["maxBudgetUsd"]; ok {
+		b := req.GetFloat("maxBudgetUsd", 0)
+		createOpts.MaxBudgetUSD = &b
 	}
 
-	if err := applyCreateOverrides(req, cfg); err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+	cfg, err := config.GenerateInstanceConfig(sc.Paths, createOpts)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("generating config: %v", err)), nil
 	}
 
 	if err := config.EnsureDir(instancePaths.InstanceDir); err != nil {
@@ -217,64 +234,38 @@ func handleCreate(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 	return server.JSONResult(result)
 }
 
-// applyCreateOverrides extracts optional config overrides from the MCP request
-// and applies them to the generated config before it is persisted.
-func applyCreateOverrides(req mcp.CallToolRequest, cfg *config.Config) error {
-	args := req.GetArguments()
-
-	if raw, ok := args["envVars"]; ok && raw != nil {
-		m, ok := raw.(map[string]any)
+// extractStringMap extracts a map[string]string from MCP request arguments.
+func extractStringMap(args map[string]any, key string) (map[string]string, error) {
+	raw, ok := args[key]
+	if !ok || raw == nil {
+		return nil, nil
+	}
+	m, ok := raw.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("%s must be an object with string values", key)
+	}
+	result := make(map[string]string, len(m))
+	for k, v := range m {
+		s, ok := v.(string)
 		if !ok {
-			return fmt.Errorf("envVars must be an object with string values")
+			return nil, fmt.Errorf("%s value for %q must be a string", key, k)
 		}
-		if cfg.EnvVars == nil {
-			cfg.EnvVars = make(map[string]string, len(m))
-		}
-		for k, v := range m {
-			s, ok := v.(string)
-			if !ok {
-				return fmt.Errorf("envVars value for %q must be a string", k)
-			}
-			cfg.EnvVars[k] = s
-		}
+		result[k] = s
 	}
+	return result, nil
+}
 
-	if fwd := req.GetStringSlice("envForward", nil); len(fwd) > 0 {
-		cfg.EnvForward = append(cfg.EnvForward, fwd...)
-		slices.Sort(cfg.EnvForward)
-		cfg.EnvForward = slices.Compact(cfg.EnvForward)
+// extractObjectMap extracts a map[string]any from MCP request arguments.
+func extractObjectMap(args map[string]any, key string) (map[string]any, error) {
+	raw, ok := args[key]
+	if !ok || raw == nil {
+		return nil, nil
 	}
-
-	if raw, ok := args["mcpServers"]; ok && raw != nil {
-		m, ok := raw.(map[string]any)
-		if !ok {
-			return fmt.Errorf("mcpServers must be an object")
-		}
-		if cfg.McpServers == nil {
-			cfg.McpServers = make(map[string]any, len(m))
-		}
-		for k, v := range m {
-			cfg.McpServers[k] = v
-		}
+	m, ok := raw.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("%s must be an object", key)
 	}
-
-	if budget := req.GetFloat("maxBudgetUsd", 0); budget != 0 {
-		cfg.Claude.MaxBudgetUSD = budget
-	}
-
-	if pm := req.GetString("permissionMode", ""); pm != "" {
-		cfg.Claude.PermissionMode = pm
-	}
-
-	if model := req.GetString("model", ""); model != "" {
-		cfg.Claude.Model = model
-	}
-
-	if sp := req.GetString("systemPrompt", ""); sp != "" {
-		cfg.Claude.SystemPrompt = sp
-	}
-
-	return cfg.Validate()
+	return m, nil
 }
 
 func handleStart(ctx context.Context, req mcp.CallToolRequest, sc *server.ServerContext) (*mcp.CallToolResult, error) {

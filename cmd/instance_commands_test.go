@@ -200,6 +200,69 @@ func TestStopAndRemoveContainerIfExistsMissing(t *testing.T) {
 	}
 }
 
+func TestParseEnvFlags(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   []string
+		want    map[string]string
+		wantErr bool
+	}{
+		{
+			name:  "nil returns nil",
+			input: nil,
+			want:  nil,
+		},
+		{
+			name:  "single KEY=VALUE",
+			input: []string{"FOO=bar"},
+			want:  map[string]string{"FOO": "bar"},
+		},
+		{
+			name:  "multiple entries",
+			input: []string{"A=1", "B=2"},
+			want:  map[string]string{"A": "1", "B": "2"},
+		},
+		{
+			name:  "value contains equals sign",
+			input: []string{"DSN=postgres://host?opt=val"},
+			want:  map[string]string{"DSN": "postgres://host?opt=val"},
+		},
+		{
+			name:  "empty value",
+			input: []string{"KEY="},
+			want:  map[string]string{"KEY": ""},
+		},
+		{
+			name:    "missing equals sign",
+			input:   []string{"NOEQ"},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := parseEnvFlags(tt.input)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(got) != len(tt.want) {
+				t.Fatalf("length mismatch: got %d, want %d", len(got), len(tt.want))
+			}
+			for k, v := range tt.want {
+				if got[k] != v {
+					t.Errorf("key %q: got %q, want %q", k, got[k], v)
+				}
+			}
+		})
+	}
+}
+
 type fakeRuntime struct {
 	status      string
 	stopCalls   int
