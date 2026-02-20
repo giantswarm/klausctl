@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -46,9 +47,9 @@ func registerCreate(s *mcpserver.MCPServer, sc *server.ServerContext) {
 		mcp.WithString("personality", mcp.Description("Personality short name or OCI reference")),
 		mcp.WithString("toolchain", mcp.Description("Toolchain short name or OCI reference")),
 		mcp.WithArray("plugin", mcp.Description("Additional plugin short names or OCI references")),
-		mcp.WithObject("envVars", mcp.Description("Environment variable key-value pairs to set in the container")),
-		mcp.WithArray("envForward", mcp.Description("Host environment variable names to forward to the container")),
-		mcp.WithObject("mcpServers", mcp.Description("MCP server configurations (rendered to .mcp.json)")),
+		mcp.WithObject("envVars", mcp.Description("Environment variable key-value pairs to set in the container (merged with any existing envVars from the resolved config)")),
+		mcp.WithArray("envForward", mcp.Description("Host environment variable names to forward to the container (merged with any existing envForward entries; duplicates are removed)")),
+		mcp.WithObject("mcpServers", mcp.Description("MCP server configurations rendered to .mcp.json (merged with any existing mcpServers from the resolved config)")),
 		mcp.WithNumber("maxBudgetUsd", mcp.Description("Maximum dollar budget for the Claude agent per invocation (0 = no limit)")),
 		mcp.WithString("permissionMode", mcp.Description("Claude permission mode: default, acceptEdits, bypassPermissions, dontAsk, plan, delegate")),
 		mcp.WithString("model", mcp.Description("Claude model (e.g. sonnet, opus, claude-sonnet-4-20250514)")),
@@ -240,6 +241,8 @@ func applyCreateOverrides(req mcp.CallToolRequest, cfg *config.Config) error {
 
 	if fwd := req.GetStringSlice("envForward", nil); len(fwd) > 0 {
 		cfg.EnvForward = append(cfg.EnvForward, fwd...)
+		slices.Sort(cfg.EnvForward)
+		cfg.EnvForward = slices.Compact(cfg.EnvForward)
 	}
 
 	if raw, ok := args["mcpServers"]; ok && raw != nil {

@@ -295,8 +295,25 @@ func TestApplyCreateOverrides(t *testing.T) {
 				if len(cfg.EnvForward) != 2 {
 					t.Fatalf("expected 2 envForward entries, got %d", len(cfg.EnvForward))
 				}
-				if cfg.EnvForward[0] != "SSH_AUTH_SOCK" || cfg.EnvForward[1] != "HOME" {
+				if cfg.EnvForward[0] != "HOME" || cfg.EnvForward[1] != "SSH_AUTH_SOCK" {
 					t.Errorf("unexpected envForward: %v", cfg.EnvForward)
+				}
+			},
+		},
+		{
+			name: "envForward deduplicates entries",
+			args: map[string]any{
+				"envForward": []any{"HOME", "SSH_AUTH_SOCK", "HOME"},
+			},
+			check: func(t *testing.T, cfg *config.Config) {
+				want := []string{"HOME", "SSH_AUTH_SOCK"}
+				if len(cfg.EnvForward) != len(want) {
+					t.Fatalf("expected %d envForward entries, got %d: %v", len(want), len(cfg.EnvForward), cfg.EnvForward)
+				}
+				for i, v := range want {
+					if cfg.EnvForward[i] != v {
+						t.Errorf("envForward[%d] = %q, want %q", i, cfg.EnvForward[i], v)
+					}
 				}
 			},
 		},
