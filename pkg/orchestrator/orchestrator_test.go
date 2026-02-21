@@ -380,7 +380,7 @@ func TestBuildEnvVars_SecretEnvVars(t *testing.T) {
 	cfg := &config.Config{
 		SecretEnvVars: map[string]string{
 			"ANTHROPIC_API_KEY": "api-key",
-			"DB_PASSWORD":      "db-pass",
+			"DB_PASSWORD":       "db-pass",
 		},
 	}
 
