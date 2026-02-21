@@ -17,7 +17,7 @@ import (
 
 	"github.com/giantswarm/klausctl/internal/server"
 	"github.com/giantswarm/klausctl/pkg/config"
-	"github.com/giantswarm/klausctl/pkg/oci"
+	"github.com/giantswarm/klausctl/pkg/orchestrator"
 )
 
 // RegisterTools registers all artifact discovery tools on the MCP server.
@@ -211,7 +211,7 @@ type remoteListOptions struct {
 // latest semver tag for each, and returns a sorted list. Uses the high-level
 // ListArtifacts API for concurrent resolution.
 func listLatestRemote(ctx context.Context, cacheDir, registryBase string, opts *remoteListOptions) ([]remoteArtifactEntry, error) {
-	client := oci.NewDefaultClient()
+	client := orchestrator.NewDefaultClient()
 
 	artifacts, err := client.ListArtifacts(ctx, registryBase)
 	if err != nil {

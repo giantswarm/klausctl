@@ -11,7 +11,6 @@ import (
 
 	"github.com/giantswarm/klausctl/pkg/config"
 	"github.com/giantswarm/klausctl/pkg/instance"
-	"github.com/giantswarm/klausctl/pkg/oci"
 	"github.com/giantswarm/klausctl/pkg/orchestrator"
 	"github.com/giantswarm/klausctl/pkg/renderer"
 	"github.com/giantswarm/klausctl/pkg/runtime"
@@ -126,7 +125,7 @@ func startInstance(cmd *cobra.Command, instanceName, workspaceOverride, configPa
 	if cfg.Personality != "" {
 		fmt.Fprintln(out, "Resolving personality...")
 
-		client := oci.NewDefaultClient()
+		client := orchestrator.NewDefaultClient()
 		resolvedRef, err := client.ResolvePersonalityRef(ctx, cfg.Personality)
 		if err != nil {
 			return fmt.Errorf("resolving personality ref: %w", err)
@@ -137,14 +136,14 @@ func startInstance(cmd *cobra.Command, instanceName, workspaceOverride, configPa
 			return fmt.Errorf("creating personalities directory: %w", err)
 		}
 
-		pr, err := oci.ResolvePersonality(ctx, cfg.Personality, paths.PersonalitiesDir, out)
+		pr, err := orchestrator.ResolvePersonality(ctx, cfg.Personality, paths.PersonalitiesDir, out)
 		if err != nil {
 			return fmt.Errorf("resolving personality: %w", err)
 		}
 		personalityDir = pr.Dir
 
 		// Merge personality plugins with user plugins (user wins on conflict).
-		cfg.Plugins = oci.MergePlugins(pr.Spec.Plugins, cfg.Plugins)
+		cfg.Plugins = orchestrator.MergePlugins(pr.Spec.Plugins, cfg.Plugins)
 
 		// Use personality image if the user didn't explicitly set one.
 		if !cfg.ImageExplicitlySet() && pr.Spec.Image != "" {
@@ -167,7 +166,7 @@ func startInstance(cmd *cobra.Command, instanceName, workspaceOverride, configPa
 	// Pull OCI plugins.
 	if len(cfg.Plugins) > 0 {
 		fmt.Fprintln(out, "Pulling plugins...")
-		if err := oci.PullPlugins(ctx, cfg.Plugins, paths.PluginsDir, out); err != nil {
+		if err := orchestrator.PullPlugins(ctx, cfg.Plugins, paths.PluginsDir, out); err != nil {
 			return fmt.Errorf("pulling plugins: %w", err)
 		}
 	}

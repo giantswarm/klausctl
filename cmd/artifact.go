@@ -14,7 +14,7 @@ import (
 
 	klausoci "github.com/giantswarm/klaus-oci"
 
-	"github.com/giantswarm/klausctl/pkg/oci"
+	"github.com/giantswarm/klausctl/pkg/orchestrator"
 )
 
 // validOutputFormats lists the accepted values for --output flags.
@@ -92,7 +92,7 @@ func pullArtifact(ctx context.Context, ref string, cacheDir string, kind klausoc
 	shortName := klausoci.ShortName(klausoci.RepositoryFromRef(ref))
 	destDir := filepath.Join(cacheDir, shortName)
 
-	client := oci.NewDefaultClient()
+	client := orchestrator.NewDefaultClient()
 	result, err := client.Pull(ctx, ref, destDir, kind)
 	if err != nil {
 		return err
@@ -141,7 +141,7 @@ type remoteListOptions struct {
 // resolves the latest semver tag for each, and checks local pull status.
 // Uses the high-level ListArtifacts API for concurrent resolution.
 func listLatestRemoteArtifacts(ctx context.Context, cacheDir, registryBase string, opts *remoteListOptions) ([]remoteArtifactEntry, error) {
-	client := oci.NewDefaultClient()
+	client := orchestrator.NewDefaultClient()
 
 	artifacts, err := client.ListArtifacts(ctx, registryBase)
 	if err != nil {

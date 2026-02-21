@@ -15,7 +15,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/giantswarm/klausctl/pkg/config"
-	"github.com/giantswarm/klausctl/pkg/oci"
+	"github.com/giantswarm/klausctl/pkg/orchestrator"
 )
 
 var (
@@ -169,7 +169,7 @@ func runPersonalityPull(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("creating personalities directory: %w", err)
 	}
 
-	client := oci.NewDefaultClient()
+	client := orchestrator.NewDefaultClient()
 	ref, err := client.ResolvePersonalityRef(ctx, args[0])
 	if err != nil {
 		return err

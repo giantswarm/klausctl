@@ -1,4 +1,4 @@
-package oci
+package orchestrator
 
 import (
 	"os"
@@ -9,39 +9,6 @@ import (
 
 	"github.com/giantswarm/klausctl/pkg/config"
 )
-
-func TestShortPluginName(t *testing.T) {
-	tests := []struct {
-		repository string
-		want       string
-	}{
-		{
-			repository: "gsoci.azurecr.io/giantswarm/klaus-plugins/gs-platform",
-			want:       "gs-platform",
-		},
-		{
-			repository: "example.com/plugin",
-			want:       "plugin",
-		},
-		{
-			repository: "simple",
-			want:       "simple",
-		},
-		{
-			repository: "",
-			want:       "",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.repository, func(t *testing.T) {
-			got := ShortPluginName(tt.repository)
-			if got != tt.want {
-				t.Errorf("ShortPluginName(%q) = %q, want %q", tt.repository, got, tt.want)
-			}
-		})
-	}
-}
 
 func TestPluginDirs(t *testing.T) {
 	plugins := []config.Plugin{
@@ -325,11 +292,5 @@ func TestNewDefaultClientWithOpts(t *testing.T) {
 	client := NewDefaultClient(klausoci.WithPlainHTTP(true))
 	if client == nil {
 		t.Fatal("NewDefaultClient(WithPlainHTTP(true)) returned nil")
-	}
-}
-
-func TestRegistryAuthEnvVar(t *testing.T) {
-	if RegistryAuthEnvVar != "KLAUSCTL_REGISTRY_AUTH" {
-		t.Errorf("RegistryAuthEnvVar = %q, want %q", RegistryAuthEnvVar, "KLAUSCTL_REGISTRY_AUTH")
 	}
 }

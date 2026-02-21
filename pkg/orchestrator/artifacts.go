@@ -1,7 +1,4 @@
-// Package oci wraps the shared giantswarm/klaus-oci library and adds
-// klausctl-specific helpers such as CLI cache paths, plugin directory
-// resolution, and container mount path computation.
-package oci
+package orchestrator
 
 import (
 	"context"
@@ -16,17 +13,13 @@ import (
 	"github.com/giantswarm/klausctl/pkg/config"
 )
 
-// RegistryAuthEnvVar is the environment variable checked for base64-encoded
-// Docker config JSON credentials. This supplements the default Docker/Podman
-// config file resolution and is primarily useful in CI/headless environments
-// where `az acr login` is not available.
-const RegistryAuthEnvVar = "KLAUSCTL_REGISTRY_AUTH"
+const registryAuthEnvVar = "KLAUSCTL_REGISTRY_AUTH"
 
 // NewDefaultClient creates an OCI client configured with the standard
 // klausctl credential resolution: Docker/Podman config files plus the
 // KLAUSCTL_REGISTRY_AUTH environment variable.
 func NewDefaultClient(opts ...klausoci.ClientOption) *klausoci.Client {
-	return klausoci.NewClient(append([]klausoci.ClientOption{klausoci.WithRegistryAuthEnv(RegistryAuthEnvVar)}, opts...)...)
+	return klausoci.NewClient(append([]klausoci.ClientOption{klausoci.WithRegistryAuthEnv(registryAuthEnvVar)}, opts...)...)
 }
 
 // ResolveCreateRefs resolves personality, toolchain, and plugin short names
@@ -123,18 +116,12 @@ func PullPlugins(ctx context.Context, plugins []config.Plugin, pluginsDir string
 	return nil
 }
 
-// ShortPluginName extracts the last segment of a repository path.
-// e.g. "gsoci.azurecr.io/giantswarm/klaus-plugins/gs-platform" -> "gs-platform"
-func ShortPluginName(repository string) string {
-	return klausoci.ShortName(repository)
-}
-
 // PluginDirs returns the container-internal mount paths for the given plugins.
 // Each plugin is mounted at /var/lib/klaus/plugins/<shortName>.
 func PluginDirs(plugins []config.Plugin) []string {
 	dirs := make([]string, 0, len(plugins))
 	for _, p := range plugins {
-		dirs = append(dirs, "/var/lib/klaus/plugins/"+ShortPluginName(p.Repository))
+		dirs = append(dirs, "/var/lib/klaus/plugins/"+klausoci.ShortName(p.Repository))
 	}
 	return dirs
 }

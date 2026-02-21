@@ -20,7 +20,6 @@ import (
 	"github.com/giantswarm/klausctl/internal/server"
 	"github.com/giantswarm/klausctl/pkg/config"
 	"github.com/giantswarm/klausctl/pkg/instance"
-	"github.com/giantswarm/klausctl/pkg/oci"
 	"github.com/giantswarm/klausctl/pkg/orchestrator"
 	"github.com/giantswarm/klausctl/pkg/renderer"
 	"github.com/giantswarm/klausctl/pkg/runtime"
@@ -145,7 +144,7 @@ func handleCreate(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 	toolchain := req.GetString("toolchain", "")
 	pluginArgs := req.GetStringSlice("plugin", nil)
 
-	personality, toolchain, pluginArgs, err = oci.ResolveCreateRefs(ctx, personality, toolchain, pluginArgs)
+	personality, toolchain, pluginArgs, err = orchestrator.ResolveCreateRefs(ctx, personality, toolchain, pluginArgs)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("resolving refs: %v", err)), nil
 	}
@@ -183,15 +182,15 @@ func handleCreate(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 			if err := config.EnsureDir(sc.Paths.PersonalitiesDir); err != nil {
 				return nil, fmt.Errorf("creating personalities directory: %w", err)
 			}
-			pr, err := oci.ResolvePersonality(ctx, ref, sc.Paths.PersonalitiesDir, io.Discard)
+			pr, err := orchestrator.ResolvePersonality(ctx, ref, sc.Paths.PersonalitiesDir, io.Discard)
 			if err != nil {
 				return nil, err
 			}
-			plugins, err := oci.ResolvePluginRefs(ctx, pr.Spec.Plugins)
+			plugins, err := orchestrator.ResolvePluginRefs(ctx, pr.Spec.Plugins)
 			if err != nil {
 				return nil, fmt.Errorf("resolving personality plugins: %w", err)
 			}
-			client := oci.NewDefaultClient()
+			client := orchestrator.NewDefaultClient()
 			image, err := client.ResolveToolchainRef(ctx, pr.Spec.Image)
 			if err != nil {
 				return nil, fmt.Errorf("resolving personality image: %w", err)
@@ -561,14 +560,14 @@ func startExistingInstance(ctx context.Context, name string, sc *server.ServerCo
 		if err := config.EnsureDir(paths.PersonalitiesDir); err != nil {
 			return nil, fmt.Errorf("creating personalities directory: %w", err)
 		}
-		pr, err := oci.ResolvePersonality(ctx, cfg.Personality, paths.PersonalitiesDir, io.Discard)
+		pr, err := orchestrator.ResolvePersonality(ctx, cfg.Personality, paths.PersonalitiesDir, io.Discard)
 		if err != nil {
 			return nil, fmt.Errorf("resolving personality: %w", err)
 		}
 		personalityDir = pr.Dir
-		cfg.Plugins = oci.MergePlugins(pr.Spec.Plugins, cfg.Plugins)
+		cfg.Plugins = orchestrator.MergePlugins(pr.Spec.Plugins, cfg.Plugins)
 		if !cfg.ImageExplicitlySet() && pr.Spec.Image != "" {
-			client := oci.NewDefaultClient()
+			client := orchestrator.NewDefaultClient()
 			resolved, err := client.ResolveToolchainRef(ctx, pr.Spec.Image)
 			if err != nil {
 				return nil, fmt.Errorf("resolving personality image: %w", err)
@@ -585,7 +584,7 @@ func startExistingInstance(ctx context.Context, name string, sc *server.ServerCo
 	}
 
 	if len(cfg.Plugins) > 0 {
-		if err := oci.PullPlugins(ctx, cfg.Plugins, paths.PluginsDir, io.Discard); err != nil {
+		if err := orchestrator.PullPlugins(ctx, cfg.Plugins, paths.PluginsDir, io.Discard); err != nil {
 			return nil, fmt.Errorf("pulling plugins: %w", err)
 		}
 	}
