@@ -17,7 +17,9 @@ import (
 
 	"github.com/giantswarm/klausctl/internal/server"
 	"github.com/giantswarm/klausctl/pkg/config"
+	"github.com/giantswarm/klausctl/pkg/mcpserverstore"
 	"github.com/giantswarm/klausctl/pkg/orchestrator"
+	"github.com/giantswarm/klausctl/pkg/secret"
 )
 
 // RegisterTools registers all artifact discovery tools on the MCP server.
@@ -25,6 +27,10 @@ func RegisterTools(s *mcpserver.MCPServer, sc *server.ServerContext) {
 	registerToolchainList(s, sc)
 	registerPersonalityList(s, sc)
 	registerPluginList(s, sc)
+	registerSecretList(s, sc)
+	registerMcpServerAdd(s, sc)
+	registerMcpServerList(s, sc)
+	registerMcpServerRemove(s, sc)
 }
 
 func registerToolchainList(s *mcpserver.MCPServer, sc *server.ServerContext) {
@@ -229,4 +235,137 @@ func listLatestRemote(ctx context.Context, registryBase string, opts *remoteList
 		return entries[i].Name < entries[j].Name
 	})
 	return entries, nil
+}
+
+// --- Secret and MCP server tools ---
+
+func registerSecretList(s *mcpserver.MCPServer, sc *server.ServerContext) {
+	tool := mcp.NewTool("klaus_secret_list",
+		mcp.WithDescription("List stored secret names (values are never exposed)"),
+	)
+	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return handleSecretList(ctx, req, sc)
+	})
+}
+
+func handleSecretList(_ context.Context, _ mcp.CallToolRequest, sc *server.ServerContext) (*mcp.CallToolResult, error) {
+	store, err := secret.Load(sc.Paths.SecretsFile)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("loading secrets: %v", err)), nil
+	}
+	return server.JSONResult(store.List())
+}
+
+func registerMcpServerAdd(s *mcpserver.MCPServer, sc *server.ServerContext) {
+	tool := mcp.NewTool("klaus_mcpserver_add",
+		mcp.WithDescription("Add a managed MCP server definition (name, url, optional secret reference)"),
+		mcp.WithString("name", mcp.Required(), mcp.Description("Server name")),
+		mcp.WithString("url", mcp.Required(), mcp.Description("MCP server URL")),
+		mcp.WithString("secret", mcp.Description("Secret name for Bearer token authentication")),
+	)
+	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return handleMcpServerAdd(ctx, req, sc)
+	})
+}
+
+func handleMcpServerAdd(_ context.Context, req mcp.CallToolRequest, sc *server.ServerContext) (*mcp.CallToolResult, error) {
+	name, err := req.RequireString("name")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	url, err := req.RequireString("url")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	secretName := req.GetString("secret", "")
+
+	store, err := mcpserverstore.Load(sc.Paths.McpServersFile)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("loading MCP servers: %v", err)), nil
+	}
+
+	store.Add(name, mcpserverstore.McpServerDef{
+		URL:    url,
+		Secret: secretName,
+	})
+
+	if err := store.Save(); err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("saving MCP servers: %v", err)), nil
+	}
+
+	return server.JSONResult(map[string]string{
+		"name":   name,
+		"status": "added",
+	})
+}
+
+func registerMcpServerList(s *mcpserver.MCPServer, sc *server.ServerContext) {
+	tool := mcp.NewTool("klaus_mcpserver_list",
+		mcp.WithDescription("List managed MCP server names and URLs (secret values are never exposed)"),
+	)
+	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return handleMcpServerList(ctx, req, sc)
+	})
+}
+
+type mcpServerEntry struct {
+	Name   string `json:"name"`
+	URL    string `json:"url"`
+	Secret string `json:"secret,omitempty"`
+}
+
+func handleMcpServerList(_ context.Context, _ mcp.CallToolRequest, sc *server.ServerContext) (*mcp.CallToolResult, error) {
+	store, err := mcpserverstore.Load(sc.Paths.McpServersFile)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("loading MCP servers: %v", err)), nil
+	}
+
+	names := store.List()
+	all := store.All()
+	entries := make([]mcpServerEntry, 0, len(names))
+	for _, name := range names {
+		def := all[name]
+		entries = append(entries, mcpServerEntry{
+			Name:   name,
+			URL:    def.URL,
+			Secret: def.Secret,
+		})
+	}
+
+	return server.JSONResult(entries)
+}
+
+func registerMcpServerRemove(s *mcpserver.MCPServer, sc *server.ServerContext) {
+	tool := mcp.NewTool("klaus_mcpserver_remove",
+		mcp.WithDescription("Remove a managed MCP server by name"),
+		mcp.WithString("name", mcp.Required(), mcp.Description("Server name")),
+	)
+	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return handleMcpServerRemove(ctx, req, sc)
+	})
+}
+
+func handleMcpServerRemove(_ context.Context, req mcp.CallToolRequest, sc *server.ServerContext) (*mcp.CallToolResult, error) {
+	name, err := req.RequireString("name")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	store, err := mcpserverstore.Load(sc.Paths.McpServersFile)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("loading MCP servers: %v", err)), nil
+	}
+
+	if err := store.Remove(name); err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	if err := store.Save(); err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("saving MCP servers: %v", err)), nil
+	}
+
+	return server.JSONResult(map[string]string{
+		"name":   name,
+		"status": "removed",
+	})
 }

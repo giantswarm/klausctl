@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add secrets management with `klausctl secret set|list|delete` CLI commands and `klaus_secret_list` MCP tool. Secrets are stored in `~/.config/klausctl/secrets.yaml` with 0600 permissions and can be referenced by name in instance configs.
+- Add managed MCP servers with `klausctl mcpserver add|list|remove` CLI commands and `klaus_mcpserver_add`, `klaus_mcpserver_list`, `klaus_mcpserver_remove` MCP tools. Managed servers are stored in `~/.config/klausctl/mcpservers.yaml` and resolved with optional Bearer token authentication at start time.
+- Add `secretEnvVars`, `secretFiles`, and `mcpServerRefs` config fields for referencing secrets by name in instance configurations. At start time, `secretEnvVars` injects resolved secret values as container environment variables, `secretFiles` writes secret values to files and mounts them read-only, and `mcpServerRefs` merges managed MCP server definitions into `mcpServers` with Bearer token headers.
+- Add `--secret-env`, `--secret-file`, and `--mcpserver` flags to `klausctl create` and corresponding `secretEnvVars`, `secretFiles`, `mcpServerRefs` parameters to the `klaus_create` MCP tool.
+
 ### Changed
 
 - Migrate to `klaus-oci` v0.0.5 and delete the `pkg/oci/` wrapper package entirely. All callers now import `klaus-oci` directly for OCI types, constants, and helpers. Klausctl-specific orchestration (artifact resolution, plugin pulling, personality merging) moves to `pkg/orchestrator/`. ([#55](https://github.com/giantswarm/klausctl/issues/55))

@@ -49,6 +49,9 @@ func registerCreate(s *mcpserver.MCPServer, sc *server.ServerContext) {
 		mcp.WithObject("envVars", mcp.Description("Environment variable key-value pairs to set in the container (merged with any existing envVars from the resolved config)")),
 		mcp.WithArray("envForward", mcp.Description("Host environment variable names to forward to the container (merged with any existing envForward entries; duplicates are removed)")),
 		mcp.WithObject("mcpServers", mcp.Description("MCP server configurations rendered to .mcp.json (merged with any existing mcpServers from the resolved config)")),
+		mcp.WithObject("secretEnvVars", mcp.Description("Map of container env var name -> secret name; secrets are resolved from the global secrets store at start time")),
+		mcp.WithObject("secretFiles", mcp.Description("Map of container file path -> secret name; secrets are resolved, written to disk, and mounted read-only at the specified path")),
+		mcp.WithArray("mcpServerRefs", mcp.Description("Managed MCP server names to include; resolved from the global mcpservers.yaml with optional Bearer token")),
 		mcp.WithNumber("maxBudgetUsd", mcp.Description("Maximum dollar budget for the Claude agent per invocation; 0 = no limit (overrides personality default if set)")),
 		mcp.WithString("permissionMode", mcp.Description("Claude permission mode (overrides personality default): default, acceptEdits, bypassPermissions, dontAsk, plan, delegate")),
 		mcp.WithString("model", mcp.Description("Claude model (overrides personality default, e.g. sonnet, opus, claude-sonnet-4-20250514)")),
@@ -158,6 +161,14 @@ func handleCreate(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
+	secretEnvVars, err := extractStringMap(args, "secretEnvVars")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	secretFiles, err := extractStringMap(args, "secretFiles")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
 
 	instancePaths := sc.InstancePaths(name)
 	if _, err := os.Stat(instancePaths.InstanceDir); err == nil {
@@ -173,6 +184,9 @@ func handleCreate(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 		EnvVars:        envVars,
 		EnvForward:     req.GetStringSlice("envForward", nil),
 		McpServers:     mcpServers,
+		SecretEnvVars:  secretEnvVars,
+		SecretFiles:    secretFiles,
+		McpServerRefs:  req.GetStringSlice("mcpServerRefs", nil),
 		PermissionMode: req.GetString("permissionMode", ""),
 		Model:          req.GetString("model", ""),
 		SystemPrompt:   req.GetString("systemPrompt", ""),
@@ -578,6 +592,10 @@ func startExistingInstance(ctx context.Context, name string, sc *server.ServerCo
 	}
 
 	image := cfg.Image
+
+	if err := orchestrator.ResolveSecretRefs(cfg, paths); err != nil {
+		return nil, err
+	}
 
 	r := renderer.New(paths)
 	if err := r.Render(cfg); err != nil {

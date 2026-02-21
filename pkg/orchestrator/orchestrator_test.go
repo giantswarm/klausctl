@@ -143,7 +143,10 @@ func TestBuildVolumes_WorkspaceMount(t *testing.T) {
 	paths := testPaths(t)
 	env := make(map[string]string)
 
-	vols := BuildVolumes(cfg, paths, env, "")
+	vols, err := BuildVolumes(cfg, paths, env, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	if len(vols) == 0 {
 		t.Fatal("expected at least one volume")
@@ -174,7 +177,10 @@ func TestBuildVolumes_McpConfigMount(t *testing.T) {
 	paths := testPaths(t)
 	env := make(map[string]string)
 
-	vols := BuildVolumes(cfg, paths, env, "")
+	vols, err := BuildVolumes(cfg, paths, env, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	found := false
 	for _, v := range vols {
@@ -198,7 +204,10 @@ func TestBuildVolumes_NoMcpConfigWhenEmpty(t *testing.T) {
 	paths := testPaths(t)
 	env := make(map[string]string)
 
-	vols := BuildVolumes(cfg, paths, env, "")
+	vols, err := BuildVolumes(cfg, paths, env, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	for _, v := range vols {
 		if v.ContainerPath == "/etc/klaus/mcp-config.json" {
@@ -257,7 +266,10 @@ func TestBuildVolumes_PersonalitySOULMount(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	vols := BuildVolumes(cfg, paths, env, personalityDir)
+	vols, err := BuildVolumes(cfg, paths, env, personalityDir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	found := false
 	for _, v := range vols {
@@ -280,7 +292,10 @@ func TestBuildVolumes_NoSOULWithoutFile(t *testing.T) {
 
 	personalityDir := t.TempDir()
 
-	vols := BuildVolumes(cfg, paths, env, personalityDir)
+	vols, err := BuildVolumes(cfg, paths, env, personalityDir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	for _, v := range vols {
 		if v.ContainerPath == "/etc/klaus/SOUL.md" {
@@ -297,7 +312,7 @@ func TestBuildVolumes_SettingsFileFromClaudeConfig(t *testing.T) {
 	paths := testPaths(t)
 	env := make(map[string]string)
 
-	_ = BuildVolumes(cfg, paths, env, "")
+	_, _ = BuildVolumes(cfg, paths, env, "")
 
 	if env["CLAUDE_SETTINGS_FILE"] != "/custom/settings.json" {
 		t.Errorf("expected CLAUDE_SETTINGS_FILE=/custom/settings.json, got %q", env["CLAUDE_SETTINGS_FILE"])
@@ -314,7 +329,10 @@ func TestBuildVolumes_Plugins(t *testing.T) {
 	paths := testPaths(t)
 	env := make(map[string]string)
 
-	vols := BuildVolumes(cfg, paths, env, "")
+	vols, err := BuildVolumes(cfg, paths, env, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	expectedMount := "/var/lib/klaus/plugins/klaus-plugin-test"
 	found := false
@@ -345,6 +363,218 @@ func testPaths(t *testing.T) *config.Paths {
 		t.Fatal(err)
 	}
 	return paths
+}
+
+func TestBuildEnvVars_SecretEnvVars(t *testing.T) {
+	paths := testPaths(t)
+
+	if err := config.EnsureDir(paths.ConfigDir); err != nil {
+		t.Fatal(err)
+	}
+
+	secretsContent := "api-key: sk-secret-123\ndb-pass: hunter2\n"
+	if err := os.WriteFile(paths.SecretsFile, []byte(secretsContent), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := &config.Config{
+		SecretEnvVars: map[string]string{
+			"ANTHROPIC_API_KEY": "api-key",
+			"DB_PASSWORD":      "db-pass",
+		},
+	}
+
+	env, err := BuildEnvVars(cfg, paths)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if env["ANTHROPIC_API_KEY"] != "sk-secret-123" {
+		t.Errorf("ANTHROPIC_API_KEY = %q, want sk-secret-123", env["ANTHROPIC_API_KEY"])
+	}
+	if env["DB_PASSWORD"] != "hunter2" {
+		t.Errorf("DB_PASSWORD = %q, want hunter2", env["DB_PASSWORD"])
+	}
+}
+
+func TestBuildEnvVars_SecretEnvVars_MissingSecret(t *testing.T) {
+	paths := testPaths(t)
+
+	if err := config.EnsureDir(paths.ConfigDir); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.WriteFile(paths.SecretsFile, []byte("{}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := &config.Config{
+		SecretEnvVars: map[string]string{
+			"TOKEN": "nonexistent",
+		},
+	}
+
+	_, err := BuildEnvVars(cfg, paths)
+	if err == nil {
+		t.Error("expected error for missing secret")
+	}
+}
+
+func TestBuildVolumes_SecretFiles(t *testing.T) {
+	paths := testPaths(t)
+
+	if err := config.EnsureDir(paths.ConfigDir); err != nil {
+		t.Fatal(err)
+	}
+
+	secretsContent := "my-token: secret-value-123\n"
+	if err := os.WriteFile(paths.SecretsFile, []byte(secretsContent), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := &config.Config{
+		Workspace: t.TempDir(),
+		SecretFiles: map[string]string{
+			"/etc/creds/token": "my-token",
+		},
+	}
+	env := make(map[string]string)
+
+	// Ensure the rendered dir exists for writing secret files.
+	if err := config.EnsureDir(paths.RenderedDir); err != nil {
+		t.Fatal(err)
+	}
+
+	vols, err := BuildVolumes(cfg, paths, env, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	found := false
+	for _, v := range vols {
+		if v.ContainerPath == "/etc/creds/token" {
+			found = true
+			if !v.ReadOnly {
+				t.Error("expected secret file mount to be read-only")
+			}
+		}
+	}
+	if !found {
+		t.Error("expected /etc/creds/token volume mount")
+	}
+}
+
+func TestResolveSecretRefs(t *testing.T) {
+	paths := testPaths(t)
+
+	if err := config.EnsureDir(paths.ConfigDir); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.WriteFile(paths.SecretsFile, []byte("muster-token: bearer-abc\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	mcpContent := "muster:\n  url: https://muster.example.com/mcp\n  secret: muster-token\n"
+	if err := os.WriteFile(paths.McpServersFile, []byte(mcpContent), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := &config.Config{
+		Workspace:     t.TempDir(),
+		McpServerRefs: []string{"muster"},
+	}
+
+	if err := ResolveSecretRefs(cfg, paths); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if cfg.McpServers == nil {
+		t.Fatal("McpServers should not be nil")
+	}
+
+	entry, ok := cfg.McpServers["muster"]
+	if !ok {
+		t.Fatal("expected muster in McpServers")
+	}
+
+	m, ok := entry.(map[string]any)
+	if !ok {
+		t.Fatalf("expected map, got %T", entry)
+	}
+
+	if m["url"] != "https://muster.example.com/mcp" {
+		t.Errorf("url = %v", m["url"])
+	}
+	if m["type"] != "http" {
+		t.Errorf("type = %v", m["type"])
+	}
+
+	headers, ok := m["headers"].(map[string]string)
+	if !ok {
+		t.Fatalf("headers type = %T", m["headers"])
+	}
+	if headers["Authorization"] != "Bearer bearer-abc" {
+		t.Errorf("Authorization = %q", headers["Authorization"])
+	}
+}
+
+func TestResolveSecretRefs_NoSecret(t *testing.T) {
+	paths := testPaths(t)
+
+	if err := config.EnsureDir(paths.ConfigDir); err != nil {
+		t.Fatal(err)
+	}
+
+	mcpContent := "plain:\n  url: https://plain.example.com/mcp\n"
+	if err := os.WriteFile(paths.McpServersFile, []byte(mcpContent), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := &config.Config{
+		Workspace:     t.TempDir(),
+		McpServerRefs: []string{"plain"},
+	}
+
+	if err := ResolveSecretRefs(cfg, paths); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	m := cfg.McpServers["plain"].(map[string]any)
+	if _, hasHeaders := m["headers"]; hasHeaders {
+		t.Error("expected no headers for server without secret")
+	}
+}
+
+func TestResolveSecretRefs_MissingServer(t *testing.T) {
+	paths := testPaths(t)
+
+	if err := config.EnsureDir(paths.ConfigDir); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.WriteFile(paths.McpServersFile, []byte("{}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := &config.Config{
+		Workspace:     t.TempDir(),
+		McpServerRefs: []string{"nonexistent"},
+	}
+
+	err := ResolveSecretRefs(cfg, paths)
+	if err == nil {
+		t.Error("expected error for missing MCP server")
+	}
+}
+
+func TestResolveSecretRefs_Empty(t *testing.T) {
+	paths := testPaths(t)
+	cfg := &config.Config{Workspace: t.TempDir()}
+
+	if err := ResolveSecretRefs(cfg, paths); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 }
 
 // Verify RunOptions types match expected runtime types (compilation check).

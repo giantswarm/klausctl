@@ -12,8 +12,10 @@ import (
 	klausoci "github.com/giantswarm/klaus-oci"
 
 	"github.com/giantswarm/klausctl/pkg/config"
+	"github.com/giantswarm/klausctl/pkg/mcpserverstore"
 	"github.com/giantswarm/klausctl/pkg/renderer"
 	"github.com/giantswarm/klausctl/pkg/runtime"
+	"github.com/giantswarm/klausctl/pkg/secret"
 )
 
 // BuildRunOptions constructs the container runtime options from config.
@@ -26,7 +28,10 @@ func BuildRunOptions(cfg *config.Config, paths *config.Paths, containerName, ima
 		return runtime.RunOptions{}, err
 	}
 
-	volumes := BuildVolumes(cfg, paths, env, personalityDir)
+	volumes, err := BuildVolumes(cfg, paths, env, personalityDir)
+	if err != nil {
+		return runtime.RunOptions{}, err
+	}
 
 	return runtime.RunOptions{
 		Name:    containerName,
@@ -58,6 +63,20 @@ func BuildEnvVars(cfg *config.Config, paths *config.Paths) (map[string]string, e
 
 	for k, v := range cfg.EnvVars {
 		env[k] = v
+	}
+
+	if len(cfg.SecretEnvVars) > 0 {
+		store, err := secret.Load(paths.SecretsFile)
+		if err != nil {
+			return nil, fmt.Errorf("loading secrets for env vars: %w", err)
+		}
+		for envName, secretName := range cfg.SecretEnvVars {
+			val, err := store.Get(secretName)
+			if err != nil {
+				return nil, fmt.Errorf("resolving secretEnvVars[%s]: %w", envName, err)
+			}
+			env[envName] = val
+		}
 	}
 
 	setClaudeEnvVars(env, &cfg.Claude)
@@ -123,7 +142,7 @@ func setClaudeEnvVars(env map[string]string, claude *config.ClaudeConfig) {
 // BuildVolumes constructs the container volume mounts and sets related env vars.
 // The env map is mutated to add mount-dependent env vars (CLAUDE_WORKSPACE, etc.).
 // personalityDir is the local path to the resolved personality (empty when none).
-func BuildVolumes(cfg *config.Config, paths *config.Paths, env map[string]string, personalityDir string) []runtime.Volume {
+func BuildVolumes(cfg *config.Config, paths *config.Paths, env map[string]string, personalityDir string) ([]runtime.Volume, error) {
 	var vols []runtime.Volume
 
 	workspace := config.ExpandPath(cfg.Workspace)
@@ -204,7 +223,13 @@ func BuildVolumes(cfg *config.Config, paths *config.Paths, env map[string]string
 		})
 	}
 
-	return vols
+	secretVols, err := resolveSecretFiles(cfg, paths)
+	if err != nil {
+		return nil, err
+	}
+	vols = append(vols, secretVols...)
+
+	return vols, nil
 }
 
 func buildAddDirs(cfg *config.Config) []string {
@@ -227,4 +252,93 @@ func setEnvIfNotEmpty(env map[string]string, key, value string) {
 	if value != "" {
 		env[key] = value
 	}
+}
+
+// ResolveSecretRefs resolves all secret-related references in the config:
+// McpServerRefs are merged into McpServers with optional Bearer tokens.
+// This must be called before rendering so that the mcp-config.json is complete.
+func ResolveSecretRefs(cfg *config.Config, paths *config.Paths) error {
+	if len(cfg.McpServerRefs) == 0 {
+		return nil
+	}
+
+	mcpStore, err := mcpserverstore.Load(paths.McpServersFile)
+	if err != nil {
+		return fmt.Errorf("loading managed MCP servers: %w", err)
+	}
+
+	var secretStore *secret.Store
+	for _, ref := range cfg.McpServerRefs {
+		def, err := mcpStore.Get(ref)
+		if err != nil {
+			return fmt.Errorf("resolving mcpServerRef %q: %w", ref, err)
+		}
+
+		entry := map[string]any{
+			"url":  def.URL,
+			"type": "http",
+		}
+
+		if def.Secret != "" {
+			if secretStore == nil {
+				secretStore, err = secret.Load(paths.SecretsFile)
+				if err != nil {
+					return fmt.Errorf("loading secrets for MCP server refs: %w", err)
+				}
+			}
+			token, err := secretStore.Get(def.Secret)
+			if err != nil {
+				return fmt.Errorf("resolving secret %q for MCP server %q: %w", def.Secret, ref, err)
+			}
+			entry["headers"] = map[string]string{
+				"Authorization": "Bearer " + token,
+			}
+		}
+
+		if cfg.McpServers == nil {
+			cfg.McpServers = make(map[string]any)
+		}
+		cfg.McpServers[ref] = entry
+	}
+
+	return nil
+}
+
+// resolveSecretFiles writes secret values to rendered/secrets/ and returns
+// the volume mounts for them.
+func resolveSecretFiles(cfg *config.Config, paths *config.Paths) ([]runtime.Volume, error) {
+	if len(cfg.SecretFiles) == 0 {
+		return nil, nil
+	}
+
+	store, err := secret.Load(paths.SecretsFile)
+	if err != nil {
+		return nil, fmt.Errorf("loading secrets for secret files: %w", err)
+	}
+
+	secretsDir := filepath.Join(paths.RenderedDir, "secrets")
+	if err := config.EnsureDir(secretsDir); err != nil {
+		return nil, fmt.Errorf("creating secrets directory: %w", err)
+	}
+
+	var vols []runtime.Volume
+	for containerPath, secretName := range cfg.SecretFiles {
+		val, err := store.Get(secretName)
+		if err != nil {
+			return nil, fmt.Errorf("resolving secretFiles[%s]: %w", containerPath, err)
+		}
+
+		hostPath := filepath.Join(secretsDir, secretName)
+		if err := os.WriteFile(hostPath, []byte(val), 0o600); err != nil {
+			return nil, fmt.Errorf("writing secret file for %q: %w", secretName, err)
+		}
+
+		vols = append(vols, runtime.Volume{
+			HostPath:      hostPath,
+			ContainerPath: containerPath,
+			ReadOnly:      true,
+		})
+	}
+
+	return vols, nil
 }
