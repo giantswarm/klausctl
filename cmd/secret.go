@@ -91,7 +91,9 @@ func runSecretSet(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	store.Set(name, value)
+	if err := store.Set(name, value); err != nil {
+		return err
+	}
 	if err := store.Save(); err != nil {
 		return err
 	}

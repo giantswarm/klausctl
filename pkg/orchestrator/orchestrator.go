@@ -71,6 +71,9 @@ func BuildEnvVars(cfg *config.Config, paths *config.Paths) (map[string]string, e
 			return nil, fmt.Errorf("loading secrets for env vars: %w", err)
 		}
 		for envName, secretName := range cfg.SecretEnvVars {
+			if err := secret.ValidateName(secretName); err != nil {
+				return nil, fmt.Errorf("secretEnvVars[%s]: %w", envName, err)
+			}
 			val, err := store.Get(secretName)
 			if err != nil {
 				return nil, fmt.Errorf("resolving secretEnvVars[%s]: %w", envName, err)
@@ -323,6 +326,10 @@ func resolveSecretFiles(cfg *config.Config, paths *config.Paths) ([]runtime.Volu
 
 	var vols []runtime.Volume
 	for containerPath, secretName := range cfg.SecretFiles {
+		if err := secret.ValidateName(secretName); err != nil {
+			return nil, fmt.Errorf("secretFiles[%s]: %w", containerPath, err)
+		}
+
 		val, err := store.Get(secretName)
 		if err != nil {
 			return nil, fmt.Errorf("resolving secretFiles[%s]: %w", containerPath, err)

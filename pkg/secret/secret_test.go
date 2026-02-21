@@ -23,8 +23,12 @@ func TestSetGetDelete(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	store.Set("api-key", "sk-123")
-	store.Set("db-pass", "hunter2")
+	if err := store.Set("api-key", "sk-123"); err != nil {
+		t.Fatalf("Set api-key: %v", err)
+	}
+	if err := store.Set("db-pass", "hunter2"); err != nil {
+		t.Fatalf("Set db-pass: %v", err)
+	}
 
 	val, err := store.Get("api-key")
 	if err != nil {
@@ -70,7 +74,9 @@ func TestSaveAndReload(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "secrets.yaml")
 	store, _ := Load(path)
 
-	store.Set("token", "abc123")
+	if err := store.Set("token", "abc123"); err != nil {
+		t.Fatalf("Set: %v", err)
+	}
 	if err := store.Save(); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
@@ -93,6 +99,24 @@ func TestSaveAndReload(t *testing.T) {
 	}
 	if val != "abc123" {
 		t.Errorf("value = %q, want %q", val, "abc123")
+	}
+}
+
+func TestSetInvalidName(t *testing.T) {
+	store, _ := Load(filepath.Join(t.TempDir(), "secrets.yaml"))
+
+	for _, name := range []string{"", "../etc", "foo/bar", "has space", ".leading-dot"} {
+		if err := store.Set(name, "value"); err == nil {
+			t.Errorf("expected error for invalid name %q", name)
+		}
+	}
+}
+
+func TestValidateName(t *testing.T) {
+	for _, name := range []string{"api-key", "db_pass", "my.token", "A1"} {
+		if err := ValidateName(name); err != nil {
+			t.Errorf("ValidateName(%q) unexpected error: %v", name, err)
+		}
 	}
 }
 

@@ -1,16 +1,20 @@
-// Package secret provides a simple encrypted-at-rest secret store for klausctl.
+// Package secret provides a file-permission-protected secret store for klausctl.
 // Secrets are stored as a flat YAML map in ~/.config/klausctl/secrets.yaml with
-// 0600 file permissions.
+// owner-only (0600) file permissions.
 package secret
 
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
+	"regexp"
 	"sort"
 
 	"gopkg.in/yaml.v3"
 )
+
+var validNameRe = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._-]*$`)
 
 // Store manages named secrets persisted as a YAML file with restricted
 // file permissions.
@@ -28,20 +32,26 @@ func Load(path string) (*Store, error) {
 		secrets: make(map[string]string),
 	}
 
-	data, err := os.ReadFile(path)
+	f, err := os.Open(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return s, nil
 		}
-		return nil, fmt.Errorf("reading secrets file: %w", err)
+		return nil, fmt.Errorf("opening secrets file: %w", err)
 	}
+	defer f.Close()
 
-	info, err := os.Stat(path)
+	info, err := f.Stat()
 	if err != nil {
 		return nil, fmt.Errorf("stat secrets file: %w", err)
 	}
 	if perm := info.Mode().Perm(); perm&0o077 != 0 {
 		return nil, fmt.Errorf("secrets file %s has permissions %04o; expected 0600 (owner-only)", path, perm)
+	}
+
+	data, err := io.ReadAll(f)
+	if err != nil {
+		return nil, fmt.Errorf("reading secrets file: %w", err)
 	}
 
 	if err := yaml.Unmarshal(data, &s.secrets); err != nil {
@@ -63,9 +73,23 @@ func (s *Store) Save() error {
 	return os.WriteFile(s.path, data, 0o600)
 }
 
-// Set stores or updates a named secret.
-func (s *Store) Set(name, value string) {
+// ValidateName checks that a secret name is safe for use as both a map key
+// and a filename. Names must start with an alphanumeric character and contain
+// only alphanumerics, dots, hyphens, or underscores.
+func ValidateName(name string) error {
+	if !validNameRe.MatchString(name) {
+		return fmt.Errorf("invalid secret name %q: must match %s", name, validNameRe.String())
+	}
+	return nil
+}
+
+// Set stores or updates a named secret. Returns an error if the name is invalid.
+func (s *Store) Set(name, value string) error {
+	if err := ValidateName(name); err != nil {
+		return err
+	}
 	s.secrets[name] = value
+	return nil
 }
 
 // Get retrieves a secret by name. Returns an error when the name is not found.
