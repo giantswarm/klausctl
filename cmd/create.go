@@ -122,12 +122,13 @@ func runCreate(cmd *cobra.Command, args []string) error {
 				return nil, err
 			}
 
-			plugins, err := oci.ResolvePluginRefs(ctx, oci.PluginRefsFromSpec(pr.Spec.Plugins))
+			plugins, err := oci.ResolvePluginRefs(ctx, pr.Spec.Plugins)
 			if err != nil {
 				return nil, fmt.Errorf("resolving personality plugins: %w", err)
 			}
 
-			image, err := oci.ResolveArtifactRef(ctx, pr.Spec.Image, oci.DefaultToolchainRegistry, "klaus-")
+			client := oci.NewDefaultClient()
+			image, err := client.ResolveToolchainRef(ctx, pr.Spec.Image)
 			if err != nil {
 				return nil, fmt.Errorf("resolving personality image: %w", err)
 			}

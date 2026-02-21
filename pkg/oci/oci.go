@@ -1,3 +1,6 @@
+// Package oci wraps the shared giantswarm/klaus-oci library and adds
+// klausctl-specific helpers such as CLI cache paths, plugin directory
+// resolution, and container mount path computation.
 package oci
 
 import (
@@ -6,8 +9,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 
+	klausoci "github.com/giantswarm/klaus-oci"
 	"gopkg.in/yaml.v3"
 
 	"github.com/giantswarm/klausctl/pkg/config"
@@ -22,8 +25,57 @@ const RegistryAuthEnvVar = "KLAUSCTL_REGISTRY_AUTH"
 // NewDefaultClient creates an OCI client configured with the standard
 // klausctl credential resolution: Docker/Podman config files plus the
 // KLAUSCTL_REGISTRY_AUTH environment variable.
-func NewDefaultClient(opts ...ClientOption) *Client {
-	return NewClient(append([]ClientOption{WithRegistryAuthEnv(RegistryAuthEnvVar)}, opts...)...)
+func NewDefaultClient(opts ...klausoci.ClientOption) *klausoci.Client {
+	return klausoci.NewClient(append([]klausoci.ClientOption{klausoci.WithRegistryAuthEnv(RegistryAuthEnvVar)}, opts...)...)
+}
+
+// ResolveCreateRefs resolves personality, toolchain, and plugin short names
+// to full OCI references with proper semver tags from the registry.
+func ResolveCreateRefs(ctx context.Context, personality, toolchain string, plugins []string) (string, string, []string, error) {
+	client := NewDefaultClient()
+
+	if personality != "" {
+		ref, err := client.ResolvePersonalityRef(ctx, personality)
+		if err != nil {
+			return "", "", nil, fmt.Errorf("resolving personality: %w", err)
+		}
+		personality = ref
+	}
+
+	if toolchain != "" {
+		ref, err := client.ResolveToolchainRef(ctx, toolchain)
+		if err != nil {
+			return "", "", nil, fmt.Errorf("resolving toolchain: %w", err)
+		}
+		toolchain = ref
+	}
+
+	resolved := make([]string, 0, len(plugins))
+	for _, p := range plugins {
+		ref, err := client.ResolvePluginRef(ctx, p)
+		if err != nil {
+			return "", "", nil, fmt.Errorf("resolving plugin: %w", err)
+		}
+		resolved = append(resolved, ref)
+	}
+
+	return personality, toolchain, resolved, nil
+}
+
+// ResolvePluginRefs resolves a slice of PluginReference entries, replacing
+// "latest" or empty tags with the actual latest semver tag from the registry.
+// The resolved references are returned as config.Plugin entries.
+func ResolvePluginRefs(ctx context.Context, refs []klausoci.PluginReference) ([]config.Plugin, error) {
+	client := NewDefaultClient()
+	resolved, err := client.ResolvePluginRefs(ctx, refs)
+	if err != nil {
+		return nil, err
+	}
+	plugins := make([]config.Plugin, len(resolved))
+	for i, r := range resolved {
+		plugins[i] = PluginFromReference(r)
+	}
+	return plugins, nil
 }
 
 // PullPlugins pulls all configured plugins to the local plugins directory.
@@ -35,27 +87,36 @@ func NewDefaultClient(opts ...ClientOption) *Client {
 func PullPlugins(ctx context.Context, plugins []config.Plugin, pluginsDir string, w io.Writer) error {
 	client := NewDefaultClient()
 
-	resolved, err := resolvePluginRefs(ctx, client, plugins)
+	refs := make([]klausoci.PluginReference, len(plugins))
+	for i, p := range plugins {
+		refs[i] = klausoci.PluginReference{
+			Repository: p.Repository,
+			Tag:        p.Tag,
+			Digest:     p.Digest,
+		}
+	}
+
+	resolved, err := client.ResolvePluginRefs(ctx, refs)
 	if err != nil {
 		return err
 	}
 
-	for _, plugin := range resolved {
-		shortName := ShortPluginName(plugin.Repository)
+	for _, ref := range resolved {
+		shortName := klausoci.ShortName(ref.Repository)
 		destDir := filepath.Join(pluginsDir, shortName)
-		ref := BuildRef(plugin)
+		refStr := ref.Ref()
 
-		fmt.Fprintf(w, "  Pulling %s...\n", ref)
+		fmt.Fprintf(w, "  Pulling %s...\n", refStr)
 
-		result, err := client.Pull(ctx, ref, destDir, PluginArtifact)
+		result, err := client.Pull(ctx, refStr, destDir, klausoci.PluginArtifact)
 		if err != nil {
-			return fmt.Errorf("pulling plugin %s: %w", ref, err)
+			return fmt.Errorf("pulling plugin %s: %w", refStr, err)
 		}
 
 		if result.Cached {
-			fmt.Fprintf(w, "  %s: up-to-date (%s)\n", shortName, TruncateDigest(result.Digest))
+			fmt.Fprintf(w, "  %s: up-to-date (%s)\n", shortName, klausoci.TruncateDigest(result.Digest))
 		} else {
-			fmt.Fprintf(w, "  %s: pulled (%s)\n", shortName, TruncateDigest(result.Digest))
+			fmt.Fprintf(w, "  %s: pulled (%s)\n", shortName, klausoci.TruncateDigest(result.Digest))
 		}
 	}
 
@@ -65,7 +126,7 @@ func PullPlugins(ctx context.Context, plugins []config.Plugin, pluginsDir string
 // ShortPluginName extracts the last segment of a repository path.
 // e.g. "gsoci.azurecr.io/giantswarm/klaus-plugins/gs-platform" -> "gs-platform"
 func ShortPluginName(repository string) string {
-	return ShortName(repository)
+	return klausoci.ShortName(repository)
 }
 
 // PluginDirs returns the container-internal mount paths for the given plugins.
@@ -89,35 +150,10 @@ func BuildRef(p config.Plugin) string {
 	return ref
 }
 
-// DefaultRegistries defines the default OCI registry base paths for each
-// artifact type, used by the list --remote commands.
-const (
-	DefaultPluginRegistry      = "gsoci.azurecr.io/giantswarm/klaus-plugins"
-	DefaultPersonalityRegistry = "gsoci.azurecr.io/giantswarm/klaus-personalities"
-	DefaultToolchainRegistry   = "gsoci.azurecr.io/giantswarm"
-)
-
-// ShortToolchainName extracts the toolchain name from a full repository path,
-// stripping both the registry prefix and the "klaus-" convention.
-// e.g. "gsoci.azurecr.io/giantswarm/klaus-go" -> "go"
-func ShortToolchainName(repository string) string {
-	name := ShortName(repository)
-	return strings.TrimPrefix(name, "klaus-")
-}
-
-// ToolchainRegistryRef returns the full registry reference for a toolchain
-// image name. Toolchains use the pattern gsoci.azurecr.io/giantswarm/klaus-<name>.
-func ToolchainRegistryRef(name string) string {
-	if strings.HasPrefix(name, DefaultToolchainRegistry) {
-		return name
-	}
-	return DefaultToolchainRegistry + "/klaus-" + name
-}
-
 // PersonalityResult holds the outcome of resolving a personality artifact.
 type PersonalityResult struct {
 	// Spec is the parsed personality.yaml content.
-	Spec PersonalitySpec
+	Spec klausoci.PersonalitySpec
 	// Dir is the local directory where the personality was pulled.
 	Dir string
 	// ShortName is the short name extracted from the OCI reference.
@@ -127,22 +163,22 @@ type PersonalityResult struct {
 // ResolvePersonality pulls a personality OCI artifact and parses its spec.
 // The personality is stored at <personalitiesDir>/<shortName>/.
 func ResolvePersonality(ctx context.Context, ref, personalitiesDir string, w io.Writer) (*PersonalityResult, error) {
-	repo := RepositoryFromRef(ref)
-	shortName := ShortName(repo)
+	repo := klausoci.RepositoryFromRef(ref)
+	shortName := klausoci.ShortName(repo)
 	destDir := filepath.Join(personalitiesDir, shortName)
 
 	client := NewDefaultClient()
 
 	fmt.Fprintf(w, "  Pulling personality %s...\n", ref)
-	result, err := client.Pull(ctx, ref, destDir, PersonalityArtifact)
+	result, err := client.Pull(ctx, ref, destDir, klausoci.PersonalityArtifact)
 	if err != nil {
 		return nil, fmt.Errorf("pulling personality %s: %w", ref, err)
 	}
 
 	if result.Cached {
-		fmt.Fprintf(w, "  %s: up-to-date (%s)\n", shortName, TruncateDigest(result.Digest))
+		fmt.Fprintf(w, "  %s: up-to-date (%s)\n", shortName, klausoci.TruncateDigest(result.Digest))
 	} else {
-		fmt.Fprintf(w, "  %s: pulled (%s)\n", shortName, TruncateDigest(result.Digest))
+		fmt.Fprintf(w, "  %s: pulled (%s)\n", shortName, klausoci.TruncateDigest(result.Digest))
 	}
 
 	spec, err := LoadPersonalitySpec(destDir)
@@ -158,15 +194,15 @@ func ResolvePersonality(ctx context.Context, ref, personalitiesDir string, w io.
 }
 
 // LoadPersonalitySpec reads and parses a personality.yaml from the given directory.
-func LoadPersonalitySpec(dir string) (PersonalitySpec, error) {
+func LoadPersonalitySpec(dir string) (klausoci.PersonalitySpec, error) {
 	data, err := os.ReadFile(filepath.Join(dir, "personality.yaml"))
 	if err != nil {
-		return PersonalitySpec{}, fmt.Errorf("reading personality.yaml: %w", err)
+		return klausoci.PersonalitySpec{}, fmt.Errorf("reading personality.yaml: %w", err)
 	}
 
-	var spec PersonalitySpec
+	var spec klausoci.PersonalitySpec
 	if err := yaml.Unmarshal(data, &spec); err != nil {
-		return PersonalitySpec{}, fmt.Errorf("parsing personality.yaml: %w", err)
+		return klausoci.PersonalitySpec{}, fmt.Errorf("parsing personality.yaml: %w", err)
 	}
 
 	return spec, nil
@@ -179,7 +215,7 @@ func HasSOULFile(personalityDir string) bool {
 }
 
 // PluginFromReference converts a klaus-oci PluginReference to a config.Plugin.
-func PluginFromReference(ref PluginReference) config.Plugin {
+func PluginFromReference(ref klausoci.PluginReference) config.Plugin {
 	return config.Plugin{
 		Repository: ref.Repository,
 		Tag:        ref.Tag,
@@ -191,7 +227,7 @@ func PluginFromReference(ref PluginReference) config.Plugin {
 // User plugins take precedence: if a personality plugin and a user plugin
 // share the same repository, the user's version is kept. Personality-only
 // plugins are appended after user plugins.
-func MergePlugins(personalityPlugins []PluginReference, userPlugins []config.Plugin) []config.Plugin {
+func MergePlugins(personalityPlugins []klausoci.PluginReference, userPlugins []config.Plugin) []config.Plugin {
 	if len(personalityPlugins) == 0 {
 		return userPlugins
 	}
@@ -213,20 +249,4 @@ func MergePlugins(personalityPlugins []PluginReference, userPlugins []config.Plu
 	}
 
 	return merged
-}
-
-// RepositoryFromRef extracts the repository part from an OCI reference,
-// stripping the tag or digest suffix. Handles both repo:tag and
-// repo@sha256:digest formats. Port-only colons (e.g. localhost:5000/repo)
-// are preserved.
-func RepositoryFromRef(ref string) string {
-	if idx := strings.Index(ref, "@"); idx > 0 {
-		return ref[:idx]
-	}
-	if idx := strings.LastIndex(ref, ":"); idx > 0 {
-		if !strings.Contains(ref[idx+1:], "/") {
-			return ref[:idx]
-		}
-	}
-	return ref
 }

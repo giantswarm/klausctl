@@ -12,6 +12,8 @@ import (
 	"text/tabwriter"
 	"time"
 
+	klausoci "github.com/giantswarm/klaus-oci"
+
 	"github.com/giantswarm/klausctl/pkg/oci"
 )
 
@@ -54,7 +56,7 @@ func listLocalArtifacts(cacheDir string) ([]cachedArtifact, error) {
 		}
 
 		dir := filepath.Join(cacheDir, entry.Name())
-		cache, err := oci.ReadCacheEntry(dir)
+		cache, err := klausoci.ReadCacheEntry(dir)
 		if err != nil {
 			continue
 		}
@@ -86,8 +88,8 @@ type pullResult struct {
 // pullArtifact pulls an OCI artifact by reference to a cache directory.
 // The artifact is stored at <cacheDir>/<shortName>/. The shortName is
 // extracted from the repository portion of the reference (tag/digest stripped).
-func pullArtifact(ctx context.Context, ref string, cacheDir string, kind oci.ArtifactKind, out io.Writer, outputFmt string) error {
-	shortName := oci.ShortName(oci.RepositoryFromRef(ref))
+func pullArtifact(ctx context.Context, ref string, cacheDir string, kind klausoci.ArtifactKind, out io.Writer, outputFmt string) error {
+	shortName := klausoci.ShortName(klausoci.RepositoryFromRef(ref))
 	destDir := filepath.Join(cacheDir, shortName)
 
 	client := oci.NewDefaultClient()
@@ -108,20 +110,19 @@ func pullArtifact(ctx context.Context, ref string, cacheDir string, kind oci.Art
 	}
 
 	if result.Cached {
-		fmt.Fprintf(out, "%s: up-to-date (%s)\n", shortName, oci.TruncateDigest(result.Digest))
+		fmt.Fprintf(out, "%s: up-to-date (%s)\n", shortName, klausoci.TruncateDigest(result.Digest))
 	} else {
-		fmt.Fprintf(out, "%s: pulled (%s)\n", shortName, oci.TruncateDigest(result.Digest))
+		fmt.Fprintf(out, "%s: pulled (%s)\n", shortName, klausoci.TruncateDigest(result.Digest))
 	}
 
 	return nil
 }
 
 // remoteArtifactEntry describes a remote OCI artifact with its latest
-// available tag, resolved digest, and local pull timestamp.
+// available tag and local pull timestamp.
 type remoteArtifactEntry struct {
 	Name     string    `json:"name"`
 	Ref      string    `json:"ref"`
-	Digest   string    `json:"digest"`
 	PulledAt time.Time `json:"pulledAt,omitempty"`
 }
 
@@ -132,39 +133,26 @@ type remoteListOptions struct {
 	// Only repositories for which it returns true are included.
 	Filter func(repo string) bool
 	// ShortName extracts a display name from a repository path.
-	// Defaults to oci.ShortName when nil.
+	// Defaults to klausoci.ShortName when nil.
 	ShortName func(repo string) string
 }
 
 // listLatestRemoteArtifacts discovers repositories from the registry,
-// resolves the latest semver tag and digest for each, and checks local
-// pull status. Pass nil opts for default behaviour (no filtering,
-// oci.ShortName for display names).
+// resolves the latest semver tag for each, and checks local pull status.
+// Uses the high-level ListArtifacts API for concurrent resolution.
 func listLatestRemoteArtifacts(ctx context.Context, cacheDir, registryBase string, opts *remoteListOptions) ([]remoteArtifactEntry, error) {
 	client := oci.NewDefaultClient()
 
-	repos, err := client.ListRepositories(ctx, registryBase)
+	artifacts, err := client.ListArtifacts(ctx, registryBase)
 	if err != nil {
-		return nil, fmt.Errorf("discovering remote repositories: %w", err)
+		return nil, fmt.Errorf("discovering remote artifacts: %w", err)
 	}
 
-	if opts != nil && opts.Filter != nil {
-		filtered := repos[:0]
-		for _, r := range repos {
-			if opts.Filter(r) {
-				filtered = append(filtered, r)
-			}
-		}
-		repos = filtered
-	}
-
-	shortNameFn := oci.ShortName
+	shortNameFn := klausoci.ShortName
 	if opts != nil && opts.ShortName != nil {
 		shortNameFn = opts.ShortName
 	}
 
-	// Errors from listLocalArtifacts are intentionally ignored so the
-	// command works on a clean machine with no local cache directory.
 	localArtifacts, _ := listLocalArtifacts(cacheDir)
 	cacheByName := make(map[string]cachedArtifact, len(localArtifacts))
 	for _, a := range localArtifacts {
@@ -172,28 +160,15 @@ func listLatestRemoteArtifacts(ctx context.Context, cacheDir, registryBase strin
 	}
 
 	var entries []remoteArtifactEntry
-	for _, repo := range repos {
-		tags, err := client.List(ctx, repo)
-		if err != nil {
-			return nil, fmt.Errorf("listing tags for %s: %w", repo, err)
-		}
-
-		latest := oci.LatestSemverTag(tags)
-		if latest == "" {
+	for _, a := range artifacts {
+		if opts != nil && opts.Filter != nil && !opts.Filter(a.Repository) {
 			continue
 		}
 
-		ref := repo + ":" + latest
-		digest, err := client.Resolve(ctx, ref)
-		if err != nil {
-			return nil, fmt.Errorf("resolving digest for %s: %w", ref, err)
-		}
-
-		name := shortNameFn(repo)
+		name := shortNameFn(a.Repository)
 		entry := remoteArtifactEntry{
-			Name:   name,
-			Ref:    ref,
-			Digest: digest,
+			Name: name,
+			Ref:  a.Reference,
 		}
 
 		if cached, ok := cacheByName[name]; ok {
@@ -219,13 +194,13 @@ func printRemoteArtifacts(out io.Writer, entries []remoteArtifactEntry, outputFm
 	}
 
 	w := tabwriter.NewWriter(out, 0, 0, 3, ' ', 0)
-	fmt.Fprintln(w, "NAME\tREF\tDIGEST\tPULLED")
+	fmt.Fprintln(w, "NAME\tREF\tPULLED")
 	for _, e := range entries {
 		pulled := "-"
 		if !e.PulledAt.IsZero() {
 			pulled = formatAge(e.PulledAt)
 		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", e.Name, e.Ref, oci.TruncateDigest(e.Digest), pulled)
+		fmt.Fprintf(w, "%s\t%s\t%s\n", e.Name, e.Ref, pulled)
 	}
 	return w.Flush()
 }
@@ -288,7 +263,7 @@ func printLocalArtifacts(out io.Writer, artifacts []cachedArtifact, outputFmt st
 		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n",
 			a.Name,
 			a.Ref,
-			oci.TruncateDigest(a.Digest),
+			klausoci.TruncateDigest(a.Digest),
 			formatAge(a.PulledAt),
 		)
 	}

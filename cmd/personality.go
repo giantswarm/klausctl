@@ -10,6 +10,7 @@ import (
 	"os/signal"
 	"path/filepath"
 
+	klausoci "github.com/giantswarm/klaus-oci"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 
@@ -121,7 +122,7 @@ func validatePersonalityDir(dir string, out io.Writer, outputFmt string) error {
 		return fmt.Errorf("reading personality.yaml: %w", err)
 	}
 
-	var spec oci.PersonalitySpec
+	var spec klausoci.PersonalitySpec
 	if err := yaml.Unmarshal(data, &spec); err != nil {
 		return fmt.Errorf("parsing personality.yaml: %w", err)
 	}
@@ -168,12 +169,13 @@ func runPersonalityPull(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("creating personalities directory: %w", err)
 	}
 
-	ref, err := oci.ResolveArtifactRef(ctx, args[0], oci.DefaultPersonalityRegistry, "")
+	client := oci.NewDefaultClient()
+	ref, err := client.ResolvePersonalityRef(ctx, args[0])
 	if err != nil {
 		return err
 	}
 
-	return pullArtifact(ctx, ref, paths.PersonalitiesDir, oci.PersonalityArtifact, cmd.OutOrStdout(), personalityPullOut)
+	return pullArtifact(ctx, ref, paths.PersonalitiesDir, klausoci.PersonalityArtifact, cmd.OutOrStdout(), personalityPullOut)
 }
 
 func runPersonalityList(cmd *cobra.Command, _ []string) error {
@@ -189,5 +191,5 @@ func runPersonalityList(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	return listOCIArtifacts(ctx, cmd.OutOrStdout(), paths.PersonalitiesDir, personalityListOut, "personality", "personalities", oci.DefaultPersonalityRegistry, personalityListLocal)
+	return listOCIArtifacts(ctx, cmd.OutOrStdout(), paths.PersonalitiesDir, personalityListOut, "personality", "personalities", klausoci.DefaultPersonalityRegistry, personalityListLocal)
 }

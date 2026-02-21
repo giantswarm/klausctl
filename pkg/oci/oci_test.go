@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	klausoci "github.com/giantswarm/klaus-oci"
+
 	"github.com/giantswarm/klausctl/pkg/config"
 )
 
@@ -105,42 +107,17 @@ func TestBuildRef(t *testing.T) {
 	}
 }
 
-func TestToolchainRegistryRef(t *testing.T) {
-	tests := []struct {
-		name string
-		want string
-	}{
-		{
-			name: "go",
-			want: "gsoci.azurecr.io/giantswarm/klaus-go",
-		},
-		{
-			name: "python",
-			want: "gsoci.azurecr.io/giantswarm/klaus-python",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := ToolchainRegistryRef(tt.name)
-			if got != tt.want {
-				t.Errorf("ToolchainRegistryRef(%q) = %q, want %q", tt.name, got, tt.want)
-			}
-		})
-	}
-}
-
 func TestPluginFromReference(t *testing.T) {
 	tests := []struct {
 		name       string
-		ref        PluginReference
+		ref        klausoci.PluginReference
 		wantRepo   string
 		wantTag    string
 		wantDigest string
 	}{
 		{
 			name: "tag only",
-			ref: PluginReference{
+			ref: klausoci.PluginReference{
 				Repository: "gsoci.azurecr.io/giantswarm/klaus-plugins/gs-platform",
 				Tag:        "v1.0.0",
 			},
@@ -149,7 +126,7 @@ func TestPluginFromReference(t *testing.T) {
 		},
 		{
 			name: "digest only",
-			ref: PluginReference{
+			ref: klausoci.PluginReference{
 				Repository: "gsoci.azurecr.io/giantswarm/klaus-plugins/gs-base",
 				Digest:     "sha256:abc123",
 			},
@@ -158,7 +135,7 @@ func TestPluginFromReference(t *testing.T) {
 		},
 		{
 			name: "tag and digest",
-			ref: PluginReference{
+			ref: klausoci.PluginReference{
 				Repository: "example.com/plugin",
 				Tag:        "v2.0.0",
 				Digest:     "sha256:def456",
@@ -185,56 +162,8 @@ func TestPluginFromReference(t *testing.T) {
 	}
 }
 
-func TestRepositoryFromRef(t *testing.T) {
-	tests := []struct {
-		name string
-		ref  string
-		want string
-	}{
-		{
-			name: "tag",
-			ref:  "gsoci.azurecr.io/giantswarm/klaus-personalities/sre:v1.0.0",
-			want: "gsoci.azurecr.io/giantswarm/klaus-personalities/sre",
-		},
-		{
-			name: "digest",
-			ref:  "example.com/org/image@sha256:abc123",
-			want: "example.com/org/image",
-		},
-		{
-			name: "no tag or digest",
-			ref:  "example.com/org/image",
-			want: "example.com/org/image",
-		},
-		{
-			name: "registry with port and tag",
-			ref:  "localhost:5000/foo/bar:v1",
-			want: "localhost:5000/foo/bar",
-		},
-		{
-			name: "registry with port no tag",
-			ref:  "localhost:5000/foo/bar",
-			want: "localhost:5000/foo/bar",
-		},
-		{
-			name: "registry with port and digest",
-			ref:  "localhost:5000/foo/bar@sha256:abc",
-			want: "localhost:5000/foo/bar",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := RepositoryFromRef(tt.ref)
-			if got != tt.want {
-				t.Errorf("RepositoryFromRef(%q) = %q, want %q", tt.ref, got, tt.want)
-			}
-		})
-	}
-}
-
 func TestMergePluginsUserWins(t *testing.T) {
-	personalityPlugins := []PluginReference{
+	personalityPlugins := []klausoci.PluginReference{
 		{Repository: "example.com/plugin-a", Tag: "v1.0.0"},
 		{Repository: "example.com/plugin-b", Tag: "v1.0.0"},
 	}
@@ -256,7 +185,7 @@ func TestMergePluginsUserWins(t *testing.T) {
 }
 
 func TestMergePluginsNoOverlap(t *testing.T) {
-	personalityPlugins := []PluginReference{
+	personalityPlugins := []klausoci.PluginReference{
 		{Repository: "example.com/plugin-a", Tag: "v1.0.0"},
 	}
 	userPlugins := []config.Plugin{
@@ -292,7 +221,7 @@ func TestMergePluginsEmptyPersonality(t *testing.T) {
 }
 
 func TestMergePluginsEmptyUser(t *testing.T) {
-	personalityPlugins := []PluginReference{
+	personalityPlugins := []klausoci.PluginReference{
 		{Repository: "example.com/plugin-a", Tag: "v1.0.0"},
 		{Repository: "example.com/plugin-b", Tag: "v2.0.0"},
 	}
@@ -312,7 +241,7 @@ func TestMergePluginsBothEmpty(t *testing.T) {
 }
 
 func TestMergePluginsDeduplicatesPersonality(t *testing.T) {
-	personalityPlugins := []PluginReference{
+	personalityPlugins := []klausoci.PluginReference{
 		{Repository: "example.com/plugin-a", Tag: "v1.0.0"},
 		{Repository: "example.com/plugin-a", Tag: "v1.1.0"},
 	}
@@ -393,7 +322,7 @@ func TestNewDefaultClient(t *testing.T) {
 }
 
 func TestNewDefaultClientWithOpts(t *testing.T) {
-	client := NewDefaultClient(WithPlainHTTP(true))
+	client := NewDefaultClient(klausoci.WithPlainHTTP(true))
 	if client == nil {
 		t.Fatal("NewDefaultClient(WithPlainHTTP(true)) returned nil")
 	}
@@ -402,13 +331,5 @@ func TestNewDefaultClientWithOpts(t *testing.T) {
 func TestRegistryAuthEnvVar(t *testing.T) {
 	if RegistryAuthEnvVar != "KLAUSCTL_REGISTRY_AUTH" {
 		t.Errorf("RegistryAuthEnvVar = %q, want %q", RegistryAuthEnvVar, "KLAUSCTL_REGISTRY_AUTH")
-	}
-}
-
-func TestToolchainRegistryRefFullPath(t *testing.T) {
-	full := "gsoci.azurecr.io/giantswarm/klaus-go"
-	got := ToolchainRegistryRef(full)
-	if got != full {
-		t.Errorf("ToolchainRegistryRef(%q) = %q, want %q (should return as-is)", full, got, full)
 	}
 }

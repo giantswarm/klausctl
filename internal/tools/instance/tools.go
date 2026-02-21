@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	klausoci "github.com/giantswarm/klaus-oci"
 	"github.com/mark3labs/mcp-go/mcp"
 	mcpserver "github.com/mark3labs/mcp-go/server"
 
@@ -186,11 +187,12 @@ func handleCreate(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 			if err != nil {
 				return nil, err
 			}
-			plugins, err := oci.ResolvePluginRefs(ctx, oci.PluginRefsFromSpec(pr.Spec.Plugins))
+			plugins, err := oci.ResolvePluginRefs(ctx, pr.Spec.Plugins)
 			if err != nil {
 				return nil, fmt.Errorf("resolving personality plugins: %w", err)
 			}
-			image, err := oci.ResolveArtifactRef(ctx, pr.Spec.Image, oci.DefaultToolchainRegistry, "klaus-")
+			client := oci.NewDefaultClient()
+			image, err := client.ResolveToolchainRef(ctx, pr.Spec.Image)
 			if err != nil {
 				return nil, fmt.Errorf("resolving personality image: %w", err)
 			}
@@ -566,7 +568,8 @@ func startExistingInstance(ctx context.Context, name string, sc *server.ServerCo
 		personalityDir = pr.Dir
 		cfg.Plugins = oci.MergePlugins(pr.Spec.Plugins, cfg.Plugins)
 		if !cfg.ImageExplicitlySet() && pr.Spec.Image != "" {
-			resolved, err := oci.ResolveArtifactRef(ctx, pr.Spec.Image, oci.DefaultToolchainRegistry, "")
+			client := oci.NewDefaultClient()
+			resolved, err := client.ResolveToolchainRef(ctx, pr.Spec.Image)
 			if err != nil {
 				return nil, fmt.Errorf("resolving personality image: %w", err)
 			}
@@ -758,7 +761,7 @@ func shortToolchainName(cfg *config.Config) string {
 	if ref == "" {
 		ref = cfg.Image
 	}
-	repo := oci.RepositoryFromRef(ref)
+	repo := klausoci.RepositoryFromRef(ref)
 	name := filepath.Base(repo)
 	return strings.TrimPrefix(name, "klaus-")
 }
@@ -767,7 +770,7 @@ func shortRefName(ref string) string {
 	if ref == "" {
 		return ""
 	}
-	return filepath.Base(oci.RepositoryFromRef(ref))
+	return filepath.Base(klausoci.RepositoryFromRef(ref))
 }
 
 func formatDuration(d time.Duration) string {

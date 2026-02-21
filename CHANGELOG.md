@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Migrate to `klaus-oci` v0.0.5 for version resolution, registry constants, and listing helpers. All OCI reference resolution, semver tag selection, and registry constant definitions now come from the shared library. ([#55](https://github.com/giantswarm/klausctl/issues/55))
+  - Delete `pkg/oci/client.go` (type re-export wrapper) and `pkg/oci/resolve.go` (resolution logic) -- callers now import `klaus-oci` directly.
+  - Remove `DefaultPluginRegistry`, `DefaultPersonalityRegistry`, `DefaultToolchainRegistry`, `ShortToolchainName`, `ToolchainRegistryRef`, `RepositoryFromRef`, `LatestSemverTag`, `SplitNameTag` from `pkg/oci/` -- all live in `klaus-oci`.
+  - Simplify `ResolveCreateRefs` to use typed convenience methods (`ResolveToolchainRef`, `ResolvePersonalityRef`, `ResolvePluginRef`).
+  - Replace the 5-step manual listing flow with `client.ListArtifacts()` for concurrent artifact discovery.
+  - Remove duplicate `latestSemverTag` from `internal/tools/artifact/tools.go`.
+  - Drop `Masterminds/semver/v3` as a direct dependency.
+
 ### Fixed
 
 - Fix MCP config rendering for HTTP servers: auto-infer `"type": "http"` for URL-based entries and `"type": "stdio"` for command-based entries. Without the explicit type field, Claude Code misidentifies HTTP servers as stdio and hangs during initialization.
