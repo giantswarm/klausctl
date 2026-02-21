@@ -28,6 +28,10 @@ type Paths struct {
 	PersonalitiesDir string
 	// InstanceFile is the path to the instance state file.
 	InstanceFile string
+	// SecretsFile is the path to the secrets store (~/.config/klausctl/secrets.yaml).
+	SecretsFile string
+	// McpServersFile is the path to the managed MCP servers file (~/.config/klausctl/mcpservers.yaml).
+	McpServersFile string
 }
 
 // DefaultPaths returns the default paths using XDG conventions.
@@ -51,6 +55,8 @@ func DefaultPaths() (*Paths, error) {
 		PluginsDir:       filepath.Join(base, "plugins"),
 		PersonalitiesDir: filepath.Join(base, "personalities"),
 		InstanceFile:     filepath.Join(defaultInstanceDir, "instance.json"),
+		SecretsFile:      filepath.Join(base, "secrets.yaml"),
+		McpServersFile:   filepath.Join(base, "mcpservers.yaml"),
 	}, nil
 }
 
@@ -105,6 +111,8 @@ func (p *Paths) ForInstance(name string) *Paths {
 		PluginsDir:       p.PluginsDir,
 		PersonalitiesDir: p.PersonalitiesDir,
 		InstanceFile:     filepath.Join(instDir, "instance.json"),
+		SecretsFile:      p.SecretsFile,
+		McpServersFile:   p.McpServersFile,
 	}
 }
 

@@ -21,6 +21,9 @@ var (
 	createPort         int
 	createEnv          []string
 	createEnvForward   []string
+	createSecretEnv    []string
+	createSecretFile   []string
+	createMcpServer    []string
 	createPermMode     string
 	createModel        string
 	createSystemPrompt string
@@ -54,6 +57,9 @@ func init() {
 	createCmd.Flags().StringVar(&createModel, "model", "", "Claude model (e.g. sonnet, opus)")
 	createCmd.Flags().StringVar(&createSystemPrompt, "system-prompt", "", "system prompt override for the Claude agent")
 	createCmd.Flags().Float64Var(&createMaxBudget, "max-budget", 0, "maximum dollar budget per invocation (0 = no limit)")
+	createCmd.Flags().StringArrayVar(&createSecretEnv, "secret-env", nil, "secret env var ENV_NAME=secret-name (repeatable)")
+	createCmd.Flags().StringArrayVar(&createSecretFile, "secret-file", nil, "secret file /container/path=secret-name (repeatable)")
+	createCmd.Flags().StringArrayVar(&createMcpServer, "mcpserver", nil, "managed MCP server name (repeatable)")
 	rootCmd.AddCommand(createCmd)
 }
 
@@ -99,6 +105,16 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	secretEnvVars, err := parseEnvFlags(createSecretEnv)
+	if err != nil {
+		return fmt.Errorf("parsing --secret-env: %w", err)
+	}
+
+	secretFiles, err := parseEnvFlags(createSecretFile)
+	if err != nil {
+		return fmt.Errorf("parsing --secret-file: %w", err)
+	}
+
 	opts := config.CreateOptions{
 		Name:           instanceName,
 		Workspace:      workspace,
@@ -108,6 +124,9 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		Port:           createPort,
 		EnvVars:        envVars,
 		EnvForward:     createEnvForward,
+		SecretEnvVars:  secretEnvVars,
+		SecretFiles:    secretFiles,
+		McpServerRefs:  createMcpServer,
 		PermissionMode: createPermMode,
 		Model:          createModel,
 		SystemPrompt:   createSystemPrompt,

@@ -68,6 +68,20 @@ type Config struct {
 	// EnvVars sets explicit environment variable key-value pairs in the container.
 	EnvVars map[string]string `yaml:"envVars,omitempty"`
 
+	// SecretEnvVars maps container env var names to secret store names.
+	// At start time each secret is resolved and injected as an env var.
+	SecretEnvVars map[string]string `yaml:"secretEnvVars,omitempty"`
+
+	// SecretFiles maps container file paths to secret store names.
+	// At start time each secret is resolved, written to rendered/secrets/,
+	// and mounted read-only into the container at the specified path.
+	SecretFiles map[string]string `yaml:"secretFiles,omitempty"`
+
+	// McpServerRefs lists managed MCP server names to include.
+	// At start time each reference is resolved from the global mcpservers.yaml
+	// and merged into McpServers with a Bearer token header.
+	McpServerRefs []string `yaml:"mcpServerRefs,omitempty"`
+
 	// imageFromConfig tracks whether Image was explicitly set in the config
 	// file before defaults were applied. Used by personality merging to
 	// determine whether the personality's image should take effect.

@@ -158,6 +158,11 @@ func startInstance(cmd *cobra.Command, instanceName, workspaceOverride, configPa
 
 	image := cfg.Image
 
+	// Resolve secret references (mcpServerRefs -> mcpServers) before rendering.
+	if err := orchestrator.ResolveSecretRefs(cfg, paths); err != nil {
+		return err
+	}
+
 	// Render configuration files.
 	r := renderer.New(paths)
 	if err := r.Render(cfg); err != nil {

@@ -25,6 +25,9 @@ type CreateOptions struct {
 	EnvVars        map[string]string
 	EnvForward     []string
 	McpServers     map[string]any
+	SecretEnvVars  map[string]string
+	SecretFiles    map[string]string
+	McpServerRefs  []string
 	MaxBudgetUSD   *float64
 	PermissionMode string
 	Model          string
@@ -138,6 +141,26 @@ func applyCreateOverrides(cfg *Config, opts CreateOptions) {
 			cfg.McpServers = make(map[string]any, len(opts.McpServers))
 		}
 		cfg.McpServers[k] = v
+	}
+
+	for k, v := range opts.SecretEnvVars {
+		if cfg.SecretEnvVars == nil {
+			cfg.SecretEnvVars = make(map[string]string, len(opts.SecretEnvVars))
+		}
+		cfg.SecretEnvVars[k] = v
+	}
+
+	for k, v := range opts.SecretFiles {
+		if cfg.SecretFiles == nil {
+			cfg.SecretFiles = make(map[string]string, len(opts.SecretFiles))
+		}
+		cfg.SecretFiles[k] = v
+	}
+
+	if len(opts.McpServerRefs) > 0 {
+		cfg.McpServerRefs = append(cfg.McpServerRefs, opts.McpServerRefs...)
+		slices.Sort(cfg.McpServerRefs)
+		cfg.McpServerRefs = slices.Compact(cfg.McpServerRefs)
 	}
 
 	if opts.MaxBudgetUSD != nil {
