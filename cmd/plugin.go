@@ -10,10 +10,11 @@ import (
 	"os/signal"
 	"path/filepath"
 
+	klausoci "github.com/giantswarm/klaus-oci"
 	"github.com/spf13/cobra"
 
 	"github.com/giantswarm/klausctl/pkg/config"
-	"github.com/giantswarm/klausctl/pkg/oci"
+	"github.com/giantswarm/klausctl/pkg/orchestrator"
 )
 
 var (
@@ -156,12 +157,13 @@ func runPluginPull(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("creating plugins directory: %w", err)
 	}
 
-	ref, err := oci.ResolveArtifactRef(ctx, args[0], oci.DefaultPluginRegistry, "")
+	client := orchestrator.NewDefaultClient()
+	ref, err := client.ResolvePluginRef(ctx, args[0])
 	if err != nil {
 		return err
 	}
 
-	return pullArtifact(ctx, ref, paths.PluginsDir, oci.PluginArtifact, cmd.OutOrStdout(), pluginPullOut)
+	return pullArtifact(ctx, ref, paths.PluginsDir, klausoci.PluginArtifact, cmd.OutOrStdout(), pluginPullOut)
 }
 
 func runPluginList(cmd *cobra.Command, _ []string) error {
@@ -177,5 +179,5 @@ func runPluginList(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	return listOCIArtifacts(ctx, cmd.OutOrStdout(), paths.PluginsDir, pluginListOut, "plugin", "plugins", oci.DefaultPluginRegistry, pluginListLocal)
+	return listOCIArtifacts(ctx, cmd.OutOrStdout(), paths.PluginsDir, pluginListOut, "plugin", "plugins", klausoci.DefaultPluginRegistry, pluginListLocal)
 }

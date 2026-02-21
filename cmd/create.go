@@ -11,7 +11,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/giantswarm/klausctl/pkg/config"
-	"github.com/giantswarm/klausctl/pkg/oci"
+	"github.com/giantswarm/klausctl/pkg/orchestrator"
 )
 
 var (
@@ -89,7 +89,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("instance %q already exists", instanceName)
 	}
 
-	personality, toolchain, plugins, err := oci.ResolveCreateRefs(ctx, createPersonality, createToolchain, createPlugins)
+	personality, toolchain, plugins, err := orchestrator.ResolveCreateRefs(ctx, createPersonality, createToolchain, createPlugins)
 	if err != nil {
 		return err
 	}
@@ -117,17 +117,18 @@ func runCreate(cmd *cobra.Command, args []string) error {
 			if err := config.EnsureDir(paths.PersonalitiesDir); err != nil {
 				return nil, fmt.Errorf("creating personalities directory: %w", err)
 			}
-			pr, err := oci.ResolvePersonality(ctx, ref, paths.PersonalitiesDir, outWriter)
+			client := orchestrator.NewDefaultClient()
+			pr, err := orchestrator.ResolvePersonality(ctx, client, ref, paths.PersonalitiesDir, outWriter)
 			if err != nil {
 				return nil, err
 			}
 
-			plugins, err := oci.ResolvePluginRefs(ctx, oci.PluginRefsFromSpec(pr.Spec.Plugins))
+			plugins, err := orchestrator.ResolvePluginRefs(ctx, client, pr.Spec.Plugins)
 			if err != nil {
 				return nil, fmt.Errorf("resolving personality plugins: %w", err)
 			}
 
-			image, err := oci.ResolveArtifactRef(ctx, pr.Spec.Image, oci.DefaultToolchainRegistry, "klaus-")
+			image, err := client.ResolveToolchainRef(ctx, pr.Spec.Image)
 			if err != nil {
 				return nil, fmt.Errorf("resolving personality image: %w", err)
 			}

@@ -9,8 +9,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	klausoci "github.com/giantswarm/klaus-oci"
+
 	"github.com/giantswarm/klausctl/pkg/config"
-	"github.com/giantswarm/klausctl/pkg/oci"
 	"github.com/giantswarm/klausctl/pkg/renderer"
 	"github.com/giantswarm/klausctl/pkg/runtime"
 )
@@ -179,7 +180,7 @@ func BuildVolumes(cfg *config.Config, paths *config.Paths, env map[string]string
 		}
 	}
 
-	if personalityDir != "" && oci.HasSOULFile(personalityDir) {
+	if personalityDir != "" && HasSOULFile(personalityDir) {
 		soulPath := filepath.Join(personalityDir, "SOUL.md")
 		vols = append(vols, runtime.Volume{
 			HostPath:      soulPath,
@@ -194,7 +195,7 @@ func BuildVolumes(cfg *config.Config, paths *config.Paths, env map[string]string
 	}
 
 	for _, p := range cfg.Plugins {
-		shortName := oci.ShortPluginName(p.Repository)
+		shortName := klausoci.ShortName(p.Repository)
 		hostPath := filepath.Join(paths.PluginsDir, shortName)
 		vols = append(vols, runtime.Volume{
 			HostPath:      hostPath,
@@ -218,7 +219,7 @@ func buildAddDirs(cfg *config.Config) []string {
 func buildPluginDirs(cfg *config.Config) []string {
 	var dirs []string
 	dirs = append(dirs, cfg.Claude.PluginDirs...)
-	dirs = append(dirs, oci.PluginDirs(cfg.Plugins)...)
+	dirs = append(dirs, PluginDirs(cfg.Plugins)...)
 	return dirs
 }
 

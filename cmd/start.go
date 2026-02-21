@@ -11,7 +11,6 @@ import (
 
 	"github.com/giantswarm/klausctl/pkg/config"
 	"github.com/giantswarm/klausctl/pkg/instance"
-	"github.com/giantswarm/klausctl/pkg/oci"
 	"github.com/giantswarm/klausctl/pkg/orchestrator"
 	"github.com/giantswarm/klausctl/pkg/renderer"
 	"github.com/giantswarm/klausctl/pkg/runtime"
@@ -122,14 +121,13 @@ func startInstance(cmd *cobra.Command, instanceName, workspaceOverride, configPa
 
 	// Resolve personality if configured. This pulls the personality artifact,
 	// merges its plugins with the user's, and optionally overrides the image.
+	client := orchestrator.NewDefaultClient()
+
 	var personalityDir string
 	if cfg.Personality != "" {
 		fmt.Fprintln(out, "Resolving personality...")
 
-		// Resolve :latest / empty tags to actual semver before pulling.
-		// Plugins are resolved inside PullPlugins; the toolchain image is
-		// resolved below when the personality spec's Image field is applied.
-		resolvedRef, err := oci.ResolveArtifactRef(ctx, cfg.Personality, oci.DefaultPersonalityRegistry, "")
+		resolvedRef, err := client.ResolvePersonalityRef(ctx, cfg.Personality)
 		if err != nil {
 			return fmt.Errorf("resolving personality ref: %w", err)
 		}
@@ -139,18 +137,18 @@ func startInstance(cmd *cobra.Command, instanceName, workspaceOverride, configPa
 			return fmt.Errorf("creating personalities directory: %w", err)
 		}
 
-		pr, err := oci.ResolvePersonality(ctx, cfg.Personality, paths.PersonalitiesDir, out)
+		pr, err := orchestrator.ResolvePersonality(ctx, client, cfg.Personality, paths.PersonalitiesDir, out)
 		if err != nil {
 			return fmt.Errorf("resolving personality: %w", err)
 		}
 		personalityDir = pr.Dir
 
 		// Merge personality plugins with user plugins (user wins on conflict).
-		cfg.Plugins = oci.MergePlugins(pr.Spec.Plugins, cfg.Plugins)
+		cfg.Plugins = orchestrator.MergePlugins(pr.Spec.Plugins, cfg.Plugins)
 
 		// Use personality image if the user didn't explicitly set one.
 		if !cfg.ImageExplicitlySet() && pr.Spec.Image != "" {
-			resolved, err := oci.ResolveArtifactRef(ctx, pr.Spec.Image, oci.DefaultToolchainRegistry, "klaus-")
+			resolved, err := client.ResolveToolchainRef(ctx, pr.Spec.Image)
 			if err != nil {
 				return fmt.Errorf("resolving personality image: %w", err)
 			}
@@ -169,7 +167,7 @@ func startInstance(cmd *cobra.Command, instanceName, workspaceOverride, configPa
 	// Pull OCI plugins.
 	if len(cfg.Plugins) > 0 {
 		fmt.Fprintln(out, "Pulling plugins...")
-		if err := oci.PullPlugins(ctx, cfg.Plugins, paths.PluginsDir, out); err != nil {
+		if err := orchestrator.PullPlugins(ctx, client, cfg.Plugins, paths.PluginsDir, out); err != nil {
 			return fmt.Errorf("pulling plugins: %w", err)
 		}
 	}

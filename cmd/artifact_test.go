@@ -10,8 +10,6 @@ import (
 	"time"
 
 	klausoci "github.com/giantswarm/klaus-oci"
-
-	"github.com/giantswarm/klausctl/pkg/oci"
 )
 
 func TestValidateOutputFormat(t *testing.T) {
@@ -219,7 +217,7 @@ func TestShortNameFromRef(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.ref, func(t *testing.T) {
-			got := oci.ShortName(oci.RepositoryFromRef(tt.ref))
+			got := klausoci.ShortName(klausoci.RepositoryFromRef(tt.ref))
 			if got != tt.want {
 				t.Errorf("ShortName(RepositoryFromRef(%q)) = %q, want %q", tt.ref, got, tt.want)
 			}
@@ -267,7 +265,7 @@ func TestLatestSemverTag(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := oci.LatestSemverTag(tt.tags)
+			got := klausoci.LatestSemverTag(tt.tags)
 			if got != tt.want {
 				t.Errorf("LatestSemverTag(%v) = %q, want %q", tt.tags, got, tt.want)
 			}
@@ -280,11 +278,10 @@ func TestPrintRemoteArtifactsText(t *testing.T) {
 	entries := []remoteArtifactEntry{
 		{
 			Name: "gs-base", Ref: "example.com/plugins/gs-base:v0.0.7",
-			Digest: "sha256:abc123def456", PulledAt: time.Now().Add(-2 * time.Hour),
+			PulledAt: time.Now().Add(-2 * time.Hour),
 		},
 		{
 			Name: "gs-sre", Ref: "example.com/plugins/gs-sre:v0.0.7",
-			Digest: "sha256:def789abc012",
 		},
 	}
 
@@ -293,16 +290,13 @@ func TestPrintRemoteArtifactsText(t *testing.T) {
 	}
 
 	output := buf.String()
-	for _, col := range []string{"NAME", "REF", "DIGEST", "PULLED"} {
+	for _, col := range []string{"NAME", "REF", "PULLED"} {
 		if !strings.Contains(output, col) {
 			t.Errorf("expected header with %s column", col)
 		}
 	}
 	if !strings.Contains(output, "gs-base") {
 		t.Error("expected output to contain gs-base")
-	}
-	if !strings.Contains(output, "sha256:abc123def456") {
-		t.Error("expected output to contain digest")
 	}
 	if !strings.Contains(output, "h ago") {
 		t.Error("expected pulled time for cached artifact")
@@ -317,7 +311,6 @@ func TestPrintRemoteArtifactsJSON(t *testing.T) {
 	entries := []remoteArtifactEntry{
 		{
 			Name: "gs-base", Ref: "example.com/plugins/gs-base:v0.0.7",
-			Digest: "sha256:abc123",
 		},
 	}
 
@@ -334,9 +327,6 @@ func TestPrintRemoteArtifactsJSON(t *testing.T) {
 	}
 	if result[0].Ref != "example.com/plugins/gs-base:v0.0.7" {
 		t.Errorf("ref = %q, want full ref", result[0].Ref)
-	}
-	if result[0].Digest != "sha256:abc123" {
-		t.Errorf("digest = %q, want %q", result[0].Digest, "sha256:abc123")
 	}
 }
 

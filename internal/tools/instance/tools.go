@@ -13,13 +13,13 @@ import (
 	"strings"
 	"time"
 
+	klausoci "github.com/giantswarm/klaus-oci"
 	"github.com/mark3labs/mcp-go/mcp"
 	mcpserver "github.com/mark3labs/mcp-go/server"
 
 	"github.com/giantswarm/klausctl/internal/server"
 	"github.com/giantswarm/klausctl/pkg/config"
 	"github.com/giantswarm/klausctl/pkg/instance"
-	"github.com/giantswarm/klausctl/pkg/oci"
 	"github.com/giantswarm/klausctl/pkg/orchestrator"
 	"github.com/giantswarm/klausctl/pkg/renderer"
 	"github.com/giantswarm/klausctl/pkg/runtime"
@@ -144,7 +144,7 @@ func handleCreate(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 	toolchain := req.GetString("toolchain", "")
 	pluginArgs := req.GetStringSlice("plugin", nil)
 
-	personality, toolchain, pluginArgs, err = oci.ResolveCreateRefs(ctx, personality, toolchain, pluginArgs)
+	personality, toolchain, pluginArgs, err = orchestrator.ResolveCreateRefs(ctx, personality, toolchain, pluginArgs)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("resolving refs: %v", err)), nil
 	}
@@ -182,15 +182,16 @@ func handleCreate(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 			if err := config.EnsureDir(sc.Paths.PersonalitiesDir); err != nil {
 				return nil, fmt.Errorf("creating personalities directory: %w", err)
 			}
-			pr, err := oci.ResolvePersonality(ctx, ref, sc.Paths.PersonalitiesDir, io.Discard)
+			client := orchestrator.NewDefaultClient()
+			pr, err := orchestrator.ResolvePersonality(ctx, client, ref, sc.Paths.PersonalitiesDir, io.Discard)
 			if err != nil {
 				return nil, err
 			}
-			plugins, err := oci.ResolvePluginRefs(ctx, oci.PluginRefsFromSpec(pr.Spec.Plugins))
+			plugins, err := orchestrator.ResolvePluginRefs(ctx, client, pr.Spec.Plugins)
 			if err != nil {
 				return nil, fmt.Errorf("resolving personality plugins: %w", err)
 			}
-			image, err := oci.ResolveArtifactRef(ctx, pr.Spec.Image, oci.DefaultToolchainRegistry, "klaus-")
+			image, err := client.ResolveToolchainRef(ctx, pr.Spec.Image)
 			if err != nil {
 				return nil, fmt.Errorf("resolving personality image: %w", err)
 			}
@@ -553,20 +554,22 @@ func startExistingInstance(ctx context.Context, name string, sc *server.ServerCo
 		_ = instance.Clear(paths)
 	}
 
+	client := orchestrator.NewDefaultClient()
+
 	// Resolve personality if configured.
 	var personalityDir string
 	if cfg.Personality != "" {
 		if err := config.EnsureDir(paths.PersonalitiesDir); err != nil {
 			return nil, fmt.Errorf("creating personalities directory: %w", err)
 		}
-		pr, err := oci.ResolvePersonality(ctx, cfg.Personality, paths.PersonalitiesDir, io.Discard)
+		pr, err := orchestrator.ResolvePersonality(ctx, client, cfg.Personality, paths.PersonalitiesDir, io.Discard)
 		if err != nil {
 			return nil, fmt.Errorf("resolving personality: %w", err)
 		}
 		personalityDir = pr.Dir
-		cfg.Plugins = oci.MergePlugins(pr.Spec.Plugins, cfg.Plugins)
+		cfg.Plugins = orchestrator.MergePlugins(pr.Spec.Plugins, cfg.Plugins)
 		if !cfg.ImageExplicitlySet() && pr.Spec.Image != "" {
-			resolved, err := oci.ResolveArtifactRef(ctx, pr.Spec.Image, oci.DefaultToolchainRegistry, "")
+			resolved, err := client.ResolveToolchainRef(ctx, pr.Spec.Image)
 			if err != nil {
 				return nil, fmt.Errorf("resolving personality image: %w", err)
 			}
@@ -582,7 +585,7 @@ func startExistingInstance(ctx context.Context, name string, sc *server.ServerCo
 	}
 
 	if len(cfg.Plugins) > 0 {
-		if err := oci.PullPlugins(ctx, cfg.Plugins, paths.PluginsDir, io.Discard); err != nil {
+		if err := orchestrator.PullPlugins(ctx, client, cfg.Plugins, paths.PluginsDir, io.Discard); err != nil {
 			return nil, fmt.Errorf("pulling plugins: %w", err)
 		}
 	}
@@ -758,7 +761,7 @@ func shortToolchainName(cfg *config.Config) string {
 	if ref == "" {
 		ref = cfg.Image
 	}
-	repo := oci.RepositoryFromRef(ref)
+	repo := klausoci.RepositoryFromRef(ref)
 	name := filepath.Base(repo)
 	return strings.TrimPrefix(name, "klaus-")
 }
@@ -767,7 +770,7 @@ func shortRefName(ref string) string {
 	if ref == "" {
 		return ""
 	}
-	return filepath.Base(oci.RepositoryFromRef(ref))
+	return filepath.Base(klausoci.RepositoryFromRef(ref))
 }
 
 func formatDuration(d time.Duration) string {

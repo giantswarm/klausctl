@@ -11,13 +11,13 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/Masterminds/semver/v3"
+	klausoci "github.com/giantswarm/klaus-oci"
 	"github.com/mark3labs/mcp-go/mcp"
 	mcpserver "github.com/mark3labs/mcp-go/server"
 
 	"github.com/giantswarm/klausctl/internal/server"
 	"github.com/giantswarm/klausctl/pkg/config"
-	"github.com/giantswarm/klausctl/pkg/oci"
+	"github.com/giantswarm/klausctl/pkg/orchestrator"
 )
 
 // RegisterTools registers all artifact discovery tools on the MCP server.
@@ -93,7 +93,7 @@ func toolchainListLocal(ctx context.Context, sc *server.ServerContext) (*mcp.Cal
 	for _, img := range all {
 		if strings.Contains(img.Repository, toolchainImageSubstring) {
 			entries = append(entries, toolchainEntry{
-				Name:       oci.ShortToolchainName(img.Repository),
+				Name:       klausoci.ShortToolchainName(img.Repository),
 				Repository: img.Repository,
 				Tag:        img.Tag,
 				Size:       img.Size,
@@ -105,7 +105,7 @@ func toolchainListLocal(ctx context.Context, sc *server.ServerContext) (*mcp.Cal
 }
 
 func toolchainListRemote(ctx context.Context) (*mcp.CallToolResult, error) {
-	entries, err := listLatestRemote(ctx, "", oci.DefaultToolchainRegistry, &remoteListOptions{
+	entries, err := listLatestRemote(ctx, klausoci.DefaultToolchainRegistry, &remoteListOptions{
 		Filter: func(repo string) bool {
 			parts := strings.Split(repo, "/")
 			if len(parts) != 3 {
@@ -113,7 +113,7 @@ func toolchainListRemote(ctx context.Context) (*mcp.CallToolResult, error) {
 			}
 			return strings.HasPrefix(parts[2], toolchainImageSubstring)
 		},
-		ShortName: oci.ShortToolchainName,
+		ShortName: klausoci.ShortToolchainName,
 	})
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("listing remote toolchains: %v", err)), nil
@@ -125,7 +125,7 @@ func handlePersonalityList(ctx context.Context, req mcp.CallToolRequest, sc *ser
 	remote := req.GetBool("remote", false)
 
 	if remote {
-		entries, err := listLatestRemote(ctx, sc.Paths.PersonalitiesDir, oci.DefaultPersonalityRegistry, nil)
+		entries, err := listLatestRemote(ctx, klausoci.DefaultPersonalityRegistry, nil)
 		if err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("listing remote personalities: %v", err)), nil
 		}
@@ -143,7 +143,7 @@ func handlePluginList(ctx context.Context, req mcp.CallToolRequest, sc *server.S
 	remote := req.GetBool("remote", false)
 
 	if remote {
-		entries, err := listLatestRemote(ctx, sc.Paths.PluginsDir, oci.DefaultPluginRegistry, nil)
+		entries, err := listLatestRemote(ctx, klausoci.DefaultPluginRegistry, nil)
 		if err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("listing remote plugins: %v", err)), nil
 		}
@@ -180,7 +180,7 @@ func listLocalArtifacts(cacheDir string) ([]cachedArtifact, error) {
 			continue
 		}
 		dir := filepath.Join(cacheDir, entry.Name())
-		cache, err := oci.ReadCacheEntry(dir)
+		cache, err := klausoci.ReadCacheEntry(dir)
 		if err != nil {
 			continue
 		}
@@ -198,9 +198,8 @@ func listLocalArtifacts(cacheDir string) ([]cachedArtifact, error) {
 }
 
 type remoteArtifactEntry struct {
-	Name   string `json:"name"`
-	Ref    string `json:"ref"`
-	Digest string `json:"digest"`
+	Name string `json:"name"`
+	Ref  string `json:"ref"`
 }
 
 type remoteListOptions struct {
@@ -208,51 +207,30 @@ type remoteListOptions struct {
 	ShortName func(repo string) string
 }
 
-func listLatestRemote(ctx context.Context, cacheDir, registryBase string, opts *remoteListOptions) ([]remoteArtifactEntry, error) {
-	client := oci.NewDefaultClient()
+// listLatestRemote discovers repositories from the registry, resolves the
+// latest semver tag for each, and returns a sorted list. Uses the high-level
+// ListArtifacts API for concurrent resolution.
+func listLatestRemote(ctx context.Context, registryBase string, opts *remoteListOptions) ([]remoteArtifactEntry, error) {
+	client := orchestrator.NewDefaultClient()
 
-	repos, err := client.ListRepositories(ctx, registryBase)
+	artifacts, err := client.ListArtifacts(ctx, registryBase)
 	if err != nil {
 		return nil, fmt.Errorf("discovering remote repositories: %w", err)
 	}
 
-	if opts != nil && opts.Filter != nil {
-		filtered := repos[:0]
-		for _, r := range repos {
-			if opts.Filter(r) {
-				filtered = append(filtered, r)
-			}
-		}
-		repos = filtered
-	}
-
-	shortNameFn := oci.ShortName
+	shortNameFn := klausoci.ShortName
 	if opts != nil && opts.ShortName != nil {
 		shortNameFn = opts.ShortName
 	}
 
 	var entries []remoteArtifactEntry
-	for _, repo := range repos {
-		tags, err := client.List(ctx, repo)
-		if err != nil {
-			return nil, fmt.Errorf("listing tags for %s: %w", repo, err)
-		}
-
-		latest := latestSemverTag(tags)
-		if latest == "" {
+	for _, a := range artifacts {
+		if opts != nil && opts.Filter != nil && !opts.Filter(a.Repository) {
 			continue
 		}
-
-		ref := repo + ":" + latest
-		digest, err := client.Resolve(ctx, ref)
-		if err != nil {
-			return nil, fmt.Errorf("resolving digest for %s: %w", ref, err)
-		}
-
 		entries = append(entries, remoteArtifactEntry{
-			Name:   shortNameFn(repo),
-			Ref:    ref,
-			Digest: digest,
+			Name: shortNameFn(a.Repository),
+			Ref:  a.Reference,
 		})
 	}
 
@@ -260,20 +238,4 @@ func listLatestRemote(ctx context.Context, cacheDir, registryBase string, opts *
 		return entries[i].Name < entries[j].Name
 	})
 	return entries, nil
-}
-
-func latestSemverTag(tags []string) string {
-	var best *semver.Version
-	var bestTag string
-	for _, tag := range tags {
-		v, err := semver.NewVersion(tag)
-		if err != nil {
-			continue
-		}
-		if best == nil || v.GreaterThan(best) {
-			best = v
-			bestTag = tag
-		}
-	}
-	return bestTag
 }

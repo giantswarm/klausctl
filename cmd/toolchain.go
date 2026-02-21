@@ -13,10 +13,10 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	klausoci "github.com/giantswarm/klaus-oci"
 	"github.com/spf13/cobra"
 
 	"github.com/giantswarm/klausctl/pkg/config"
-	"github.com/giantswarm/klausctl/pkg/oci"
 	"github.com/giantswarm/klausctl/pkg/runtime"
 )
 
@@ -170,9 +170,9 @@ func isToolchainRepo(repo string) bool {
 // pull status. Toolchains don't use the OCI cache directory so cacheDir
 // is empty, which means the PULLED column will always show "-".
 func runToolchainListRemote(ctx context.Context, out io.Writer) error {
-	entries, err := listLatestRemoteArtifacts(ctx, "", oci.DefaultToolchainRegistry, &remoteListOptions{
+	entries, err := listLatestRemoteArtifacts(ctx, "", klausoci.DefaultToolchainRegistry, &remoteListOptions{
 		Filter:    isToolchainRepo,
-		ShortName: oci.ShortToolchainName,
+		ShortName: klausoci.ShortToolchainName,
 	})
 	if err != nil {
 		return err

@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Migrate to `klaus-oci` v0.0.5 and delete the `pkg/oci/` wrapper package entirely. All callers now import `klaus-oci` directly for OCI types, constants, and helpers. Klausctl-specific orchestration (artifact resolution, plugin pulling, personality merging) moves to `pkg/orchestrator/`. ([#55](https://github.com/giantswarm/klausctl/issues/55))
+  - Use typed convenience methods (`ResolveToolchainRef`, `ResolvePersonalityRef`, `ResolvePluginRef`) instead of generic `ResolveArtifactRef`.
+  - Replace the 5-step manual listing flow with `client.ListArtifacts()` for concurrent artifact discovery.
+  - Drop `Masterminds/semver/v3` as a direct dependency.
+
 ### Fixed
 
 - Fix MCP config rendering for HTTP servers: auto-infer `"type": "http"` for URL-based entries and `"type": "stdio"` for command-based entries. Without the explicit type field, Claude Code misidentifies HTTP servers as stdio and hangs during initialization.

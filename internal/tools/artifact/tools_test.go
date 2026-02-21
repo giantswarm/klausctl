@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	klausoci "github.com/giantswarm/klaus-oci"
 	mcpserver "github.com/mark3labs/mcp-go/server"
 
 	"github.com/giantswarm/klausctl/internal/server"
@@ -75,9 +76,9 @@ func TestLatestSemverTag(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := latestSemverTag(tt.tags)
+			got := klausoci.LatestSemverTag(tt.tags)
 			if got != tt.want {
-				t.Errorf("latestSemverTag(%v) = %q, want %q", tt.tags, got, tt.want)
+				t.Errorf("LatestSemverTag(%v) = %q, want %q", tt.tags, got, tt.want)
 			}
 		})
 	}
