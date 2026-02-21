@@ -44,3 +44,5 @@ require (
 	golang.org/x/time v0.14.0 // indirect
 	oras.land/oras-go/v2 v2.6.0 // indirect
 )
+
+replace github.com/giantswarm/klaus-oci => ../klaus-oci
