@@ -121,11 +121,12 @@ func startInstance(cmd *cobra.Command, instanceName, workspaceOverride, configPa
 
 	// Resolve personality if configured. This pulls the personality artifact,
 	// merges its plugins with the user's, and optionally overrides the image.
+	client := orchestrator.NewDefaultClient()
+
 	var personalityDir string
 	if cfg.Personality != "" {
 		fmt.Fprintln(out, "Resolving personality...")
 
-		client := orchestrator.NewDefaultClient()
 		resolvedRef, err := client.ResolvePersonalityRef(ctx, cfg.Personality)
 		if err != nil {
 			return fmt.Errorf("resolving personality ref: %w", err)
@@ -136,7 +137,7 @@ func startInstance(cmd *cobra.Command, instanceName, workspaceOverride, configPa
 			return fmt.Errorf("creating personalities directory: %w", err)
 		}
 
-		pr, err := orchestrator.ResolvePersonality(ctx, cfg.Personality, paths.PersonalitiesDir, out)
+		pr, err := orchestrator.ResolvePersonality(ctx, client, cfg.Personality, paths.PersonalitiesDir, out)
 		if err != nil {
 			return fmt.Errorf("resolving personality: %w", err)
 		}
@@ -166,7 +167,7 @@ func startInstance(cmd *cobra.Command, instanceName, workspaceOverride, configPa
 	// Pull OCI plugins.
 	if len(cfg.Plugins) > 0 {
 		fmt.Fprintln(out, "Pulling plugins...")
-		if err := orchestrator.PullPlugins(ctx, cfg.Plugins, paths.PluginsDir, out); err != nil {
+		if err := orchestrator.PullPlugins(ctx, client, cfg.Plugins, paths.PluginsDir, out); err != nil {
 			return fmt.Errorf("pulling plugins: %w", err)
 		}
 	}

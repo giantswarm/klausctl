@@ -182,15 +182,15 @@ func handleCreate(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 			if err := config.EnsureDir(sc.Paths.PersonalitiesDir); err != nil {
 				return nil, fmt.Errorf("creating personalities directory: %w", err)
 			}
-			pr, err := orchestrator.ResolvePersonality(ctx, ref, sc.Paths.PersonalitiesDir, io.Discard)
+			client := orchestrator.NewDefaultClient()
+			pr, err := orchestrator.ResolvePersonality(ctx, client, ref, sc.Paths.PersonalitiesDir, io.Discard)
 			if err != nil {
 				return nil, err
 			}
-			plugins, err := orchestrator.ResolvePluginRefs(ctx, pr.Spec.Plugins)
+			plugins, err := orchestrator.ResolvePluginRefs(ctx, client, pr.Spec.Plugins)
 			if err != nil {
 				return nil, fmt.Errorf("resolving personality plugins: %w", err)
 			}
-			client := orchestrator.NewDefaultClient()
 			image, err := client.ResolveToolchainRef(ctx, pr.Spec.Image)
 			if err != nil {
 				return nil, fmt.Errorf("resolving personality image: %w", err)
@@ -554,20 +554,21 @@ func startExistingInstance(ctx context.Context, name string, sc *server.ServerCo
 		_ = instance.Clear(paths)
 	}
 
+	client := orchestrator.NewDefaultClient()
+
 	// Resolve personality if configured.
 	var personalityDir string
 	if cfg.Personality != "" {
 		if err := config.EnsureDir(paths.PersonalitiesDir); err != nil {
 			return nil, fmt.Errorf("creating personalities directory: %w", err)
 		}
-		pr, err := orchestrator.ResolvePersonality(ctx, cfg.Personality, paths.PersonalitiesDir, io.Discard)
+		pr, err := orchestrator.ResolvePersonality(ctx, client, cfg.Personality, paths.PersonalitiesDir, io.Discard)
 		if err != nil {
 			return nil, fmt.Errorf("resolving personality: %w", err)
 		}
 		personalityDir = pr.Dir
 		cfg.Plugins = orchestrator.MergePlugins(pr.Spec.Plugins, cfg.Plugins)
 		if !cfg.ImageExplicitlySet() && pr.Spec.Image != "" {
-			client := orchestrator.NewDefaultClient()
 			resolved, err := client.ResolveToolchainRef(ctx, pr.Spec.Image)
 			if err != nil {
 				return nil, fmt.Errorf("resolving personality image: %w", err)
@@ -584,7 +585,7 @@ func startExistingInstance(ctx context.Context, name string, sc *server.ServerCo
 	}
 
 	if len(cfg.Plugins) > 0 {
-		if err := orchestrator.PullPlugins(ctx, cfg.Plugins, paths.PluginsDir, io.Discard); err != nil {
+		if err := orchestrator.PullPlugins(ctx, client, cfg.Plugins, paths.PluginsDir, io.Discard); err != nil {
 			return nil, fmt.Errorf("pulling plugins: %w", err)
 		}
 	}

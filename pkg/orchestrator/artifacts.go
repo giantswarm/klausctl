@@ -58,8 +58,7 @@ func ResolveCreateRefs(ctx context.Context, personality, toolchain string, plugi
 // ResolvePluginRefs resolves a slice of PluginReference entries, replacing
 // "latest" or empty tags with the actual latest semver tag from the registry.
 // The resolved references are returned as config.Plugin entries.
-func ResolvePluginRefs(ctx context.Context, refs []klausoci.PluginReference) ([]config.Plugin, error) {
-	client := NewDefaultClient()
+func ResolvePluginRefs(ctx context.Context, client *klausoci.Client, refs []klausoci.PluginReference) ([]config.Plugin, error) {
 	resolved, err := client.ResolvePluginRefs(ctx, refs)
 	if err != nil {
 		return nil, err
@@ -77,9 +76,7 @@ func ResolvePluginRefs(ctx context.Context, refs []klausoci.PluginReference) ([]
 //
 // Plugins with a "latest" tag or no tag are resolved to the latest semver
 // tag from the registry before pulling.
-func PullPlugins(ctx context.Context, plugins []config.Plugin, pluginsDir string, w io.Writer) error {
-	client := NewDefaultClient()
-
+func PullPlugins(ctx context.Context, client *klausoci.Client, plugins []config.Plugin, pluginsDir string, w io.Writer) error {
 	refs := make([]klausoci.PluginReference, len(plugins))
 	for i, p := range plugins {
 		refs[i] = klausoci.PluginReference{
@@ -149,12 +146,10 @@ type PersonalityResult struct {
 
 // ResolvePersonality pulls a personality OCI artifact and parses its spec.
 // The personality is stored at <personalitiesDir>/<shortName>/.
-func ResolvePersonality(ctx context.Context, ref, personalitiesDir string, w io.Writer) (*PersonalityResult, error) {
+func ResolvePersonality(ctx context.Context, client *klausoci.Client, ref, personalitiesDir string, w io.Writer) (*PersonalityResult, error) {
 	repo := klausoci.RepositoryFromRef(ref)
 	shortName := klausoci.ShortName(repo)
 	destDir := filepath.Join(personalitiesDir, shortName)
-
-	client := NewDefaultClient()
 
 	fmt.Fprintf(w, "  Pulling personality %s...\n", ref)
 	result, err := client.Pull(ctx, ref, destDir, klausoci.PersonalityArtifact)

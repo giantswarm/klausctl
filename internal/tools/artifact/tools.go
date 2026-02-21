@@ -105,7 +105,7 @@ func toolchainListLocal(ctx context.Context, sc *server.ServerContext) (*mcp.Cal
 }
 
 func toolchainListRemote(ctx context.Context) (*mcp.CallToolResult, error) {
-	entries, err := listLatestRemote(ctx, "", klausoci.DefaultToolchainRegistry, &remoteListOptions{
+	entries, err := listLatestRemote(ctx, klausoci.DefaultToolchainRegistry, &remoteListOptions{
 		Filter: func(repo string) bool {
 			parts := strings.Split(repo, "/")
 			if len(parts) != 3 {
@@ -125,7 +125,7 @@ func handlePersonalityList(ctx context.Context, req mcp.CallToolRequest, sc *ser
 	remote := req.GetBool("remote", false)
 
 	if remote {
-		entries, err := listLatestRemote(ctx, sc.Paths.PersonalitiesDir, klausoci.DefaultPersonalityRegistry, nil)
+		entries, err := listLatestRemote(ctx, klausoci.DefaultPersonalityRegistry, nil)
 		if err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("listing remote personalities: %v", err)), nil
 		}
@@ -143,7 +143,7 @@ func handlePluginList(ctx context.Context, req mcp.CallToolRequest, sc *server.S
 	remote := req.GetBool("remote", false)
 
 	if remote {
-		entries, err := listLatestRemote(ctx, sc.Paths.PluginsDir, klausoci.DefaultPluginRegistry, nil)
+		entries, err := listLatestRemote(ctx, klausoci.DefaultPluginRegistry, nil)
 		if err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("listing remote plugins: %v", err)), nil
 		}
@@ -210,7 +210,7 @@ type remoteListOptions struct {
 // listLatestRemote discovers repositories from the registry, resolves the
 // latest semver tag for each, and returns a sorted list. Uses the high-level
 // ListArtifacts API for concurrent resolution.
-func listLatestRemote(ctx context.Context, cacheDir, registryBase string, opts *remoteListOptions) ([]remoteArtifactEntry, error) {
+func listLatestRemote(ctx context.Context, registryBase string, opts *remoteListOptions) ([]remoteArtifactEntry, error) {
 	client := orchestrator.NewDefaultClient()
 
 	artifacts, err := client.ListArtifacts(ctx, registryBase)
