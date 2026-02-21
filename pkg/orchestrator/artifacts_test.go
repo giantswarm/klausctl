@@ -227,7 +227,7 @@ func TestLoadPersonalitySpec(t *testing.T) {
 	dir := t.TempDir()
 	specContent := `
 description: SRE personality
-image: gsoci.azurecr.io/giantswarm/klaus-go:1.0.0
+image: gsoci.azurecr.io/giantswarm/klaus-toolchains/go:1.0.0
 plugins:
   - repository: gsoci.azurecr.io/giantswarm/klaus-plugins/gs-platform
     tag: v1.0.0
@@ -246,7 +246,7 @@ plugins:
 	if spec.Description != "SRE personality" {
 		t.Errorf("Description = %q, want %q", spec.Description, "SRE personality")
 	}
-	if spec.Image != "gsoci.azurecr.io/giantswarm/klaus-go:1.0.0" {
+	if spec.Image != "gsoci.azurecr.io/giantswarm/klaus-toolchains/go:1.0.0" {
 		t.Errorf("Image = %q, want toolchain image", spec.Image)
 	}
 	if len(spec.Plugins) != 2 {

@@ -20,12 +20,6 @@ import (
 	"github.com/giantswarm/klausctl/pkg/runtime"
 )
 
-// toolchainImageSubstring is the substring matched against repository names
-// to identify klaus toolchain images. Docker's reference filter does not
-// support wildcards across path separators, so we fetch all images and filter
-// client-side.
-const toolchainImageSubstring = "klaus-"
-
 var (
 	toolchainInitName    string
 	toolchainInitDir     string
@@ -86,7 +80,7 @@ var toolchainPullCmd = &cobra.Command{
 
 The reference should be a full image reference:
 
-  klausctl toolchain pull gsoci.azurecr.io/giantswarm/klaus-go:1.0.0`,
+  klausctl toolchain pull gsoci.azurecr.io/giantswarm/klaus-toolchains/go:1.0.0`,
 	Args: cobra.ExactArgs(1),
 	RunE: runToolchainPull,
 }
@@ -154,26 +148,12 @@ func runToolchainList(cmd *cobra.Command, _ []string) error {
 	return runToolchainListRemote(ctx, out)
 }
 
-// isToolchainRepo returns true if the fully-qualified repository name
-// matches the toolchain pattern (host/org/klaus-<name>), excluding
-// plugin and personality sub-namespaces.
-func isToolchainRepo(repo string) bool {
-	parts := strings.Split(repo, "/")
-	if len(parts) != 3 {
-		return false
-	}
-	return strings.HasPrefix(parts[2], toolchainImageSubstring)
-}
-
 // runToolchainListRemote discovers toolchain images from the registry,
 // resolves the latest semver tag and digest for each, and checks local
 // pull status. Toolchains don't use the OCI cache directory so cacheDir
 // is empty, which means the PULLED column will always show "-".
 func runToolchainListRemote(ctx context.Context, out io.Writer) error {
-	entries, err := listLatestRemoteArtifacts(ctx, "", klausoci.DefaultToolchainRegistry, &remoteListOptions{
-		Filter:    isToolchainRepo,
-		ShortName: klausoci.ShortToolchainName,
-	})
+	entries, err := listLatestRemoteArtifacts(ctx, "", klausoci.DefaultToolchainRegistry, nil)
 	if err != nil {
 		return err
 	}
@@ -202,7 +182,7 @@ func toolchainList(ctx context.Context, out io.Writer, rt runtime.Runtime, opts 
 
 	var images []runtime.ImageInfo
 	for _, img := range all {
-		if strings.Contains(img.Repository, toolchainImageSubstring) {
+		if strings.HasPrefix(img.Repository, klausoci.DefaultToolchainRegistry+"/") {
 			images = append(images, img)
 		}
 	}
@@ -325,7 +305,7 @@ func runToolchainInit(cmd *cobra.Command, _ []string) error {
 
 	dir := toolchainInitDir
 	if dir == "" {
-		dir = filepath.Join(".", "klaus-"+toolchainInitName)
+		dir = filepath.Join(".", toolchainInitName)
 	}
 
 	if _, err := os.Stat(dir); err == nil {
@@ -363,12 +343,12 @@ func runToolchainInit(cmd *cobra.Command, _ []string) error {
 
 // scaffoldFiles returns the scaffold file contents keyed by relative path.
 func scaffoldFiles(name string) map[string]string {
-	imageName := "gsoci.azurecr.io/giantswarm/klaus-" + name
+	imageName := klausoci.ToolchainRegistryRef(name)
 
 	return map[string]string{
-		"Dockerfile": fmt.Sprintf(`# Toolchain image: klaus-%s
+		"Dockerfile": fmt.Sprintf(`# Toolchain image: %s
 # Based on the klaus-git base image (Alpine).
-FROM gsoci.azurecr.io/giantswarm/klaus-git:latest
+FROM gsoci.azurecr.io/giantswarm/klaus-toolchains/git:latest
 
 # Install toolchain-specific packages.
 # RUN apk add --no-cache <your-packages>
@@ -377,9 +357,9 @@ FROM gsoci.azurecr.io/giantswarm/klaus-git:latest
 # COPY config/ /etc/klaus/
 `, name),
 
-		"Dockerfile.debian": fmt.Sprintf(`# Toolchain image: klaus-%s (Debian variant)
+		"Dockerfile.debian": fmt.Sprintf(`# Toolchain image: %s (Debian variant)
 # Based on the klaus-git base image (Debian).
-FROM gsoci.azurecr.io/giantswarm/klaus-git:latest-debian
+FROM gsoci.azurecr.io/giantswarm/klaus-toolchains/git-debian:latest
 
 # Install toolchain-specific packages.
 # RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -401,21 +381,21 @@ docker-build-debian:
 
 		".circleci/config.yml": fmt.Sprintf(`version: 2.1
 
-# CI configuration for the klaus-%s toolchain image.
+# CI configuration for the %s toolchain image.
 # Builds are triggered on semver tags and publish to the registry.
 # See: https://github.com/giantswarm/klaus-images
 `, name),
 
-		"README.md": fmt.Sprintf(`# klaus-%s
+		"README.md": fmt.Sprintf(`# %s
 
 Klaus toolchain image for %s.
 
 ## Overview
 
 This repository contains the Dockerfile and CI configuration for the
-`+"`klaus-%s`"+` toolchain image, published to `+"`%s`"+`.
+`+"`%s`"+` toolchain image, published to `+"`%s`"+`.
 
-Toolchain images extend the base `+"`klaus-git`"+` image with language-specific
+Toolchain images extend the base `+"`klaus-toolchains/git`"+` image with language-specific
 or project-specific tooling.
 
 ## Building

@@ -59,8 +59,6 @@ func registerPluginList(s *mcpserver.MCPServer, sc *server.ServerContext) {
 
 // --- Handlers ---
 
-const toolchainImageSubstring = "klaus-"
-
 type toolchainEntry struct {
 	Name       string `json:"name"`
 	Repository string `json:"repository"`
@@ -91,9 +89,9 @@ func toolchainListLocal(ctx context.Context, sc *server.ServerContext) (*mcp.Cal
 
 	var entries []toolchainEntry
 	for _, img := range all {
-		if strings.Contains(img.Repository, toolchainImageSubstring) {
+		if strings.HasPrefix(img.Repository, klausoci.DefaultToolchainRegistry+"/") {
 			entries = append(entries, toolchainEntry{
-				Name:       klausoci.ShortToolchainName(img.Repository),
+				Name:       klausoci.ShortName(img.Repository),
 				Repository: img.Repository,
 				Tag:        img.Tag,
 				Size:       img.Size,
@@ -105,16 +103,7 @@ func toolchainListLocal(ctx context.Context, sc *server.ServerContext) (*mcp.Cal
 }
 
 func toolchainListRemote(ctx context.Context) (*mcp.CallToolResult, error) {
-	entries, err := listLatestRemote(ctx, klausoci.DefaultToolchainRegistry, &remoteListOptions{
-		Filter: func(repo string) bool {
-			parts := strings.Split(repo, "/")
-			if len(parts) != 3 {
-				return false
-			}
-			return strings.HasPrefix(parts[2], toolchainImageSubstring)
-		},
-		ShortName: klausoci.ShortToolchainName,
-	})
+	entries, err := listLatestRemote(ctx, klausoci.DefaultToolchainRegistry, nil)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("listing remote toolchains: %v", err)), nil
 	}

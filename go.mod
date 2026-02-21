@@ -6,7 +6,7 @@ toolchain go1.26.0
 
 require (
 	github.com/creativeprojects/go-selfupdate v1.5.2
-	github.com/giantswarm/klaus-oci v0.0.5
+	github.com/giantswarm/klaus-oci v0.0.7
 	github.com/mark3labs/mcp-go v0.44.0
 	github.com/spf13/cobra v1.10.2
 	gopkg.in/yaml.v3 v3.0.1
@@ -44,5 +44,3 @@ require (
 	golang.org/x/time v0.14.0 // indirect
 	oras.land/oras-go/v2 v2.6.0 // indirect
 )
-
-replace github.com/giantswarm/klaus-oci => ../klaus-oci

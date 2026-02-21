@@ -180,13 +180,13 @@ func TestResolveRefs(t *testing.T) {
 			name: "toolchain short name with tag",
 			fn:   ResolveToolchainRef,
 			ref:  "go:v1.0.0",
-			want: "gsoci.azurecr.io/giantswarm/klaus-go:v1.0.0",
+			want: "gsoci.azurecr.io/giantswarm/klaus-toolchains/go:v1.0.0",
 		},
 		{
 			name: "toolchain short name without tag",
 			fn:   ResolveToolchainRef,
 			ref:  "go",
-			want: "gsoci.azurecr.io/giantswarm/klaus-go",
+			want: "gsoci.azurecr.io/giantswarm/klaus-toolchains/go",
 		},
 		{
 			name: "plugin short name",

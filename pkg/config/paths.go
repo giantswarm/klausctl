@@ -124,7 +124,7 @@ const (
 	// DefaultPersonalityRegistry is the default base reference for personality short names.
 	DefaultPersonalityRegistry = "gsoci.azurecr.io/giantswarm/klaus-personalities"
 	// DefaultToolchainRegistry is the default base reference for toolchain short names.
-	DefaultToolchainRegistry = "gsoci.azurecr.io/giantswarm"
+	DefaultToolchainRegistry = "gsoci.azurecr.io/giantswarm/klaus-toolchains"
 )
 
 // ResolvePersonalityRef expands a short personality name to a full OCI
@@ -132,25 +132,25 @@ const (
 // appended when absent -- runtime resolution (oci.ResolveArtifactRef)
 // handles that.
 func ResolvePersonalityRef(ref string) string {
-	return expandArtifactRef(ref, DefaultPersonalityRegistry, "")
+	return expandArtifactRef(ref, DefaultPersonalityRegistry)
 }
 
 // ResolveToolchainRef expands a short toolchain name to a full OCI
-// repository path with the "klaus-" prefix convention.
+// repository path under the klaus-toolchains sub-namespace.
 func ResolveToolchainRef(ref string) string {
-	return expandArtifactRef(ref, DefaultToolchainRegistry, "klaus-")
+	return expandArtifactRef(ref, DefaultToolchainRegistry)
 }
 
 // ResolvePluginRef expands a short plugin name to a full OCI repository path.
 func ResolvePluginRef(ref string) string {
-	return expandArtifactRef(ref, DefaultPluginRegistry, "")
+	return expandArtifactRef(ref, DefaultPluginRegistry)
 }
 
 // expandArtifactRef expands short names (no "/") into fully-qualified
 // repository paths. Full OCI refs and any existing tag/digest suffix are
 // kept as-is. Unlike oci.ResolveArtifactRef this is offline and never
 // appends ":latest" -- tag resolution is deferred to start time.
-func expandArtifactRef(ref, base, namePrefix string) string {
+func expandArtifactRef(ref, base string) string {
 	ref = strings.TrimSpace(ref)
 	if ref == "" {
 		return ref
@@ -161,9 +161,6 @@ func expandArtifactRef(ref, base, namePrefix string) string {
 	}
 
 	name, suffix := splitNameSuffix(ref)
-	if namePrefix != "" && !strings.HasPrefix(name, namePrefix) {
-		name = namePrefix + name
-	}
 	return base + "/" + name + suffix
 }
 

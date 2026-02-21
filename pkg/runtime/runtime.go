@@ -71,7 +71,7 @@ type Volume struct {
 
 // ImageInfo holds information about a locally cached container image.
 type ImageInfo struct {
-	// Repository is the full image repository name (e.g. "gsoci.azurecr.io/giantswarm/klaus-go").
+	// Repository is the full image repository name (e.g. "gsoci.azurecr.io/giantswarm/klaus-toolchains/go").
 	Repository string `json:"repository"`
 	// Tag is the image tag (e.g. "1.0.0").
 	Tag string `json:"tag"`
