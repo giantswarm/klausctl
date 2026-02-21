@@ -36,10 +36,10 @@ func TestGenerateInstanceConfig(t *testing.T) {
 	if cfg.Personality != "gsoci.azurecr.io/giantswarm/klaus-personalities/sre" {
 		t.Fatalf("unexpected personality: %s", cfg.Personality)
 	}
-	if cfg.Image != "gsoci.azurecr.io/giantswarm/klaus-go" {
+	if cfg.Image != "gsoci.azurecr.io/giantswarm/klaus-toolchains/go" {
 		t.Fatalf("unexpected image: %s", cfg.Image)
 	}
-	if cfg.Toolchain != "gsoci.azurecr.io/giantswarm/klaus-go" {
+	if cfg.Toolchain != "gsoci.azurecr.io/giantswarm/klaus-toolchains/go" {
 		t.Fatalf("unexpected toolchain: %s", cfg.Toolchain)
 	}
 	if cfg.Port != 8080 {

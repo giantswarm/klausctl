@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Use typed convenience methods (`ResolveToolchainRef`, `ResolvePersonalityRef`, `ResolvePluginRef`) instead of generic `ResolveArtifactRef`.
   - Replace the 5-step manual listing flow with `client.ListArtifacts()` for concurrent artifact discovery.
   - Drop `Masterminds/semver/v3` as a direct dependency.
+- Pass `WithFilter()` to `ListArtifacts` for toolchain listing, filtering repos at the library level before version resolution instead of after. Reduces toolchain list from ~68s to ~4s on gsoci.
+- Upgrade `klaus-oci` to v0.0.7 for the `klaus-toolchains/` sub-namespace migration. Toolchain images now resolve to `gsoci.azurecr.io/giantswarm/klaus-toolchains/<name>` instead of `gsoci.azurecr.io/giantswarm/klaus-<name>`, narrowing `ListRepositories` from the entire `giantswarm/` catalog to just the toolchains sub-namespace. `ShortToolchainName` replaced by `ShortName`.
 
 ### Fixed
 

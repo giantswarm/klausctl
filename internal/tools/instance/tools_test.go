@@ -248,25 +248,6 @@ func TestFormatDuration(t *testing.T) {
 	}
 }
 
-func TestShortToolchainName(t *testing.T) {
-	tests := []struct {
-		image string
-		want  string
-	}{
-		{"gsoci.azurecr.io/giantswarm/klaus-go:1.0.0", "go"},
-		{"gsoci.azurecr.io/giantswarm/some-image:latest", "some-image"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.image, func(t *testing.T) {
-			cfg := &config.Config{Image: tt.image}
-			got := shortToolchainName(cfg)
-			if got != tt.want {
-				t.Errorf("shortToolchainName(image=%q) = %q, want %q", tt.image, got, tt.want)
-			}
-		})
-	}
-}
-
 // --- helpers ---
 
 func callToolRequest(args map[string]any) mcp.CallToolRequest {

@@ -61,7 +61,7 @@ func TestListJSONOutputIncludesContractFields(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(instanceDir, "config.yaml"), []byte(
-		"workspace: /tmp/dev\nport: 8181\ntoolchain: gsoci.azurecr.io/giantswarm/klaus-go:latest\n",
+		"workspace: /tmp/dev\nport: 8181\ntoolchain: gsoci.azurecr.io/giantswarm/klaus-toolchains/go:latest\n",
 	), 0o644); err != nil {
 		t.Fatal(err)
 	}

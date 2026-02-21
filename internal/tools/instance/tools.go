@@ -3,6 +3,7 @@
 package instance
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -10,7 +11,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 	"time"
 
 	klausoci "github.com/giantswarm/klaus-oci"
@@ -474,8 +474,8 @@ func handleList(ctx context.Context, _ mcp.CallToolRequest, sc *server.ServerCon
 		item := listEntry{
 			Name:        name,
 			Status:      "stopped",
-			Toolchain:   shortToolchainName(cfg),
-			Personality: shortRefName(cfg.Personality),
+			Toolchain:   klausoci.ShortName(klausoci.RepositoryFromRef(cmp.Or(cfg.Toolchain, cfg.Image))),
+			Personality: klausoci.ShortName(klausoci.RepositoryFromRef(cfg.Personality)),
 			Workspace:   cfg.Workspace,
 			Port:        cfg.Port,
 		}
@@ -754,23 +754,6 @@ func uniqueRuntimes(inst *instance.Instance) []string {
 		}
 	}
 	return result
-}
-
-func shortToolchainName(cfg *config.Config) string {
-	ref := cfg.Toolchain
-	if ref == "" {
-		ref = cfg.Image
-	}
-	repo := klausoci.RepositoryFromRef(ref)
-	name := filepath.Base(repo)
-	return strings.TrimPrefix(name, "klaus-")
-}
-
-func shortRefName(ref string) string {
-	if ref == "" {
-		return ""
-	}
-	return filepath.Base(klausoci.RepositoryFromRef(ref))
 }
 
 func formatDuration(d time.Duration) string {

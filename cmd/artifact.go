@@ -143,7 +143,12 @@ type remoteListOptions struct {
 func listLatestRemoteArtifacts(ctx context.Context, cacheDir, registryBase string, opts *remoteListOptions) ([]remoteArtifactEntry, error) {
 	client := orchestrator.NewDefaultClient()
 
-	artifacts, err := client.ListArtifacts(ctx, registryBase)
+	var listOpts []klausoci.ListOption
+	if opts != nil && opts.Filter != nil {
+		listOpts = append(listOpts, klausoci.WithFilter(opts.Filter))
+	}
+
+	artifacts, err := client.ListArtifacts(ctx, registryBase, listOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("discovering remote artifacts: %w", err)
 	}
@@ -161,10 +166,6 @@ func listLatestRemoteArtifacts(ctx context.Context, cacheDir, registryBase strin
 
 	var entries []remoteArtifactEntry
 	for _, a := range artifacts {
-		if opts != nil && opts.Filter != nil && !opts.Filter(a.Repository) {
-			continue
-		}
-
 		name := shortNameFn(a.Repository)
 		entry := remoteArtifactEntry{
 			Name: name,

@@ -295,7 +295,7 @@ func TestImageExplicitlySetTrue(t *testing.T) {
 
 	content := `
 workspace: /tmp/test
-image: gsoci.azurecr.io/giantswarm/klaus-go:1.0.0
+image: gsoci.azurecr.io/giantswarm/klaus-toolchains/go:1.0.0
 `
 	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
 		t.Fatal(err)

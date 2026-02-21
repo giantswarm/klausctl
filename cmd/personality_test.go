@@ -11,7 +11,7 @@ import (
 )
 
 const personalitySpecYAML = `description: SRE personality
-image: gsoci.azurecr.io/giantswarm/klaus-go:1.0.0
+image: gsoci.azurecr.io/giantswarm/klaus-toolchains/go:1.0.0
 plugins:
   - repository: gsoci.azurecr.io/giantswarm/klaus-plugins/gs-base
     tag: v0.6.0

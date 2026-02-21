@@ -1,13 +1,12 @@
 package cmd
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"sort"
-	"strings"
 	"text/tabwriter"
 	"time"
 
@@ -122,8 +121,8 @@ func loadListEntries(paths *config.Paths) ([]listEntry, error) {
 		item := listEntry{
 			Name:        name,
 			Status:      "stopped",
-			Toolchain:   toolchainLabel(cfg),
-			Personality: shortRefName(cfg.Personality),
+			Toolchain:   klausoci.ShortName(klausoci.RepositoryFromRef(cmp.Or(cfg.Toolchain, cfg.Image))),
+			Personality: klausoci.ShortName(klausoci.RepositoryFromRef(cfg.Personality)),
 			Workspace:   cfg.Workspace,
 			Port:        cfg.Port,
 		}
@@ -152,30 +151,6 @@ func loadListEntries(paths *config.Paths) ([]listEntry, error) {
 		return list[i].Name < list[j].Name
 	})
 	return list, nil
-}
-
-func toolchainLabel(cfg *config.Config) string {
-	if cfg.Toolchain != "" {
-		return shortToolchain(cfg.Toolchain)
-	}
-	// Backward compatibility for older configs that only persisted image.
-	return shortToolchain(cfg.Image)
-}
-
-func shortToolchain(image string) string {
-	repo := klausoci.RepositoryFromRef(image)
-	name := filepath.Base(repo)
-	if strings.HasPrefix(name, "klaus-") {
-		return strings.TrimPrefix(name, "klaus-")
-	}
-	return name
-}
-
-func shortRefName(ref string) string {
-	if ref == "" {
-		return ""
-	}
-	return filepath.Base(klausoci.RepositoryFromRef(ref))
 }
 
 func valueOrDash(v string) string {

@@ -56,29 +56,6 @@ func TestToolchainListLocalFlag(t *testing.T) {
 	assertFlagRegistered(t, toolchainListCmd, "local")
 }
 
-func TestIsToolchainRepo(t *testing.T) {
-	tests := []struct {
-		repo string
-		want bool
-	}{
-		{"gsoci.azurecr.io/giantswarm/klaus-go", true},
-		{"gsoci.azurecr.io/giantswarm/klaus-python", true},
-		{"gsoci.azurecr.io/giantswarm/klaus-git", true},
-		{"gsoci.azurecr.io/giantswarm/klaus-plugins/gs-base", false},
-		{"gsoci.azurecr.io/giantswarm/klaus-personalities/sre", false},
-		{"gsoci.azurecr.io/giantswarm/some-other-repo", false},
-		{"docker.io/library/alpine", false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.repo, func(t *testing.T) {
-			if got := isToolchainRepo(tt.repo); got != tt.want {
-				t.Errorf("isToolchainRepo(%q) = %v, want %v", tt.repo, got, tt.want)
-			}
-		})
-	}
-}
-
 func TestScaffoldFiles(t *testing.T) {
 	files := scaffoldFiles("go")
 
@@ -109,24 +86,24 @@ func TestScaffoldFiles(t *testing.T) {
 func TestScaffoldFilesContainToolchainName(t *testing.T) {
 	files := scaffoldFiles("python")
 
-	if !strings.Contains(files["Dockerfile"], "klaus-python") {
+	if !strings.Contains(files["Dockerfile"], "python") {
 		t.Error("Dockerfile should reference the toolchain name")
 	}
-	if !strings.Contains(files["Dockerfile.debian"], "klaus-python") {
+	if !strings.Contains(files["Dockerfile.debian"], "python") {
 		t.Error("Dockerfile.debian should reference the toolchain name")
 	}
-	if !strings.Contains(files["Makefile"], "klaus-python") {
-		t.Error("Makefile should reference the toolchain name")
+	if !strings.Contains(files["Makefile"], "klaus-toolchains/python") {
+		t.Error("Makefile should reference the toolchain image")
 	}
-	if !strings.Contains(files["README.md"], "klaus-python") {
-		t.Error("README.md should reference the toolchain name")
+	if !strings.Contains(files["README.md"], "klaus-toolchains/python") {
+		t.Error("README.md should reference the toolchain image")
 	}
 }
 
 func TestScaffoldFilesImageName(t *testing.T) {
 	files := scaffoldFiles("go")
 
-	expectedImage := "gsoci.azurecr.io/giantswarm/klaus-go"
+	expectedImage := "gsoci.azurecr.io/giantswarm/klaus-toolchains/go"
 	if !strings.Contains(files["Makefile"], expectedImage) {
 		t.Errorf("Makefile should contain image name %q", expectedImage)
 	}
@@ -190,12 +167,12 @@ func TestPrintImageTable(t *testing.T) {
 
 	images := []runtime.ImageInfo{
 		{
-			Repository:   "gsoci.azurecr.io/giantswarm/klaus-go",
+			Repository:   "gsoci.azurecr.io/giantswarm/klaus-toolchains/go",
 			Tag:          "1.0.0",
 			CreatedSince: "2 hours ago",
 		},
 		{
-			Repository:   "gsoci.azurecr.io/giantswarm/klaus-python",
+			Repository:   "gsoci.azurecr.io/giantswarm/klaus-toolchains/python",
 			Tag:          "1.0.0",
 			CreatedSince: "5 minutes ago",
 		},
@@ -216,11 +193,11 @@ func TestPrintImageTable(t *testing.T) {
 		t.Error("expected table header to contain CREATED")
 	}
 
-	if !strings.Contains(output, "klaus-go") {
-		t.Error("expected output to contain 'klaus-go'")
+	if !strings.Contains(output, "klaus-toolchains/go") {
+		t.Error("expected output to contain 'klaus-toolchains/go'")
 	}
-	if !strings.Contains(output, "klaus-python") {
-		t.Error("expected output to contain 'klaus-python'")
+	if !strings.Contains(output, "klaus-toolchains/python") {
+		t.Error("expected output to contain 'klaus-toolchains/python'")
 	}
 	if !strings.Contains(output, "1.0.0") {
 		t.Error("expected output to contain '1.0.0'")
@@ -230,8 +207,8 @@ func TestPrintImageTable(t *testing.T) {
 func TestToolchainListWithImages(t *testing.T) {
 	rt := &mockRuntime{
 		images: []runtime.ImageInfo{
-			{Repository: "gsoci.azurecr.io/giantswarm/klaus-go", Tag: "1.0.0", CreatedSince: "2 hours ago"},
-			{Repository: "gsoci.azurecr.io/giantswarm/klaus-python", Tag: "2.1.0", CreatedSince: "1 day ago"},
+			{Repository: "gsoci.azurecr.io/giantswarm/klaus-toolchains/go", Tag: "1.0.0", CreatedSince: "2 hours ago"},
+			{Repository: "gsoci.azurecr.io/giantswarm/klaus-toolchains/python", Tag: "2.1.0", CreatedSince: "1 day ago"},
 			{Repository: "gsoci.azurecr.io/giantswarm/klaus", Tag: "latest", CreatedSince: "3 days ago"},
 			{Repository: "docker.io/library/alpine", Tag: "3.19", CreatedSince: "4 weeks ago"},
 		},
@@ -244,11 +221,11 @@ func TestToolchainListWithImages(t *testing.T) {
 	}
 
 	output := buf.String()
-	if !strings.Contains(output, "klaus-go") {
-		t.Error("expected output to contain 'klaus-go'")
+	if !strings.Contains(output, "klaus-toolchains/go") {
+		t.Error("expected output to contain 'klaus-toolchains/go'")
 	}
-	if !strings.Contains(output, "klaus-python") {
-		t.Error("expected output to contain 'klaus-python'")
+	if !strings.Contains(output, "klaus-toolchains/python") {
+		t.Error("expected output to contain 'klaus-toolchains/python'")
 	}
 	if !strings.Contains(output, "2.1.0") {
 		t.Error("expected output to contain '2.1.0'")
@@ -292,7 +269,7 @@ func TestToolchainListError(t *testing.T) {
 func TestToolchainListJSON(t *testing.T) {
 	rt := &mockRuntime{
 		images: []runtime.ImageInfo{
-			{Repository: "gsoci.azurecr.io/giantswarm/klaus-go", Tag: "1.0.0", Size: "500MB"},
+			{Repository: "gsoci.azurecr.io/giantswarm/klaus-toolchains/go", Tag: "1.0.0", Size: "500MB"},
 		},
 	}
 
@@ -306,8 +283,8 @@ func TestToolchainListJSON(t *testing.T) {
 	if !strings.Contains(output, `"repository"`) {
 		t.Error("expected JSON output to contain 'repository' key")
 	}
-	if !strings.Contains(output, "klaus-go") {
-		t.Error("expected JSON output to contain 'klaus-go'")
+	if !strings.Contains(output, "klaus-toolchains/go") {
+		t.Error("expected JSON output to contain 'klaus-toolchains/go'")
 	}
 }
 
@@ -329,7 +306,7 @@ func TestToolchainListJSONEmpty(t *testing.T) {
 func TestToolchainListWide(t *testing.T) {
 	rt := &mockRuntime{
 		images: []runtime.ImageInfo{
-			{Repository: "gsoci.azurecr.io/giantswarm/klaus-go", Tag: "1.0.0", ID: "abc123", Size: "500MB", CreatedSince: "2h ago"},
+			{Repository: "gsoci.azurecr.io/giantswarm/klaus-toolchains/go", Tag: "1.0.0", ID: "abc123", Size: "500MB", CreatedSince: "2h ago"},
 		},
 	}
 
