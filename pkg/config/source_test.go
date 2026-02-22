@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -517,10 +518,95 @@ func TestValidateSourceName(t *testing.T) {
 		}
 	}
 
-	invalid := []string{"", "1starts-with-digit", "-starts-with-dash"}
+	invalid := []string{"", "1starts-with-digit", "-starts-with-dash", "has_underscore"}
 	for _, name := range invalid {
 		if err := ValidateSourceName(name); err == nil {
 			t.Errorf("ValidateSourceName(%q) expected error", name)
 		}
+	}
+}
+
+func TestValidateSourceName_ErrorMentionsUnderscores(t *testing.T) {
+	err := ValidateSourceName("has_underscore")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "underscore") {
+		t.Errorf("error message should mention underscores: %v", err)
+	}
+}
+
+func TestSourceConfigUpdate(t *testing.T) {
+	sc := DefaultSourceConfig()
+	_ = sc.Add(Source{Name: "team-a", Registry: "reg.example.com/a"})
+
+	err := sc.Update("team-a", Source{Registry: "new-reg.example.com/a"})
+	if err != nil {
+		t.Fatalf("Update() returned error: %v", err)
+	}
+
+	s := sc.Get("team-a")
+	if s.Registry != "new-reg.example.com/a" {
+		t.Errorf("registry not updated: got %q", s.Registry)
+	}
+}
+
+func TestSourceConfigUpdate_PartialPatch(t *testing.T) {
+	sc := DefaultSourceConfig()
+	_ = sc.Add(Source{
+		Name:          "team-a",
+		Registry:      "reg.example.com/a",
+		Toolchains:    "reg.example.com/a/my-toolchains",
+		Personalities: "reg.example.com/a/my-personalities",
+	})
+
+	err := sc.Update("team-a", Source{Toolchains: "reg.example.com/a/new-toolchains"})
+	if err != nil {
+		t.Fatalf("Update() returned error: %v", err)
+	}
+
+	s := sc.Get("team-a")
+	if s.Registry != "reg.example.com/a" {
+		t.Errorf("registry changed unexpectedly: got %q", s.Registry)
+	}
+	if s.Toolchains != "reg.example.com/a/new-toolchains" {
+		t.Errorf("toolchains not updated: got %q", s.Toolchains)
+	}
+	if s.Personalities != "reg.example.com/a/my-personalities" {
+		t.Errorf("personalities changed unexpectedly: got %q", s.Personalities)
+	}
+}
+
+func TestSourceConfigUpdate_NotFound(t *testing.T) {
+	sc := DefaultSourceConfig()
+	err := sc.Update("nonexistent", Source{Registry: "whatever"})
+	if err == nil {
+		t.Fatal("expected error when updating nonexistent source")
+	}
+}
+
+func TestSourceConfigUpdate_SaveAndReload(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sources.yaml")
+
+	sc := DefaultSourceConfig()
+	_ = sc.Add(Source{Name: "team-a", Registry: "reg.example.com/a"})
+	_ = sc.SaveTo(path)
+
+	loaded, _ := LoadSourceConfig(path)
+	_ = loaded.Update("team-a", Source{Registry: "new-reg.example.com/a"})
+	_ = loaded.Save()
+
+	reloaded, err := LoadSourceConfig(path)
+	if err != nil {
+		t.Fatalf("LoadSourceConfig() returned error: %v", err)
+	}
+
+	s := reloaded.Get("team-a")
+	if s == nil {
+		t.Fatal("expected team-a source")
+	}
+	if s.Registry != "new-reg.example.com/a" {
+		t.Errorf("registry not persisted: got %q", s.Registry)
 	}
 }

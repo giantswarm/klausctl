@@ -102,6 +102,10 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	if createSource != "" {
+		fmt.Fprintf(cmd.OutOrStdout(), "Using source %q for artifact resolution\n", createSource)
+	}
+
 	personality, toolchain, plugins, err := orchestrator.ResolveCreateRefs(ctx, resolver, createPersonality, createToolchain, createPlugins)
 	if err != nil {
 		return err

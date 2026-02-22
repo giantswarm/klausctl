@@ -249,13 +249,20 @@ func listOCIArtifacts(ctx context.Context, out io.Writer, cacheDir, outputFmt, t
 }
 
 // listMultiSourceRemoteArtifacts aggregates remote artifacts from multiple source registries.
+// When querying multiple sources, failures on individual sources are reported
+// as warnings rather than aborting the entire operation.
 func listMultiSourceRemoteArtifacts(ctx context.Context, out io.Writer, cacheDir string, registries []config.SourceRegistry, outputFmt, emptyMsg string) error {
 	multiSource := len(registries) > 1
 	var allEntries []remoteArtifactEntry
+	var warnings []string
 
 	for _, sr := range registries {
 		entries, err := listLatestRemoteArtifacts(ctx, cacheDir, sr.Registry, nil)
 		if err != nil {
+			if multiSource {
+				warnings = append(warnings, fmt.Sprintf("Warning: source %q: %v", sr.Source, err))
+				continue
+			}
 			return err
 		}
 		if multiSource {
@@ -266,7 +273,7 @@ func listMultiSourceRemoteArtifacts(ctx context.Context, out io.Writer, cacheDir
 		allEntries = append(allEntries, entries...)
 	}
 
-	if len(allEntries) == 0 {
+	if len(allEntries) == 0 && len(warnings) == 0 {
 		return printEmpty(out, outputFmt, emptyMsg)
 	}
 
@@ -277,7 +284,17 @@ func listMultiSourceRemoteArtifacts(ctx context.Context, out io.Writer, cacheDir
 		return allEntries[i].Name < allEntries[j].Name
 	})
 
-	return printRemoteArtifacts(out, allEntries, outputFmt)
+	if len(allEntries) > 0 {
+		if err := printRemoteArtifacts(out, allEntries, outputFmt); err != nil {
+			return err
+		}
+	}
+
+	for _, w := range warnings {
+		fmt.Fprintln(out, w)
+	}
+
+	return nil
 }
 
 // printEmpty writes an empty result. For JSON, it emits []; for text, it

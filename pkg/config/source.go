@@ -71,7 +71,7 @@ var sourceNameRegexp = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9-]{0,62}$`)
 // ValidateSourceName checks that a source name is valid.
 func ValidateSourceName(name string) error {
 	if !sourceNameRegexp.MatchString(name) {
-		return fmt.Errorf("invalid source name %q: must start with a letter, contain only alphanumeric characters or '-', and be <= 63 characters", name)
+		return fmt.Errorf("invalid source name %q: must start with a letter, contain only alphanumeric characters or hyphens (underscores are not allowed), and be 1-63 characters", name)
 	}
 	return nil
 }
@@ -243,6 +243,31 @@ func (sc *SourceConfig) Get(name string) *Source {
 		}
 	}
 	return nil
+}
+
+// Update modifies an existing source. Only non-empty fields in the
+// provided Source are applied (registry, toolchains, personalities, plugins).
+// Returns an error if the source is not found.
+func (sc *SourceConfig) Update(name string, patch Source) error {
+	for i := range sc.Sources {
+		if sc.Sources[i].Name != name {
+			continue
+		}
+		if patch.Registry != "" {
+			sc.Sources[i].Registry = patch.Registry
+		}
+		if patch.Toolchains != "" {
+			sc.Sources[i].Toolchains = patch.Toolchains
+		}
+		if patch.Personalities != "" {
+			sc.Sources[i].Personalities = patch.Personalities
+		}
+		if patch.Plugins != "" {
+			sc.Sources[i].Plugins = patch.Plugins
+		}
+		return nil
+	}
+	return fmt.Errorf("source %q not found", name)
 }
 
 // SourceResolver wraps a list of sources and provides artifact reference resolution.

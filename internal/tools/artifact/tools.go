@@ -33,6 +33,7 @@ func RegisterTools(s *mcpserver.MCPServer, sc *server.ServerContext) {
 	registerMcpServerRemove(s, sc)
 	registerSourceList(s, sc)
 	registerSourceAdd(s, sc)
+	registerSourceUpdate(s, sc)
 	registerSourceRemove(s, sc)
 }
 
@@ -235,15 +236,29 @@ type remoteListOptions struct {
 }
 
 // listRemoteFromRegistries aggregates remote artifacts from multiple source registries.
+// When querying multiple sources, failures on individual sources are collected
+// rather than aborting the entire operation.
 func listRemoteFromRegistries(ctx context.Context, registries []config.SourceRegistry, artifactType string) ([]remoteArtifactEntry, error) {
+	multiSource := len(registries) > 1
 	var all []remoteArtifactEntry
+	var warnings []string
+
 	for _, sr := range registries {
 		entries, err := listLatestRemote(ctx, sr.Registry, nil)
 		if err != nil {
+			if multiSource {
+				warnings = append(warnings, fmt.Sprintf("source %q: %v", sr.Source, err))
+				continue
+			}
 			return nil, fmt.Errorf("listing remote %s: %w", artifactType, err)
 		}
 		all = append(all, entries...)
 	}
+
+	if len(warnings) > 0 && len(all) == 0 {
+		return nil, fmt.Errorf("listing remote %s: all sources failed: %s", artifactType, strings.Join(warnings, "; "))
+	}
+
 	return all, nil
 }
 
@@ -511,6 +526,56 @@ func handleSourceAdd(_ context.Context, req mcp.CallToolRequest, sc *server.Serv
 	return server.JSONResult(map[string]string{
 		"name":   name,
 		"status": "added",
+	})
+}
+
+func registerSourceUpdate(s *mcpserver.MCPServer, sc *server.ServerContext) {
+	tool := mcp.NewTool("klaus_source_update",
+		mcp.WithDescription("Update an existing artifact source (change registry or path overrides)"),
+		mcp.WithString("name", mcp.Required(), mcp.Description("Source name to update")),
+		mcp.WithString("registry", mcp.Description("New registry base URL")),
+		mcp.WithString("toolchains", mcp.Description("New toolchain registry path override")),
+		mcp.WithString("personalities", mcp.Description("New personality registry path override")),
+		mcp.WithString("plugins", mcp.Description("New plugin registry path override")),
+	)
+	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return handleSourceUpdate(ctx, req, sc)
+	})
+}
+
+func handleSourceUpdate(_ context.Context, req mcp.CallToolRequest, sc *server.ServerContext) (*mcp.CallToolResult, error) {
+	name, err := req.RequireString("name")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	cfg, err := config.LoadSourceConfig(sc.Paths.SourcesFile)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("loading sources: %v", err)), nil
+	}
+
+	patch := config.Source{
+		Registry:      req.GetString("registry", ""),
+		Toolchains:    req.GetString("toolchains", ""),
+		Personalities: req.GetString("personalities", ""),
+		Plugins:       req.GetString("plugins", ""),
+	}
+
+	if err := cfg.Update(name, patch); err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	if err := cfg.SaveTo(sc.Paths.SourcesFile); err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("saving sources: %v", err)), nil
+	}
+
+	if err := sc.ReloadSourceConfig(); err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("reloading sources: %v", err)), nil
+	}
+
+	return server.JSONResult(map[string]string{
+		"name":   name,
+		"status": "updated",
 	})
 }
 
