@@ -62,9 +62,11 @@ var sourceUpdateCmd = &cobra.Command{
 	Short: "Update an existing source",
 	Long: `Update the registry URL or artifact path overrides for an existing source.
 
-Only the flags you provide are changed; other fields are preserved.`,
+Only the flags you provide are changed; other fields are preserved.
+Use "-" as a value to clear an override back to the convention-based default.`,
 	Example: `  klausctl source update my-team --registry new-registry.io/my-team
-  klausctl source update my-team --toolchains new-registry.io/my-team/custom-tools`,
+  klausctl source update my-team --toolchains new-registry.io/my-team/custom-tools
+  klausctl source update my-team --toolchains -`,
 	Args: cobra.ExactArgs(1),
 	RunE: runSourceUpdate,
 }

@@ -152,6 +152,8 @@ func TestValidateInstanceName(t *testing.T) {
 }
 
 func TestResolveRefs(t *testing.T) {
+	r := DefaultSourceResolver()
+
 	tests := []struct {
 		name string
 		fn   func(string) string
@@ -160,49 +162,49 @@ func TestResolveRefs(t *testing.T) {
 	}{
 		{
 			name: "personality short name",
-			fn:   ResolvePersonalityRef,
+			fn:   r.ResolvePersonalityRef,
 			ref:  "sre",
 			want: "gsoci.azurecr.io/giantswarm/klaus-personalities/sre",
 		},
 		{
 			name: "personality short name with tag",
-			fn:   ResolvePersonalityRef,
+			fn:   r.ResolvePersonalityRef,
 			ref:  "sre:v0.2.0",
 			want: "gsoci.azurecr.io/giantswarm/klaus-personalities/sre:v0.2.0",
 		},
 		{
 			name: "personality full ref unchanged",
-			fn:   ResolvePersonalityRef,
+			fn:   r.ResolvePersonalityRef,
 			ref:  "custom.io/org/my-personality:v1.0.0",
 			want: "custom.io/org/my-personality:v1.0.0",
 		},
 		{
 			name: "toolchain short name with tag",
-			fn:   ResolveToolchainRef,
+			fn:   r.ResolveToolchainRef,
 			ref:  "go:v1.0.0",
 			want: "gsoci.azurecr.io/giantswarm/klaus-toolchains/go:v1.0.0",
 		},
 		{
 			name: "toolchain short name without tag",
-			fn:   ResolveToolchainRef,
+			fn:   r.ResolveToolchainRef,
 			ref:  "go",
 			want: "gsoci.azurecr.io/giantswarm/klaus-toolchains/go",
 		},
 		{
 			name: "plugin short name",
-			fn:   ResolvePluginRef,
+			fn:   r.ResolvePluginRef,
 			ref:  "gs-platform",
 			want: "gsoci.azurecr.io/giantswarm/klaus-plugins/gs-platform",
 		},
 		{
 			name: "plugin short name with tag",
-			fn:   ResolvePluginRef,
+			fn:   r.ResolvePluginRef,
 			ref:  "gs-platform:v0.0.5",
 			want: "gsoci.azurecr.io/giantswarm/klaus-plugins/gs-platform:v0.0.5",
 		},
 		{
 			name: "empty ref",
-			fn:   ResolvePluginRef,
+			fn:   r.ResolvePluginRef,
 			ref:  "",
 			want: "",
 		},

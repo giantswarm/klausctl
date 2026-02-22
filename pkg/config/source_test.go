@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -515,7 +516,9 @@ func TestSourceResolverSourcesReturnsCopy(t *testing.T) {
 	}
 }
 
-func TestBackwardCompatible_ResolveRefs(t *testing.T) {
+func TestDefaultSourceResolver_ResolvesBuiltinRefs(t *testing.T) {
+	r := DefaultSourceResolver()
+
 	tests := []struct {
 		name string
 		fn   func(string) string
@@ -523,20 +526,20 @@ func TestBackwardCompatible_ResolveRefs(t *testing.T) {
 		want string
 	}{
 		{
-			name: "plugin short name still works",
-			fn:   ResolvePluginRef,
+			name: "plugin short name",
+			fn:   r.ResolvePluginRef,
 			ref:  "gs-base",
 			want: "gsoci.azurecr.io/giantswarm/klaus-plugins/gs-base",
 		},
 		{
-			name: "personality short name still works",
-			fn:   ResolvePersonalityRef,
+			name: "personality short name",
+			fn:   r.ResolvePersonalityRef,
 			ref:  "sre",
 			want: "gsoci.azurecr.io/giantswarm/klaus-personalities/sre",
 		},
 		{
-			name: "toolchain short name still works",
-			fn:   ResolveToolchainRef,
+			name: "toolchain short name",
+			fn:   r.ResolveToolchainRef,
 			ref:  "go",
 			want: "gsoci.azurecr.io/giantswarm/klaus-toolchains/go",
 		},
@@ -549,6 +552,76 @@ func TestBackwardCompatible_ResolveRefs(t *testing.T) {
 				t.Errorf("got %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestAggregateFromSources(t *testing.T) {
+	registries := []SourceRegistry{
+		{Source: "a", Registry: "a.io/x"},
+		{Source: "b", Registry: "b.io/y"},
+	}
+
+	entries, warnings, err := AggregateFromSources(registries, "widgets", func(sr SourceRegistry) ([]string, error) {
+		return []string{sr.Source + "-item"}, nil
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(warnings) != 0 {
+		t.Errorf("expected no warnings, got %v", warnings)
+	}
+	if len(entries) != 2 {
+		t.Fatalf("expected 2 entries, got %d", len(entries))
+	}
+}
+
+func TestAggregateFromSources_PartialFailure(t *testing.T) {
+	registries := []SourceRegistry{
+		{Source: "good", Registry: "good.io/x"},
+		{Source: "bad", Registry: "bad.io/y"},
+	}
+
+	entries, warnings, err := AggregateFromSources(registries, "widgets", func(sr SourceRegistry) ([]string, error) {
+		if sr.Source == "bad" {
+			return nil, fmt.Errorf("connection refused")
+		}
+		return []string{"item"}, nil
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(warnings) != 1 {
+		t.Errorf("expected 1 warning, got %d", len(warnings))
+	}
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(entries))
+	}
+}
+
+func TestAggregateFromSources_AllFail(t *testing.T) {
+	registries := []SourceRegistry{
+		{Source: "a", Registry: "a.io/x"},
+		{Source: "b", Registry: "b.io/y"},
+	}
+
+	_, _, err := AggregateFromSources(registries, "widgets", func(sr SourceRegistry) ([]string, error) {
+		return nil, fmt.Errorf("fail")
+	})
+	if err == nil {
+		t.Fatal("expected error when all sources fail")
+	}
+}
+
+func TestAggregateFromSources_SingleSourceFails(t *testing.T) {
+	registries := []SourceRegistry{
+		{Source: "only", Registry: "only.io/x"},
+	}
+
+	_, _, err := AggregateFromSources(registries, "widgets", func(sr SourceRegistry) ([]string, error) {
+		return nil, fmt.Errorf("fail")
+	})
+	if err == nil {
+		t.Fatal("expected error for single source failure")
 	}
 }
 
@@ -616,6 +689,28 @@ func TestSourceConfigUpdate_PartialPatch(t *testing.T) {
 	}
 	if s.Personalities != "reg.example.com/a/my-personalities" {
 		t.Errorf("personalities changed unexpectedly: got %q", s.Personalities)
+	}
+}
+
+func TestSourceConfigUpdate_ClearOverride(t *testing.T) {
+	sc := DefaultSourceConfig()
+	_ = sc.Add(Source{
+		Name:       "team-a",
+		Registry:   "reg.example.com/a",
+		Toolchains: "reg.example.com/a/custom-toolchains",
+	})
+
+	err := sc.Update("team-a", Source{Toolchains: ClearOverride})
+	if err != nil {
+		t.Fatalf("Update() returned error: %v", err)
+	}
+
+	s := sc.Get("team-a")
+	if s.Toolchains != "" {
+		t.Errorf("toolchains should be cleared, got %q", s.Toolchains)
+	}
+	if s.ToolchainRegistry() != "reg.example.com/a/klaus-toolchains" {
+		t.Errorf("ToolchainRegistry() should fall back to convention, got %q", s.ToolchainRegistry())
 	}
 }
 

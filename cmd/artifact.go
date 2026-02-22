@@ -253,24 +253,21 @@ func listOCIArtifacts(ctx context.Context, out io.Writer, cacheDir, outputFmt, t
 // as warnings rather than aborting the entire operation.
 func listMultiSourceRemoteArtifacts(ctx context.Context, out io.Writer, cacheDir string, registries []config.SourceRegistry, outputFmt, emptyMsg string) error {
 	multiSource := len(registries) > 1
-	var allEntries []remoteArtifactEntry
-	var warnings []string
 
-	for _, sr := range registries {
+	allEntries, warnings, err := config.AggregateFromSources(registries, "artifacts", func(sr config.SourceRegistry) ([]remoteArtifactEntry, error) {
 		entries, err := listLatestRemoteArtifacts(ctx, cacheDir, sr.Registry, nil)
 		if err != nil {
-			if multiSource {
-				warnings = append(warnings, fmt.Sprintf("Warning: source %q: %v", sr.Source, err))
-				continue
-			}
-			return err
+			return nil, err
 		}
 		if multiSource {
 			for i := range entries {
 				entries[i].Source = sr.Source
 			}
 		}
-		allEntries = append(allEntries, entries...)
+		return entries, nil
+	})
+	if err != nil {
+		return err
 	}
 
 	if len(allEntries) == 0 && len(warnings) == 0 {
@@ -291,7 +288,7 @@ func listMultiSourceRemoteArtifacts(ctx context.Context, out io.Writer, cacheDir
 	}
 
 	for _, w := range warnings {
-		fmt.Fprintln(out, w)
+		fmt.Fprintf(out, "Warning: %s\n", w)
 	}
 
 	return nil

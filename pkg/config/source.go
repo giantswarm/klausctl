@@ -6,6 +6,7 @@ import (
 	"os"
 	"regexp"
 	"slices"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -15,6 +16,10 @@ const (
 	DefaultSourceName = "giantswarm"
 	// DefaultSourceRegistry is the registry base for the built-in source.
 	DefaultSourceRegistry = "gsoci.azurecr.io/giantswarm"
+
+	// ClearOverride is a sentinel value for Update that resets an override
+	// field back to the convention-based default (i.e. clears it to "").
+	ClearOverride = "-"
 )
 
 // Source is a named OCI registry providing toolchains, personalities, and/or plugins.
@@ -168,16 +173,13 @@ func (sc *SourceConfig) Validate() error {
 // ensureBuiltin ensures the built-in Giant Swarm source is always present.
 // If no other source is marked as default, the builtin gets Default: true.
 func (sc *SourceConfig) ensureBuiltin() {
+	hasDefault := false
 	for _, s := range sc.Sources {
 		if s.Name == DefaultSourceName {
 			return
 		}
-	}
-	hasDefault := false
-	for _, s := range sc.Sources {
 		if s.Default {
 			hasDefault = true
-			break
 		}
 	}
 	b := builtinSource()
@@ -247,6 +249,8 @@ func (sc *SourceConfig) Get(name string) *Source {
 
 // Update modifies an existing source. Only non-empty fields in the
 // provided Source are applied (registry, toolchains, personalities, plugins).
+// Use ClearOverride ("-") as a field value to reset an override back to the
+// convention-based default.
 // Returns an error if the source is not found.
 func (sc *SourceConfig) Update(name string, patch Source) error {
 	for i := range sc.Sources {
@@ -256,18 +260,25 @@ func (sc *SourceConfig) Update(name string, patch Source) error {
 		if patch.Registry != "" {
 			sc.Sources[i].Registry = patch.Registry
 		}
-		if patch.Toolchains != "" {
-			sc.Sources[i].Toolchains = patch.Toolchains
-		}
-		if patch.Personalities != "" {
-			sc.Sources[i].Personalities = patch.Personalities
-		}
-		if patch.Plugins != "" {
-			sc.Sources[i].Plugins = patch.Plugins
-		}
+		applyOverride(&sc.Sources[i].Toolchains, patch.Toolchains)
+		applyOverride(&sc.Sources[i].Personalities, patch.Personalities)
+		applyOverride(&sc.Sources[i].Plugins, patch.Plugins)
 		return nil
 	}
 	return fmt.Errorf("source %q not found", name)
+}
+
+// applyOverride sets *dst to value. ClearOverride resets to ""; empty leaves
+// *dst unchanged.
+func applyOverride(dst *string, value string) {
+	switch value {
+	case "":
+		return
+	case ClearOverride:
+		*dst = ""
+	default:
+		*dst = value
+	}
 }
 
 // SourceResolver wraps a list of sources and provides artifact reference resolution.
@@ -315,7 +326,12 @@ func (r *SourceResolver) ForSource(name string) (*SourceResolver, error) {
 
 // DefaultOnly returns a resolver restricted to the default source (the
 // first source after default-first ordering).
+// The SourceResolver constructor guarantees at least one source is always
+// present, so this is safe; the guard is purely defensive.
 func (r *SourceResolver) DefaultOnly() *SourceResolver {
+	if len(r.sources) == 0 {
+		return DefaultSourceResolver()
+	}
 	return NewSourceResolver([]Source{r.sources[0]})
 }
 
@@ -364,4 +380,31 @@ func (r *SourceResolver) ToolchainRegistries() []SourceRegistry {
 // Sources returns a copy of the underlying list of sources.
 func (r *SourceResolver) Sources() []Source {
 	return slices.Clone(r.sources)
+}
+
+// AggregateFromSources calls fetchFn for each registry and aggregates results.
+// On multi-source queries, individual source failures are collected as
+// warnings rather than aborting. If all sources fail, an error is returned.
+func AggregateFromSources[T any](registries []SourceRegistry, artifactType string, fetchFn func(sr SourceRegistry) ([]T, error)) ([]T, []string, error) {
+	multiSource := len(registries) > 1
+	var all []T
+	var warnings []string
+
+	for _, sr := range registries {
+		entries, err := fetchFn(sr)
+		if err != nil {
+			if multiSource {
+				warnings = append(warnings, fmt.Sprintf("source %q: %v", sr.Source, err))
+				continue
+			}
+			return nil, nil, fmt.Errorf("listing remote %s: %w", artifactType, err)
+		}
+		all = append(all, entries...)
+	}
+
+	if len(warnings) > 0 && len(all) == 0 {
+		return nil, nil, fmt.Errorf("listing remote %s: all sources failed: %s", artifactType, strings.Join(warnings, "; "))
+	}
+
+	return all, warnings, nil
 }

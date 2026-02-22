@@ -130,34 +130,6 @@ func ValidateInstanceName(name string) error {
 	return nil
 }
 
-const (
-	// DefaultPluginRegistry is the default base reference for plugin short names.
-	DefaultPluginRegistry = "gsoci.azurecr.io/giantswarm/klaus-plugins"
-	// DefaultPersonalityRegistry is the default base reference for personality short names.
-	DefaultPersonalityRegistry = "gsoci.azurecr.io/giantswarm/klaus-personalities"
-	// DefaultToolchainRegistry is the default base reference for toolchain short names.
-	DefaultToolchainRegistry = "gsoci.azurecr.io/giantswarm/klaus-toolchains"
-)
-
-// ResolvePersonalityRef expands a short personality name to a full OCI
-// repository path. Existing tags and digests are preserved; no tag is
-// appended when absent -- runtime resolution (oci.ResolveArtifactRef)
-// handles that.
-func ResolvePersonalityRef(ref string) string {
-	return expandArtifactRef(ref, DefaultPersonalityRegistry)
-}
-
-// ResolveToolchainRef expands a short toolchain name to a full OCI
-// repository path under the klaus-toolchains sub-namespace.
-func ResolveToolchainRef(ref string) string {
-	return expandArtifactRef(ref, DefaultToolchainRegistry)
-}
-
-// ResolvePluginRef expands a short plugin name to a full OCI repository path.
-func ResolvePluginRef(ref string) string {
-	return expandArtifactRef(ref, DefaultPluginRegistry)
-}
-
 // expandArtifactRef expands short names (no "/") into fully-qualified
 // repository paths. Full OCI refs and any existing tag/digest suffix are
 // kept as-is. Unlike oci.ResolveArtifactRef this is offline and never

@@ -4,6 +4,7 @@ package server
 import (
 	"encoding/json"
 	"fmt"
+	"sync"
 
 	"github.com/mark3labs/mcp-go/mcp"
 
@@ -16,8 +17,10 @@ import (
 // handlers. It provides access to klausctl paths, runtime detection, and
 // the MCP client for agent communication.
 type ServerContext struct {
-	Paths        *config.Paths
-	MCPClient    *mcpclient.Client
+	Paths     *config.Paths
+	MCPClient *mcpclient.Client
+
+	mu           sync.RWMutex
 	sourceConfig *config.SourceConfig
 }
 
@@ -40,6 +43,8 @@ func (sc *ServerContext) DetectRuntime(cfg *config.Config) (runtime.Runtime, err
 
 // SetSourceConfig sets the loaded source configuration.
 func (sc *ServerContext) SetSourceConfig(cfg *config.SourceConfig) {
+	sc.mu.Lock()
+	defer sc.mu.Unlock()
 	sc.sourceConfig = cfg
 }
 
@@ -50,13 +55,29 @@ func (sc *ServerContext) ReloadSourceConfig() error {
 	if err != nil {
 		return err
 	}
+	sc.mu.Lock()
+	defer sc.mu.Unlock()
 	sc.sourceConfig = cfg
 	return nil
+}
+
+// SourceConfig returns the current in-memory source configuration.
+// If none has been loaded, a default config with only the built-in source
+// is returned.
+func (sc *ServerContext) SourceConfig() *config.SourceConfig {
+	sc.mu.RLock()
+	defer sc.mu.RUnlock()
+	if sc.sourceConfig == nil {
+		return config.DefaultSourceConfig()
+	}
+	return sc.sourceConfig
 }
 
 // SourceResolver returns a SourceResolver from the loaded source config.
 // If no source config has been loaded, the default built-in source is used.
 func (sc *ServerContext) SourceResolver() *config.SourceResolver {
+	sc.mu.RLock()
+	defer sc.mu.RUnlock()
 	if sc.sourceConfig == nil {
 		return config.DefaultSourceResolver()
 	}

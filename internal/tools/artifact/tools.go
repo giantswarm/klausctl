@@ -252,27 +252,10 @@ type remoteListOptions struct {
 // When querying multiple sources, failures on individual sources are collected
 // rather than aborting the entire operation.
 func listRemoteFromRegistries(ctx context.Context, registries []config.SourceRegistry, artifactType string) ([]remoteArtifactEntry, error) {
-	multiSource := len(registries) > 1
-	var all []remoteArtifactEntry
-	var warnings []string
-
-	for _, sr := range registries {
-		entries, err := listLatestRemote(ctx, sr.Registry, nil)
-		if err != nil {
-			if multiSource {
-				warnings = append(warnings, fmt.Sprintf("source %q: %v", sr.Source, err))
-				continue
-			}
-			return nil, fmt.Errorf("listing remote %s: %w", artifactType, err)
-		}
-		all = append(all, entries...)
-	}
-
-	if len(warnings) > 0 && len(all) == 0 {
-		return nil, fmt.Errorf("listing remote %s: all sources failed: %s", artifactType, strings.Join(warnings, "; "))
-	}
-
-	return all, nil
+	entries, _, err := config.AggregateFromSources(registries, artifactType, func(sr config.SourceRegistry) ([]remoteArtifactEntry, error) {
+		return listLatestRemote(ctx, sr.Registry, nil)
+	})
+	return entries, err
 }
 
 // listLatestRemote discovers repositories from the registry, resolves the
@@ -461,10 +444,7 @@ type sourceEntry struct {
 }
 
 func handleSourceList(_ context.Context, _ mcp.CallToolRequest, sc *server.ServerContext) (*mcp.CallToolResult, error) {
-	cfg, err := config.LoadSourceConfig(sc.Paths.SourcesFile)
-	if err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("loading sources: %v", err)), nil
-	}
+	cfg := sc.SourceConfig()
 	entries := make([]sourceEntry, len(cfg.Sources))
 	for i, s := range cfg.Sources {
 		entries[i] = sourceEntry{
@@ -501,11 +481,7 @@ func handleSourceShow(_ context.Context, req mcp.CallToolRequest, sc *server.Ser
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	cfg, err := config.LoadSourceConfig(sc.Paths.SourcesFile)
-	if err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("loading sources: %v", err)), nil
-	}
-
+	cfg := sc.SourceConfig()
 	s := cfg.Get(name)
 	if s == nil {
 		return mcp.NewToolResultError(fmt.Sprintf("source %q not found", name)), nil
@@ -589,12 +565,12 @@ func handleSourceAdd(_ context.Context, req mcp.CallToolRequest, sc *server.Serv
 
 func registerSourceUpdate(s *mcpserver.MCPServer, sc *server.ServerContext) {
 	tool := mcp.NewTool("klaus_source_update",
-		mcp.WithDescription("Update an existing artifact source (change registry or path overrides)"),
+		mcp.WithDescription("Update an existing artifact source (change registry or path overrides). Use \"-\" to clear an override back to convention-based default."),
 		mcp.WithString("name", mcp.Required(), mcp.Description("Source name to update")),
 		mcp.WithString("registry", mcp.Description("New registry base URL")),
-		mcp.WithString("toolchains", mcp.Description("New toolchain registry path override")),
-		mcp.WithString("personalities", mcp.Description("New personality registry path override")),
-		mcp.WithString("plugins", mcp.Description("New plugin registry path override")),
+		mcp.WithString("toolchains", mcp.Description("New toolchain registry path override (use \"-\" to clear)")),
+		mcp.WithString("personalities", mcp.Description("New personality registry path override (use \"-\" to clear)")),
+		mcp.WithString("plugins", mcp.Description("New plugin registry path override (use \"-\" to clear)")),
 	)
 	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		return handleSourceUpdate(ctx, req, sc)
