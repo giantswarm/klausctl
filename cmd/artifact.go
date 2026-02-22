@@ -14,6 +14,7 @@ import (
 
 	klausoci "github.com/giantswarm/klaus-oci"
 
+	"github.com/giantswarm/klausctl/pkg/config"
 	"github.com/giantswarm/klausctl/pkg/orchestrator"
 )
 
@@ -121,6 +122,7 @@ func pullArtifact(ctx context.Context, ref string, cacheDir string, kind klausoc
 // remoteArtifactEntry describes a remote OCI artifact with its latest
 // available tag and local pull timestamp.
 type remoteArtifactEntry struct {
+	Source   string    `json:"source,omitempty"`
 	Name     string    `json:"name"`
 	Ref      string    `json:"ref"`
 	PulledAt time.Time `json:"pulledAt,omitempty"`
@@ -187,6 +189,7 @@ func listLatestRemoteArtifacts(ctx context.Context, cacheDir, registryBase strin
 }
 
 // printRemoteArtifacts prints remote artifacts in table or JSON format.
+// When any entry has a Source field set, a SOURCE column is shown.
 func printRemoteArtifacts(out io.Writer, entries []remoteArtifactEntry, outputFmt string) error {
 	if outputFmt == "json" {
 		enc := json.NewEncoder(out)
@@ -194,14 +197,30 @@ func printRemoteArtifacts(out io.Writer, entries []remoteArtifactEntry, outputFm
 		return enc.Encode(entries)
 	}
 
+	multiSource := false
+	for _, e := range entries {
+		if e.Source != "" {
+			multiSource = true
+			break
+		}
+	}
+
 	w := tabwriter.NewWriter(out, 0, 0, 3, ' ', 0)
-	fmt.Fprintln(w, "NAME\tREF\tPULLED")
+	if multiSource {
+		fmt.Fprintln(w, "SOURCE\tNAME\tREF\tPULLED")
+	} else {
+		fmt.Fprintln(w, "NAME\tREF\tPULLED")
+	}
 	for _, e := range entries {
 		pulled := "-"
 		if !e.PulledAt.IsZero() {
 			pulled = formatAge(e.PulledAt)
 		}
-		fmt.Fprintf(w, "%s\t%s\t%s\n", e.Name, e.Ref, pulled)
+		if multiSource {
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", e.Source, e.Name, e.Ref, pulled)
+		} else {
+			fmt.Fprintf(w, "%s\t%s\t%s\n", e.Name, e.Ref, pulled)
+		}
 	}
 	return w.Flush()
 }
@@ -210,7 +229,7 @@ func printRemoteArtifacts(out io.Writer, entries []remoteArtifactEntry, outputFm
 // types (plugins, personalities). By default it queries the remote registry for
 // the latest available version of each artifact and indicates local cache status.
 // With --local, it shows only locally cached artifacts.
-func listOCIArtifacts(ctx context.Context, out io.Writer, cacheDir, outputFmt, typeName, typePlural, registryBase string, local bool) error {
+func listOCIArtifacts(ctx context.Context, out io.Writer, cacheDir, outputFmt, typeName, typePlural string, registries []config.SourceRegistry, local bool) error {
 	if local {
 		artifacts, err := listLocalArtifacts(cacheDir)
 		if err != nil {
@@ -225,16 +244,54 @@ func listOCIArtifacts(ctx context.Context, out io.Writer, cacheDir, outputFmt, t
 		return printLocalArtifacts(out, artifacts, outputFmt)
 	}
 
-	entries, err := listLatestRemoteArtifacts(ctx, cacheDir, registryBase, nil)
+	return listMultiSourceRemoteArtifacts(ctx, out, cacheDir, registries, outputFmt,
+		fmt.Sprintf("No %s found in the remote registry.", typePlural))
+}
+
+// listMultiSourceRemoteArtifacts aggregates remote artifacts from multiple source registries.
+// When querying multiple sources, failures on individual sources are reported
+// as warnings rather than aborting the entire operation.
+func listMultiSourceRemoteArtifacts(ctx context.Context, out io.Writer, cacheDir string, registries []config.SourceRegistry, outputFmt, emptyMsg string) error {
+	multiSource := len(registries) > 1
+
+	allEntries, warnings, err := config.AggregateFromSources(registries, "artifacts", func(sr config.SourceRegistry) ([]remoteArtifactEntry, error) {
+		entries, err := listLatestRemoteArtifacts(ctx, cacheDir, sr.Registry, nil)
+		if err != nil {
+			return nil, err
+		}
+		if multiSource {
+			for i := range entries {
+				entries[i].Source = sr.Source
+			}
+		}
+		return entries, nil
+	})
 	if err != nil {
 		return err
 	}
-	if len(entries) == 0 {
-		return printEmpty(out, outputFmt,
-			fmt.Sprintf("No %s found in the remote registry.", typePlural),
-		)
+
+	if len(allEntries) == 0 && len(warnings) == 0 {
+		return printEmpty(out, outputFmt, emptyMsg)
 	}
-	return printRemoteArtifacts(out, entries, outputFmt)
+
+	sort.Slice(allEntries, func(i, j int) bool {
+		if allEntries[i].Source != allEntries[j].Source {
+			return allEntries[i].Source < allEntries[j].Source
+		}
+		return allEntries[i].Name < allEntries[j].Name
+	})
+
+	if len(allEntries) > 0 {
+		if err := printRemoteArtifacts(out, allEntries, outputFmt); err != nil {
+			return err
+		}
+	}
+
+	for _, w := range warnings {
+		fmt.Fprintf(out, "Warning: %s\n", w)
+	}
+
+	return nil
 }
 
 // printEmpty writes an empty result. For JSON, it emits []; for text, it

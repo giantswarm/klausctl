@@ -25,9 +25,12 @@ var (
 	toolchainInitDir     string
 	toolchainValidateOut string
 	toolchainPullOut     string
+	toolchainPullSource  string
 	toolchainListOut     string
 	toolchainListWide    bool
 	toolchainListLocal   bool
+	toolchainListSource  string
+	toolchainListAll     bool
 )
 
 var toolchainCmd = &cobra.Command{
@@ -100,9 +103,12 @@ type toolchainPullResult struct {
 func init() {
 	toolchainValidateCmd.Flags().StringVarP(&toolchainValidateOut, "output", "o", "text", "output format: text, json")
 	toolchainPullCmd.Flags().StringVarP(&toolchainPullOut, "output", "o", "text", "output format: text, json")
+	toolchainPullCmd.Flags().StringVar(&toolchainPullSource, "source", "", "resolve against a specific source")
 	toolchainListCmd.Flags().StringVarP(&toolchainListOut, "output", "o", "text", "output format: text, json")
 	toolchainListCmd.Flags().BoolVar(&toolchainListWide, "wide", false, "show additional columns (ID, size) in --local mode")
 	toolchainListCmd.Flags().BoolVar(&toolchainListLocal, "local", false, "list only locally pulled toolchain images")
+	toolchainListCmd.Flags().StringVar(&toolchainListSource, "source", "", "list toolchains from a specific source only")
+	toolchainListCmd.Flags().BoolVar(&toolchainListAll, "all", false, "list toolchains from all configured sources")
 
 	toolchainInitCmd.Flags().StringVar(&toolchainInitName, "name", "", "toolchain name (required)")
 	toolchainInitCmd.Flags().StringVar(&toolchainInitDir, "dir", "", "output directory (default: ./klaus-<name>)")
@@ -134,43 +140,41 @@ func runToolchainList(cmd *cobra.Command, _ []string) error {
 
 	out := cmd.OutOrStdout()
 
+	resolver, err := buildListSourceResolver(toolchainListSource, toolchainListAll)
+	if err != nil {
+		return err
+	}
+
 	if toolchainListLocal {
 		rt, err := loadRuntime()
 		if err != nil {
 			return err
 		}
 		return toolchainList(ctx, out, rt, toolchainListOptions{
-			output: toolchainListOut,
-			wide:   toolchainListWide,
+			output:   toolchainListOut,
+			wide:     toolchainListWide,
+			resolver: resolver,
 		})
 	}
 
-	return runToolchainListRemote(ctx, out)
+	return runToolchainListRemote(ctx, out, resolver)
 }
 
 // runToolchainListRemote discovers toolchain images from the registry,
 // resolves the latest semver tag and digest for each, and checks local
 // pull status. Toolchains don't use the OCI cache directory so cacheDir
 // is empty, which means the PULLED column will always show "-".
-func runToolchainListRemote(ctx context.Context, out io.Writer) error {
-	entries, err := listLatestRemoteArtifacts(ctx, "", klausoci.DefaultToolchainRegistry, nil)
-	if err != nil {
-		return err
-	}
-
-	if len(entries) == 0 {
-		return printEmpty(out, toolchainListOut,
-			"No toolchain images found in the remote registry.",
-		)
-	}
-
-	return printRemoteArtifacts(out, entries, toolchainListOut)
+func runToolchainListRemote(ctx context.Context, out io.Writer, resolver *config.SourceResolver) error {
+	registries := resolver.ToolchainRegistries()
+	return listMultiSourceRemoteArtifacts(ctx, out, "", registries, toolchainListOut,
+		"No toolchain images found in the remote registry.")
 }
 
 // toolchainListOptions controls output formatting for the toolchain list.
 type toolchainListOptions struct {
-	output string
-	wide   bool
+	output   string
+	wide     bool
+	resolver *config.SourceResolver
 }
 
 // toolchainList lists locally cached toolchain images using the given runtime.
@@ -180,10 +184,15 @@ func toolchainList(ctx context.Context, out io.Writer, rt runtime.Runtime, opts 
 		return fmt.Errorf("listing images: %w", err)
 	}
 
+	registries := opts.resolver.ToolchainRegistries()
+
 	var images []runtime.ImageInfo
 	for _, img := range all {
-		if strings.HasPrefix(img.Repository, klausoci.DefaultToolchainRegistry+"/") {
-			images = append(images, img)
+		for _, sr := range registries {
+			if strings.HasPrefix(img.Repository, sr.Registry+"/") {
+				images = append(images, img)
+				break
+			}
 		}
 	}
 
@@ -275,7 +284,12 @@ func runToolchainPull(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	ref := args[0]
+	resolver, err := buildSourceResolver(toolchainPullSource)
+	if err != nil {
+		return err
+	}
+
+	ref := resolver.ResolveToolchainRef(args[0])
 
 	progressOut := out
 	if toolchainPullOut == "json" {

@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/giantswarm/klausctl/pkg/config"
 	"github.com/giantswarm/klausctl/pkg/runtime"
 )
 
@@ -215,7 +216,7 @@ func TestToolchainListWithImages(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	err := toolchainList(context.Background(), &buf, rt, toolchainListOptions{})
+	err := toolchainList(context.Background(), &buf, rt, toolchainListOptions{resolver: config.DefaultSourceResolver()})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -242,7 +243,7 @@ func TestToolchainListEmpty(t *testing.T) {
 	rt := &mockRuntime{}
 
 	var buf bytes.Buffer
-	err := toolchainList(context.Background(), &buf, rt, toolchainListOptions{})
+	err := toolchainList(context.Background(), &buf, rt, toolchainListOptions{resolver: config.DefaultSourceResolver()})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -257,7 +258,7 @@ func TestToolchainListError(t *testing.T) {
 	rt := &mockRuntime{err: fmt.Errorf("connection refused")}
 
 	var buf bytes.Buffer
-	err := toolchainList(context.Background(), &buf, rt, toolchainListOptions{})
+	err := toolchainList(context.Background(), &buf, rt, toolchainListOptions{resolver: config.DefaultSourceResolver()})
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -274,7 +275,7 @@ func TestToolchainListJSON(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	err := toolchainList(context.Background(), &buf, rt, toolchainListOptions{output: "json"})
+	err := toolchainList(context.Background(), &buf, rt, toolchainListOptions{output: "json", resolver: config.DefaultSourceResolver()})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -292,7 +293,7 @@ func TestToolchainListJSONEmpty(t *testing.T) {
 	rt := &mockRuntime{}
 
 	var buf bytes.Buffer
-	err := toolchainList(context.Background(), &buf, rt, toolchainListOptions{output: "json"})
+	err := toolchainList(context.Background(), &buf, rt, toolchainListOptions{output: "json", resolver: config.DefaultSourceResolver()})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -311,7 +312,7 @@ func TestToolchainListWide(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	err := toolchainList(context.Background(), &buf, rt, toolchainListOptions{wide: true})
+	err := toolchainList(context.Background(), &buf, rt, toolchainListOptions{wide: true, resolver: config.DefaultSourceResolver()})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

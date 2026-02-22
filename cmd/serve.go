@@ -44,6 +44,11 @@ func runServe(_ *cobra.Command, _ []string) error {
 		return err
 	}
 
+	sourceCfg, err := config.LoadSourceConfig(paths.SourcesFile)
+	if err != nil {
+		return err
+	}
+
 	agentClient := mcpclient.New(buildVersion)
 	defer agentClient.Close()
 
@@ -51,6 +56,7 @@ func runServe(_ *cobra.Command, _ []string) error {
 		Paths:     paths,
 		MCPClient: agentClient,
 	}
+	serverCtx.SetSourceConfig(sourceCfg)
 
 	mcpSrv := mcpserver.NewMCPServer(
 		"klausctl",

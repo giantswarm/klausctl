@@ -28,6 +28,7 @@ var (
 	createModel        string
 	createSystemPrompt string
 	createMaxBudget    float64
+	createSource       string
 )
 
 var createCmd = &cobra.Command{
@@ -60,6 +61,7 @@ func init() {
 	createCmd.Flags().StringArrayVar(&createSecretEnv, "secret-env", nil, "secret env var ENV_NAME=secret-name (repeatable)")
 	createCmd.Flags().StringArrayVar(&createSecretFile, "secret-file", nil, "secret file /container/path=secret-name (repeatable)")
 	createCmd.Flags().StringArrayVar(&createMcpServer, "mcpserver", nil, "managed MCP server name (repeatable)")
+	createCmd.Flags().StringVar(&createSource, "source", "", "resolve artifact short names against a specific source")
 	rootCmd.AddCommand(createCmd)
 }
 
@@ -95,7 +97,16 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("instance %q already exists", instanceName)
 	}
 
-	personality, toolchain, plugins, err := orchestrator.ResolveCreateRefs(ctx, createPersonality, createToolchain, createPlugins)
+	resolver, err := buildSourceResolver(createSource)
+	if err != nil {
+		return err
+	}
+
+	if createSource != "" {
+		fmt.Fprintf(cmd.OutOrStdout(), "Using source %q for artifact resolution\n", createSource)
+	}
+
+	personality, toolchain, plugins, err := orchestrator.ResolveCreateRefs(ctx, resolver, createPersonality, createToolchain, createPlugins)
 	if err != nil {
 		return err
 	}
@@ -130,6 +141,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		PermissionMode: createPermMode,
 		Model:          createModel,
 		SystemPrompt:   createSystemPrompt,
+		SourceResolver: resolver,
 		Context:        ctx,
 		Output:         cmd.OutOrStdout(),
 		ResolvePersonality: func(ctx context.Context, ref string, outWriter io.Writer) (*config.ResolvedPersonality, error) {

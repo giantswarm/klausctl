@@ -46,6 +46,7 @@ func registerCreate(s *mcpserver.MCPServer, sc *server.ServerContext) {
 		mcp.WithString("personality", mcp.Description("Personality short name or OCI reference")),
 		mcp.WithString("toolchain", mcp.Description("Toolchain short name or OCI reference")),
 		mcp.WithArray("plugin", mcp.Description("Additional plugin short names or OCI references")),
+		mcp.WithString("source", mcp.Description("Resolve artifact short names against a specific source")),
 		mcp.WithObject("envVars", mcp.Description("Environment variable key-value pairs to set in the container (merged with any existing envVars from the resolved config)")),
 		mcp.WithArray("envForward", mcp.Description("Host environment variable names to forward to the container (merged with any existing envForward entries; duplicates are removed)")),
 		mcp.WithObject("mcpServers", mcp.Description("MCP server configurations rendered to .mcp.json (merged with any existing mcpServers from the resolved config)")),
@@ -147,7 +148,16 @@ func handleCreate(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 	toolchain := req.GetString("toolchain", "")
 	pluginArgs := req.GetStringSlice("plugin", nil)
 
-	personality, toolchain, pluginArgs, err = orchestrator.ResolveCreateRefs(ctx, personality, toolchain, pluginArgs)
+	resolver := sc.SourceResolver()
+	sourceFilter := req.GetString("source", "")
+	if sourceFilter != "" {
+		resolver, err = resolver.ForSource(sourceFilter)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+	}
+
+	personality, toolchain, pluginArgs, err = orchestrator.ResolveCreateRefs(ctx, resolver, personality, toolchain, pluginArgs)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("resolving refs: %v", err)), nil
 	}
