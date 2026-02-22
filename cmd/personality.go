@@ -21,8 +21,10 @@ import (
 var (
 	personalityValidateOut string
 	personalityPullOut     string
+	personalityPullSource  string
 	personalityListOut     string
 	personalityListLocal   bool
+	personalityListSource  string
 )
 
 var personalityCmd = &cobra.Command{
@@ -84,8 +86,10 @@ type personalityValidation struct {
 func init() {
 	personalityValidateCmd.Flags().StringVarP(&personalityValidateOut, "output", "o", "text", "output format: text, json")
 	personalityPullCmd.Flags().StringVarP(&personalityPullOut, "output", "o", "text", "output format: text, json")
+	personalityPullCmd.Flags().StringVar(&personalityPullSource, "source", "", "resolve against a specific source")
 	personalityListCmd.Flags().StringVarP(&personalityListOut, "output", "o", "text", "output format: text, json")
 	personalityListCmd.Flags().BoolVar(&personalityListLocal, "local", false, "list only locally cached personalities")
+	personalityListCmd.Flags().StringVar(&personalityListSource, "source", "", "list personalities from a specific source only")
 
 	personalityCmd.AddCommand(personalityValidateCmd)
 	personalityCmd.AddCommand(personalityPullCmd)
@@ -169,8 +173,14 @@ func runPersonalityPull(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("creating personalities directory: %w", err)
 	}
 
+	resolver, err := buildSourceResolver(personalityPullSource)
+	if err != nil {
+		return err
+	}
+
+	resolved := resolver.ResolvePersonalityRef(args[0])
 	client := orchestrator.NewDefaultClient()
-	ref, err := client.ResolvePersonalityRef(ctx, args[0])
+	ref, err := client.ResolvePersonalityRef(ctx, resolved)
 	if err != nil {
 		return err
 	}
@@ -191,5 +201,10 @@ func runPersonalityList(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	return listOCIArtifacts(ctx, cmd.OutOrStdout(), paths.PersonalitiesDir, personalityListOut, "personality", "personalities", klausoci.DefaultPersonalityRegistry, personalityListLocal)
+	resolver, err := buildSourceResolver(personalityListSource)
+	if err != nil {
+		return err
+	}
+
+	return listOCIArtifacts(ctx, cmd.OutOrStdout(), paths.PersonalitiesDir, personalityListOut, "personality", "personalities", resolver.PersonalityRegistries(), personalityListLocal)
 }

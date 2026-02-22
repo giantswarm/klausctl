@@ -33,6 +33,10 @@ type CreateOptions struct {
 	Model          string
 	SystemPrompt   string
 
+	// SourceResolver provides multi-source artifact resolution.
+	// When nil, the default built-in source is used.
+	SourceResolver *SourceResolver
+
 	// Context and Output are passed to ResolvePersonality when provided.
 	Context context.Context
 	Output  io.Writer
@@ -67,18 +71,23 @@ func GenerateInstanceConfig(paths *Paths, opts CreateOptions) (*Config, error) {
 	cfg := DefaultConfig()
 	cfg.Workspace = workspace
 
+	resolver := opts.SourceResolver
+	if resolver == nil {
+		resolver = DefaultSourceResolver()
+	}
+
 	toolchainExplicitlySet := opts.Toolchain != ""
 	if opts.Personality != "" {
-		cfg.Personality = ResolvePersonalityRef(opts.Personality)
+		cfg.Personality = resolver.ResolvePersonalityRef(opts.Personality)
 	}
 
 	if toolchainExplicitlySet {
-		cfg.Toolchain = ResolveToolchainRef(opts.Toolchain)
+		cfg.Toolchain = resolver.ResolveToolchainRef(opts.Toolchain)
 		cfg.Image = cfg.Toolchain
 	}
 
 	for _, pluginRef := range opts.Plugins {
-		cfg.Plugins = append(cfg.Plugins, ParsePluginRef(pluginRef))
+		cfg.Plugins = append(cfg.Plugins, ParsePluginRefWith(pluginRef, resolver))
 	}
 
 	if opts.Port > 0 {
@@ -233,9 +242,16 @@ func UsedPorts(paths *Paths) (map[int]bool, error) {
 	return used, nil
 }
 
-// ParsePluginRef resolves a plugin reference into config.Plugin fields.
+// ParsePluginRef resolves a plugin reference into config.Plugin fields
+// using the default built-in source.
 func ParsePluginRef(ref string) Plugin {
-	resolved := ResolvePluginRef(ref)
+	return ParsePluginRefWith(ref, DefaultSourceResolver())
+}
+
+// ParsePluginRefWith resolves a plugin reference into config.Plugin fields
+// using the provided SourceResolver.
+func ParsePluginRefWith(ref string, resolver *SourceResolver) Plugin {
+	resolved := resolver.ResolvePluginRef(ref)
 	repository, suffix := splitNameSuffix(resolved)
 
 	plugin := Plugin{Repository: repository}

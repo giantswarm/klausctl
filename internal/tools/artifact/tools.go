@@ -31,12 +31,16 @@ func RegisterTools(s *mcpserver.MCPServer, sc *server.ServerContext) {
 	registerMcpServerAdd(s, sc)
 	registerMcpServerList(s, sc)
 	registerMcpServerRemove(s, sc)
+	registerSourceList(s, sc)
+	registerSourceAdd(s, sc)
+	registerSourceRemove(s, sc)
 }
 
 func registerToolchainList(s *mcpserver.MCPServer, sc *server.ServerContext) {
 	tool := mcp.NewTool("klaus_toolchain_list",
 		mcp.WithDescription("List available toolchain images as JSON"),
 		mcp.WithBoolean("remote", mcp.Description("List from remote registry instead of local cache (default: false)")),
+		mcp.WithString("source", mcp.Description("Filter to a specific source name")),
 	)
 	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		return handleToolchainList(ctx, req, sc)
@@ -47,6 +51,7 @@ func registerPersonalityList(s *mcpserver.MCPServer, sc *server.ServerContext) {
 	tool := mcp.NewTool("klaus_personality_list",
 		mcp.WithDescription("List available personalities as JSON"),
 		mcp.WithBoolean("remote", mcp.Description("List from remote registry instead of local cache (default: false)")),
+		mcp.WithString("source", mcp.Description("Filter to a specific source name")),
 	)
 	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		return handlePersonalityList(ctx, req, sc)
@@ -57,10 +62,21 @@ func registerPluginList(s *mcpserver.MCPServer, sc *server.ServerContext) {
 	tool := mcp.NewTool("klaus_plugin_list",
 		mcp.WithDescription("List available plugins as JSON"),
 		mcp.WithBoolean("remote", mcp.Description("List from remote registry instead of local cache (default: false)")),
+		mcp.WithString("source", mcp.Description("Filter to a specific source name")),
 	)
 	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		return handlePluginList(ctx, req, sc)
 	})
+}
+
+// resolverFromRequest builds a SourceResolver, optionally filtered to a single source.
+func resolverFromRequest(req mcp.CallToolRequest, sc *server.ServerContext) (*config.SourceResolver, error) {
+	resolver := sc.SourceResolver()
+	sourceFilter := req.GetString("source", "")
+	if sourceFilter != "" {
+		return resolver.ForSource(sourceFilter)
+	}
+	return resolver, nil
 }
 
 // --- Handlers ---
@@ -74,15 +90,19 @@ type toolchainEntry struct {
 
 func handleToolchainList(ctx context.Context, req mcp.CallToolRequest, sc *server.ServerContext) (*mcp.CallToolResult, error) {
 	remote := req.GetBool("remote", false)
-
-	if remote {
-		return toolchainListRemote(ctx)
+	resolver, err := resolverFromRequest(req, sc)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	return toolchainListLocal(ctx, sc)
+	if remote {
+		return toolchainListRemote(ctx, resolver)
+	}
+
+	return toolchainListLocal(ctx, sc, resolver)
 }
 
-func toolchainListLocal(ctx context.Context, sc *server.ServerContext) (*mcp.CallToolResult, error) {
+func toolchainListLocal(ctx context.Context, sc *server.ServerContext, resolver *config.SourceResolver) (*mcp.CallToolResult, error) {
 	rt, err := sc.DetectRuntime(&config.Config{})
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("detecting runtime: %v", err)), nil
@@ -93,38 +113,56 @@ func toolchainListLocal(ctx context.Context, sc *server.ServerContext) (*mcp.Cal
 		return mcp.NewToolResultError(fmt.Sprintf("listing images: %v", err)), nil
 	}
 
+	registries := resolver.ToolchainRegistries()
 	var entries []toolchainEntry
 	for _, img := range all {
-		if strings.HasPrefix(img.Repository, klausoci.DefaultToolchainRegistry+"/") {
-			entries = append(entries, toolchainEntry{
-				Name:       klausoci.ShortName(img.Repository),
-				Repository: img.Repository,
-				Tag:        img.Tag,
-				Size:       img.Size,
-			})
+		for _, sr := range registries {
+			if strings.HasPrefix(img.Repository, sr.Registry+"/") {
+				entries = append(entries, toolchainEntry{
+					Name:       klausoci.ShortName(img.Repository),
+					Repository: img.Repository,
+					Tag:        img.Tag,
+					Size:       img.Size,
+				})
+				break
+			}
 		}
 	}
 
 	return server.JSONResult(entries)
 }
 
-func toolchainListRemote(ctx context.Context) (*mcp.CallToolResult, error) {
-	entries, err := listLatestRemote(ctx, klausoci.DefaultToolchainRegistry, nil)
-	if err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("listing remote toolchains: %v", err)), nil
+func toolchainListRemote(ctx context.Context, resolver *config.SourceResolver) (*mcp.CallToolResult, error) {
+	registries := resolver.ToolchainRegistries()
+	var allEntries []remoteArtifactEntry
+	for _, sr := range registries {
+		entries, err := listLatestRemote(ctx, sr.Registry, nil)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("listing remote toolchains: %v", err)), nil
+		}
+		allEntries = append(allEntries, entries...)
 	}
-	return server.JSONResult(entries)
+	return server.JSONResult(allEntries)
 }
 
 func handlePersonalityList(ctx context.Context, req mcp.CallToolRequest, sc *server.ServerContext) (*mcp.CallToolResult, error) {
 	remote := req.GetBool("remote", false)
+	resolver, err := resolverFromRequest(req, sc)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
 
 	if remote {
-		entries, err := listLatestRemote(ctx, klausoci.DefaultPersonalityRegistry, nil)
-		if err != nil {
-			return mcp.NewToolResultError(fmt.Sprintf("listing remote personalities: %v", err)), nil
+		registries := resolver.PersonalityRegistries()
+		var allEntries []remoteArtifactEntry
+		for _, sr := range registries {
+			entries, err := listLatestRemote(ctx, sr.Registry, nil)
+			if err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("listing remote personalities: %v", err)), nil
+			}
+			allEntries = append(allEntries, entries...)
 		}
-		return server.JSONResult(entries)
+		return server.JSONResult(allEntries)
 	}
 
 	artifacts, err := listLocalArtifacts(sc.Paths.PersonalitiesDir)
@@ -136,13 +174,22 @@ func handlePersonalityList(ctx context.Context, req mcp.CallToolRequest, sc *ser
 
 func handlePluginList(ctx context.Context, req mcp.CallToolRequest, sc *server.ServerContext) (*mcp.CallToolResult, error) {
 	remote := req.GetBool("remote", false)
+	resolver, err := resolverFromRequest(req, sc)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
 
 	if remote {
-		entries, err := listLatestRemote(ctx, klausoci.DefaultPluginRegistry, nil)
-		if err != nil {
-			return mcp.NewToolResultError(fmt.Sprintf("listing remote plugins: %v", err)), nil
+		registries := resolver.PluginRegistries()
+		var allEntries []remoteArtifactEntry
+		for _, sr := range registries {
+			entries, err := listLatestRemote(ctx, sr.Registry, nil)
+			if err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("listing remote plugins: %v", err)), nil
+			}
+			allEntries = append(allEntries, entries...)
 		}
-		return server.JSONResult(entries)
+		return server.JSONResult(allEntries)
 	}
 
 	artifacts, err := listLocalArtifacts(sc.Paths.PluginsDir)
@@ -362,6 +409,136 @@ func handleMcpServerRemove(_ context.Context, req mcp.CallToolRequest, sc *serve
 
 	if err := store.Save(); err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("saving MCP servers: %v", err)), nil
+	}
+
+	return server.JSONResult(map[string]string{
+		"name":   name,
+		"status": "removed",
+	})
+}
+
+// --- Source tools ---
+
+func registerSourceList(s *mcpserver.MCPServer, sc *server.ServerContext) {
+	tool := mcp.NewTool("klaus_source_list",
+		mcp.WithDescription("List configured artifact sources as JSON"),
+	)
+	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return handleSourceList(ctx, req, sc)
+	})
+}
+
+type sourceEntry struct {
+	Name     string `json:"name"`
+	Registry string `json:"registry"`
+	Default  bool   `json:"default,omitempty"`
+}
+
+func handleSourceList(_ context.Context, _ mcp.CallToolRequest, sc *server.ServerContext) (*mcp.CallToolResult, error) {
+	cfg, err := config.LoadSourceConfig(sc.Paths.SourcesFile)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("loading sources: %v", err)), nil
+	}
+	entries := make([]sourceEntry, len(cfg.Sources))
+	for i, s := range cfg.Sources {
+		entries[i] = sourceEntry{
+			Name:     s.Name,
+			Registry: s.Registry,
+			Default:  s.Default,
+		}
+	}
+	return server.JSONResult(entries)
+}
+
+func registerSourceAdd(s *mcpserver.MCPServer, sc *server.ServerContext) {
+	tool := mcp.NewTool("klaus_source_add",
+		mcp.WithDescription("Add a new artifact source (name + registry base URL)"),
+		mcp.WithString("name", mcp.Required(), mcp.Description("Source name")),
+		mcp.WithString("registry", mcp.Required(), mcp.Description("Registry base URL")),
+		mcp.WithString("toolchains", mcp.Description("Override toolchain registry path")),
+		mcp.WithString("personalities", mcp.Description("Override personality registry path")),
+		mcp.WithString("plugins", mcp.Description("Override plugin registry path")),
+		mcp.WithBoolean("default", mcp.Description("Set as the default source")),
+	)
+	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return handleSourceAdd(ctx, req, sc)
+	})
+}
+
+func handleSourceAdd(_ context.Context, req mcp.CallToolRequest, sc *server.ServerContext) (*mcp.CallToolResult, error) {
+	name, err := req.RequireString("name")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	registry, err := req.RequireString("registry")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	cfg, err := config.LoadSourceConfig(sc.Paths.SourcesFile)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("loading sources: %v", err)), nil
+	}
+
+	src := config.Source{
+		Name:          name,
+		Registry:      registry,
+		Toolchains:    req.GetString("toolchains", ""),
+		Personalities: req.GetString("personalities", ""),
+		Plugins:       req.GetString("plugins", ""),
+	}
+
+	if err := cfg.Add(src); err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	if req.GetBool("default", false) {
+		if err := cfg.SetDefault(name); err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+	}
+
+	if err := config.EnsureDir(sc.Paths.ConfigDir); err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("creating config directory: %v", err)), nil
+	}
+
+	if err := cfg.SaveTo(sc.Paths.SourcesFile); err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("saving sources: %v", err)), nil
+	}
+
+	return server.JSONResult(map[string]string{
+		"name":   name,
+		"status": "added",
+	})
+}
+
+func registerSourceRemove(s *mcpserver.MCPServer, sc *server.ServerContext) {
+	tool := mcp.NewTool("klaus_source_remove",
+		mcp.WithDescription("Remove an artifact source by name"),
+		mcp.WithString("name", mcp.Required(), mcp.Description("Source name")),
+	)
+	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return handleSourceRemove(ctx, req, sc)
+	})
+}
+
+func handleSourceRemove(_ context.Context, req mcp.CallToolRequest, sc *server.ServerContext) (*mcp.CallToolResult, error) {
+	name, err := req.RequireString("name")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	cfg, err := config.LoadSourceConfig(sc.Paths.SourcesFile)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("loading sources: %v", err)), nil
+	}
+
+	if err := cfg.Remove(name); err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	if err := cfg.SaveTo(sc.Paths.SourcesFile); err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("saving sources: %v", err)), nil
 	}
 
 	return server.JSONResult(map[string]string{

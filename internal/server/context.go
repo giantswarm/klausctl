@@ -16,8 +16,9 @@ import (
 // handlers. It provides access to klausctl paths, runtime detection, and
 // the MCP client for agent communication.
 type ServerContext struct {
-	Paths     *config.Paths
-	MCPClient *mcpclient.Client
+	Paths        *config.Paths
+	MCPClient    *mcpclient.Client
+	sourceConfig *config.SourceConfig
 }
 
 // InstancePaths returns config paths scoped to a named instance.
@@ -35,6 +36,20 @@ func (sc *ServerContext) LoadInstanceConfig(name string) (*config.Config, error)
 // when the config runtime field is empty.
 func (sc *ServerContext) DetectRuntime(cfg *config.Config) (runtime.Runtime, error) {
 	return runtime.New(cfg.Runtime)
+}
+
+// SetSourceConfig sets the loaded source configuration.
+func (sc *ServerContext) SetSourceConfig(cfg *config.SourceConfig) {
+	sc.sourceConfig = cfg
+}
+
+// SourceResolver returns a SourceResolver from the loaded source config.
+// If no source config has been loaded, the default built-in source is used.
+func (sc *ServerContext) SourceResolver() *config.SourceResolver {
+	if sc.sourceConfig == nil {
+		return config.DefaultSourceResolver()
+	}
+	return config.NewSourceResolver(sc.sourceConfig.Sources)
 }
 
 // JSONResult serializes v as indented JSON and returns it as an MCP text result.

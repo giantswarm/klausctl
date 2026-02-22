@@ -24,11 +24,17 @@ func NewDefaultClient(opts ...klausoci.ClientOption) *klausoci.Client {
 
 // ResolveCreateRefs resolves personality, toolchain, and plugin short names
 // to full OCI references with proper semver tags from the registry.
-func ResolveCreateRefs(ctx context.Context, personality, toolchain string, plugins []string) (string, string, []string, error) {
+// The resolver is used to expand short names against configured sources;
+// if nil, the default built-in source is used.
+func ResolveCreateRefs(ctx context.Context, resolver *config.SourceResolver, personality, toolchain string, plugins []string) (string, string, []string, error) {
+	if resolver == nil {
+		resolver = config.DefaultSourceResolver()
+	}
 	client := NewDefaultClient()
 
 	if personality != "" {
-		ref, err := client.ResolvePersonalityRef(ctx, personality)
+		expanded := resolver.ResolvePersonalityRef(personality)
+		ref, err := client.ResolvePersonalityRef(ctx, expanded)
 		if err != nil {
 			return "", "", nil, fmt.Errorf("resolving personality: %w", err)
 		}
@@ -36,7 +42,8 @@ func ResolveCreateRefs(ctx context.Context, personality, toolchain string, plugi
 	}
 
 	if toolchain != "" {
-		ref, err := client.ResolveToolchainRef(ctx, toolchain)
+		expanded := resolver.ResolveToolchainRef(toolchain)
+		ref, err := client.ResolveToolchainRef(ctx, expanded)
 		if err != nil {
 			return "", "", nil, fmt.Errorf("resolving toolchain: %w", err)
 		}
@@ -45,7 +52,8 @@ func ResolveCreateRefs(ctx context.Context, personality, toolchain string, plugi
 
 	resolved := make([]string, 0, len(plugins))
 	for _, p := range plugins {
-		ref, err := client.ResolvePluginRef(ctx, p)
+		expanded := resolver.ResolvePluginRef(p)
+		ref, err := client.ResolvePluginRef(ctx, expanded)
 		if err != nil {
 			return "", "", nil, fmt.Errorf("resolving plugin: %w", err)
 		}

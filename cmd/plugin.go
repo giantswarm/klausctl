@@ -20,8 +20,10 @@ import (
 var (
 	pluginValidateOut string
 	pluginPullOut     string
+	pluginPullSource  string
 	pluginListOut     string
 	pluginListLocal   bool
+	pluginListSource  string
 )
 
 var pluginCmd = &cobra.Command{
@@ -84,8 +86,10 @@ type pluginValidation struct {
 func init() {
 	pluginValidateCmd.Flags().StringVarP(&pluginValidateOut, "output", "o", "text", "output format: text, json")
 	pluginPullCmd.Flags().StringVarP(&pluginPullOut, "output", "o", "text", "output format: text, json")
+	pluginPullCmd.Flags().StringVar(&pluginPullSource, "source", "", "resolve against a specific source")
 	pluginListCmd.Flags().StringVarP(&pluginListOut, "output", "o", "text", "output format: text, json")
 	pluginListCmd.Flags().BoolVar(&pluginListLocal, "local", false, "list only locally cached plugins")
+	pluginListCmd.Flags().StringVar(&pluginListSource, "source", "", "list plugins from a specific source only")
 
 	pluginCmd.AddCommand(pluginValidateCmd)
 	pluginCmd.AddCommand(pluginPullCmd)
@@ -157,8 +161,14 @@ func runPluginPull(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("creating plugins directory: %w", err)
 	}
 
+	resolver, err := buildSourceResolver(pluginPullSource)
+	if err != nil {
+		return err
+	}
+
+	resolved := resolver.ResolvePluginRef(args[0])
 	client := orchestrator.NewDefaultClient()
-	ref, err := client.ResolvePluginRef(ctx, args[0])
+	ref, err := client.ResolvePluginRef(ctx, resolved)
 	if err != nil {
 		return err
 	}
@@ -179,5 +189,10 @@ func runPluginList(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	return listOCIArtifacts(ctx, cmd.OutOrStdout(), paths.PluginsDir, pluginListOut, "plugin", "plugins", klausoci.DefaultPluginRegistry, pluginListLocal)
+	resolver, err := buildSourceResolver(pluginListSource)
+	if err != nil {
+		return err
+	}
+
+	return listOCIArtifacts(ctx, cmd.OutOrStdout(), paths.PluginsDir, pluginListOut, "plugin", "plugins", resolver.PluginRegistries(), pluginListLocal)
 }
