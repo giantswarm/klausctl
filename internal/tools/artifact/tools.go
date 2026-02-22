@@ -32,9 +32,11 @@ func RegisterTools(s *mcpserver.MCPServer, sc *server.ServerContext) {
 	registerMcpServerList(s, sc)
 	registerMcpServerRemove(s, sc)
 	registerSourceList(s, sc)
+	registerSourceShow(s, sc)
 	registerSourceAdd(s, sc)
 	registerSourceUpdate(s, sc)
 	registerSourceRemove(s, sc)
+	registerSourceSetDefault(s, sc)
 }
 
 func registerToolchainList(s *mcpserver.MCPServer, sc *server.ServerContext) {
@@ -463,6 +465,51 @@ func handleSourceList(_ context.Context, _ mcp.CallToolRequest, sc *server.Serve
 	return server.JSONResult(entries)
 }
 
+func registerSourceShow(s *mcpserver.MCPServer, sc *server.ServerContext) {
+	tool := mcp.NewTool("klaus_source_show",
+		mcp.WithDescription("Show details of a source including derived registry paths"),
+		mcp.WithString("name", mcp.Required(), mcp.Description("Source name")),
+	)
+	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return handleSourceShow(ctx, req, sc)
+	})
+}
+
+type sourceDetail struct {
+	Name          string `json:"name"`
+	Registry      string `json:"registry"`
+	Default       bool   `json:"default,omitempty"`
+	Toolchains    string `json:"toolchains"`
+	Personalities string `json:"personalities"`
+	Plugins       string `json:"plugins"`
+}
+
+func handleSourceShow(_ context.Context, req mcp.CallToolRequest, sc *server.ServerContext) (*mcp.CallToolResult, error) {
+	name, err := req.RequireString("name")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	cfg, err := config.LoadSourceConfig(sc.Paths.SourcesFile)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("loading sources: %v", err)), nil
+	}
+
+	s := cfg.Get(name)
+	if s == nil {
+		return mcp.NewToolResultError(fmt.Sprintf("source %q not found", name)), nil
+	}
+
+	return server.JSONResult(sourceDetail{
+		Name:          s.Name,
+		Registry:      s.Registry,
+		Default:       s.Default,
+		Toolchains:    s.ToolchainRegistry(),
+		Personalities: s.PersonalityRegistry(),
+		Plugins:       s.PluginRegistry(),
+	})
+}
+
 func registerSourceAdd(s *mcpserver.MCPServer, sc *server.ServerContext) {
 	tool := mcp.NewTool("klaus_source_add",
 		mcp.WithDescription("Add a new artifact source (name + registry base URL)"),
@@ -615,5 +662,44 @@ func handleSourceRemove(_ context.Context, req mcp.CallToolRequest, sc *server.S
 	return server.JSONResult(map[string]string{
 		"name":   name,
 		"status": "removed",
+	})
+}
+
+func registerSourceSetDefault(s *mcpserver.MCPServer, sc *server.ServerContext) {
+	tool := mcp.NewTool("klaus_source_set_default",
+		mcp.WithDescription("Set a source as the default for short-name resolution"),
+		mcp.WithString("name", mcp.Required(), mcp.Description("Source name to set as default")),
+	)
+	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return handleSourceSetDefault(ctx, req, sc)
+	})
+}
+
+func handleSourceSetDefault(_ context.Context, req mcp.CallToolRequest, sc *server.ServerContext) (*mcp.CallToolResult, error) {
+	name, err := req.RequireString("name")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	cfg, err := config.LoadSourceConfig(sc.Paths.SourcesFile)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("loading sources: %v", err)), nil
+	}
+
+	if err := cfg.SetDefault(name); err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	if err := cfg.SaveTo(sc.Paths.SourcesFile); err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("saving sources: %v", err)), nil
+	}
+
+	if err := sc.ReloadSourceConfig(); err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("reloading sources: %v", err)), nil
+	}
+
+	return server.JSONResult(map[string]string{
+		"name":   name,
+		"status": "default",
 	})
 }
