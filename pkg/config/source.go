@@ -313,6 +313,12 @@ func (r *SourceResolver) ForSource(name string) (*SourceResolver, error) {
 	return nil, fmt.Errorf("source %q not found", name)
 }
 
+// DefaultOnly returns a resolver restricted to the default source (the
+// first source after default-first ordering).
+func (r *SourceResolver) DefaultOnly() *SourceResolver {
+	return NewSourceResolver([]Source{r.sources[0]})
+}
+
 // ResolvePluginRef expands a short plugin name using the default source.
 func (r *SourceResolver) ResolvePluginRef(ref string) string {
 	return expandArtifactRef(ref, r.sources[0].PluginRegistry())

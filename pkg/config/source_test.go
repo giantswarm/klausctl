@@ -462,6 +462,48 @@ func TestSourceResolverDefaultFirst(t *testing.T) {
 	}
 }
 
+func TestSourceResolverDefaultOnly(t *testing.T) {
+	r := NewSourceResolver([]Source{
+		{Name: "first", Registry: "first.io/x"},
+		{Name: "default-src", Registry: "default.io/x", Default: true},
+		{Name: "last", Registry: "last.io/x"},
+	})
+
+	d := r.DefaultOnly()
+	sources := d.Sources()
+	if len(sources) != 1 {
+		t.Fatalf("expected 1 source, got %d", len(sources))
+	}
+	if sources[0].Name != "default-src" {
+		t.Errorf("expected default source, got %q", sources[0].Name)
+	}
+
+	got := d.ResolvePluginRef("my-plugin")
+	want := "default.io/x/klaus-plugins/my-plugin"
+	if got != want {
+		t.Errorf("DefaultOnly().ResolvePluginRef() = %q, want %q", got, want)
+	}
+
+	registries := d.PluginRegistries()
+	if len(registries) != 1 {
+		t.Fatalf("expected 1 registry, got %d", len(registries))
+	}
+}
+
+func TestSourceResolverDefaultOnly_SingleSource(t *testing.T) {
+	r := NewSourceResolver([]Source{
+		{Name: "only", Registry: "only.io/x", Default: true},
+	})
+
+	d := r.DefaultOnly()
+	if len(d.Sources()) != 1 {
+		t.Fatal("expected 1 source")
+	}
+	if d.Sources()[0].Name != "only" {
+		t.Errorf("expected 'only', got %q", d.Sources()[0].Name)
+	}
+}
+
 func TestSourceResolverSourcesReturnsCopy(t *testing.T) {
 	r := NewSourceResolver([]Source{
 		{Name: "a", Registry: "a.io/x", Default: true},

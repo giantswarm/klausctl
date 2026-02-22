@@ -44,6 +44,7 @@ func registerToolchainList(s *mcpserver.MCPServer, sc *server.ServerContext) {
 		mcp.WithDescription("List available toolchain images as JSON"),
 		mcp.WithBoolean("remote", mcp.Description("List from remote registry instead of local cache (default: false)")),
 		mcp.WithString("source", mcp.Description("Filter to a specific source name")),
+		mcp.WithBoolean("all", mcp.Description("List from all configured sources (default: default source only)")),
 	)
 	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		return handleToolchainList(ctx, req, sc)
@@ -55,6 +56,7 @@ func registerPersonalityList(s *mcpserver.MCPServer, sc *server.ServerContext) {
 		mcp.WithDescription("List available personalities as JSON"),
 		mcp.WithBoolean("remote", mcp.Description("List from remote registry instead of local cache (default: false)")),
 		mcp.WithString("source", mcp.Description("Filter to a specific source name")),
+		mcp.WithBoolean("all", mcp.Description("List from all configured sources (default: default source only)")),
 	)
 	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		return handlePersonalityList(ctx, req, sc)
@@ -66,20 +68,29 @@ func registerPluginList(s *mcpserver.MCPServer, sc *server.ServerContext) {
 		mcp.WithDescription("List available plugins as JSON"),
 		mcp.WithBoolean("remote", mcp.Description("List from remote registry instead of local cache (default: false)")),
 		mcp.WithString("source", mcp.Description("Filter to a specific source name")),
+		mcp.WithBoolean("all", mcp.Description("List from all configured sources (default: default source only)")),
 	)
 	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		return handlePluginList(ctx, req, sc)
 	})
 }
 
-// resolverFromRequest builds a SourceResolver, optionally filtered to a single source.
+// resolverFromRequest builds a SourceResolver for list operations.
+// --all returns all sources, --source filters to one, default is the default source only.
 func resolverFromRequest(req mcp.CallToolRequest, sc *server.ServerContext) (*config.SourceResolver, error) {
 	resolver := sc.SourceResolver()
 	sourceFilter := req.GetString("source", "")
+	all := req.GetBool("all", false)
+	if sourceFilter != "" && all {
+		return nil, fmt.Errorf("source and all are mutually exclusive")
+	}
 	if sourceFilter != "" {
 		return resolver.ForSource(sourceFilter)
 	}
-	return resolver, nil
+	if all {
+		return resolver, nil
+	}
+	return resolver.DefaultOnly(), nil
 }
 
 // --- Handlers ---

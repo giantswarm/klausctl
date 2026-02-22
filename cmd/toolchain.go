@@ -30,6 +30,7 @@ var (
 	toolchainListWide    bool
 	toolchainListLocal   bool
 	toolchainListSource  string
+	toolchainListAll     bool
 )
 
 var toolchainCmd = &cobra.Command{
@@ -107,6 +108,7 @@ func init() {
 	toolchainListCmd.Flags().BoolVar(&toolchainListWide, "wide", false, "show additional columns (ID, size) in --local mode")
 	toolchainListCmd.Flags().BoolVar(&toolchainListLocal, "local", false, "list only locally pulled toolchain images")
 	toolchainListCmd.Flags().StringVar(&toolchainListSource, "source", "", "list toolchains from a specific source only")
+	toolchainListCmd.Flags().BoolVar(&toolchainListAll, "all", false, "list toolchains from all configured sources")
 
 	toolchainInitCmd.Flags().StringVar(&toolchainInitName, "name", "", "toolchain name (required)")
 	toolchainInitCmd.Flags().StringVar(&toolchainInitDir, "dir", "", "output directory (default: ./klaus-<name>)")
@@ -138,7 +140,7 @@ func runToolchainList(cmd *cobra.Command, _ []string) error {
 
 	out := cmd.OutOrStdout()
 
-	resolver, err := buildSourceResolver(toolchainListSource)
+	resolver, err := buildListSourceResolver(toolchainListSource, toolchainListAll)
 	if err != nil {
 		return err
 	}

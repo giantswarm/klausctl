@@ -25,6 +25,7 @@ var (
 	personalityListOut     string
 	personalityListLocal   bool
 	personalityListSource  string
+	personalityListAll     bool
 )
 
 var personalityCmd = &cobra.Command{
@@ -90,6 +91,7 @@ func init() {
 	personalityListCmd.Flags().StringVarP(&personalityListOut, "output", "o", "text", "output format: text, json")
 	personalityListCmd.Flags().BoolVar(&personalityListLocal, "local", false, "list only locally cached personalities")
 	personalityListCmd.Flags().StringVar(&personalityListSource, "source", "", "list personalities from a specific source only")
+	personalityListCmd.Flags().BoolVar(&personalityListAll, "all", false, "list personalities from all configured sources")
 
 	personalityCmd.AddCommand(personalityValidateCmd)
 	personalityCmd.AddCommand(personalityPullCmd)
@@ -201,7 +203,7 @@ func runPersonalityList(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	resolver, err := buildSourceResolver(personalityListSource)
+	resolver, err := buildListSourceResolver(personalityListSource, personalityListAll)
 	if err != nil {
 		return err
 	}

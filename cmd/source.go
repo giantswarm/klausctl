@@ -126,6 +126,7 @@ func loadSourceConfig() (*config.SourceConfig, error) {
 
 // buildSourceResolver creates a SourceResolver from the current sources config.
 // If sourceFilter is non-empty, the resolver is restricted to that single source.
+// Otherwise the resolver uses the default source only (for pull/create).
 func buildSourceResolver(sourceFilter string) (*config.SourceResolver, error) {
 	sc, err := loadSourceConfig()
 	if err != nil {
@@ -135,7 +136,27 @@ func buildSourceResolver(sourceFilter string) (*config.SourceResolver, error) {
 	if sourceFilter != "" {
 		return resolver.ForSource(sourceFilter)
 	}
-	return resolver, nil
+	return resolver.DefaultOnly(), nil
+}
+
+// buildListSourceResolver creates a SourceResolver for list commands.
+// --all returns all sources, --source filters to one, default shows only the default source.
+func buildListSourceResolver(sourceFilter string, all bool) (*config.SourceResolver, error) {
+	if sourceFilter != "" && all {
+		return nil, fmt.Errorf("--source and --all are mutually exclusive")
+	}
+	sc, err := loadSourceConfig()
+	if err != nil {
+		return nil, err
+	}
+	resolver := config.NewSourceResolver(sc.Sources)
+	if sourceFilter != "" {
+		return resolver.ForSource(sourceFilter)
+	}
+	if all {
+		return resolver, nil
+	}
+	return resolver.DefaultOnly(), nil
 }
 
 func runSourceList(cmd *cobra.Command, _ []string) error {

@@ -24,6 +24,7 @@ var (
 	pluginListOut     string
 	pluginListLocal   bool
 	pluginListSource  string
+	pluginListAll     bool
 )
 
 var pluginCmd = &cobra.Command{
@@ -90,6 +91,7 @@ func init() {
 	pluginListCmd.Flags().StringVarP(&pluginListOut, "output", "o", "text", "output format: text, json")
 	pluginListCmd.Flags().BoolVar(&pluginListLocal, "local", false, "list only locally cached plugins")
 	pluginListCmd.Flags().StringVar(&pluginListSource, "source", "", "list plugins from a specific source only")
+	pluginListCmd.Flags().BoolVar(&pluginListAll, "all", false, "list plugins from all configured sources")
 
 	pluginCmd.AddCommand(pluginValidateCmd)
 	pluginCmd.AddCommand(pluginPullCmd)
@@ -189,7 +191,7 @@ func runPluginList(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	resolver, err := buildSourceResolver(pluginListSource)
+	resolver, err := buildListSourceResolver(pluginListSource, pluginListAll)
 	if err != nil {
 		return err
 	}
