@@ -265,6 +265,47 @@ func TestSourceConfigValidate_EmptyRegistry(t *testing.T) {
 	}
 }
 
+func TestSourceConfigValidate_MultipleDefaults(t *testing.T) {
+	sc := &SourceConfig{
+		Sources: []Source{
+			{Name: "a", Registry: "reg1", Default: true},
+			{Name: "b", Registry: "reg2", Default: true},
+		},
+	}
+	if err := sc.Validate(); err == nil {
+		t.Fatal("expected validation error for multiple defaults")
+	}
+}
+
+func TestEnsureBuiltin_RespectsExistingDefault(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sources.yaml")
+
+	content := `sources:
+  - name: my-team
+    registry: myregistry.example.com/my-team
+    default: true
+`
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	sc, err := LoadSourceConfig(path)
+	if err != nil {
+		t.Fatalf("LoadSourceConfig() returned error: %v", err)
+	}
+
+	defaultCount := 0
+	for _, s := range sc.Sources {
+		if s.Default {
+			defaultCount++
+		}
+	}
+	if defaultCount != 1 {
+		t.Errorf("expected exactly 1 default, got %d", defaultCount)
+	}
+}
+
 func TestNewSourceResolver_Default(t *testing.T) {
 	r := DefaultSourceResolver()
 	got := r.ResolvePluginRef("gs-base")
@@ -369,7 +410,7 @@ func TestSourceResolverForSource_NotFound(t *testing.T) {
 
 func TestSourceResolverRegistries(t *testing.T) {
 	r := NewSourceResolver([]Source{
-		{Name: "a", Registry: "reg-a.io/x"},
+		{Name: "a", Registry: "reg-a.io/x", Default: true},
 		{Name: "b", Registry: "reg-b.io/y"},
 	})
 
@@ -401,26 +442,33 @@ func TestSourceResolverRegistries(t *testing.T) {
 	}
 }
 
-func TestSourceResolverWithSource(t *testing.T) {
+func TestSourceResolverDefaultFirst(t *testing.T) {
 	r := NewSourceResolver([]Source{
-		{Name: "giantswarm", Registry: "gsoci.azurecr.io/giantswarm"},
-		{Name: "team", Registry: "team.io/x"},
+		{Name: "first", Registry: "first.io/x"},
+		{Name: "default-src", Registry: "default.io/x", Default: true},
+		{Name: "last", Registry: "last.io/x"},
 	})
 
-	ref, source := r.ResolvePluginRefWithSource("gs-base")
-	if ref != "gsoci.azurecr.io/giantswarm/klaus-plugins/gs-base" {
-		t.Errorf("unexpected ref: %q", ref)
-	}
-	if source != "giantswarm" {
-		t.Errorf("unexpected source: %q", source)
+	got := r.ResolvePluginRef("my-plugin")
+	want := "default.io/x/klaus-plugins/my-plugin"
+	if got != want {
+		t.Errorf("ResolvePluginRef() = %q, want default source %q", got, want)
 	}
 
-	ref, source = r.ResolvePluginRefWithSource("full.io/org/plugin:v1")
-	if ref != "full.io/org/plugin:v1" {
-		t.Errorf("full ref should be unchanged: %q", ref)
+	sources := r.Sources()
+	if sources[0].Name != "default-src" {
+		t.Errorf("expected default source first, got %q", sources[0].Name)
 	}
-	if source != "" {
-		t.Errorf("full ref should have empty source: %q", source)
+}
+
+func TestSourceResolverSourcesReturnsCopy(t *testing.T) {
+	r := NewSourceResolver([]Source{
+		{Name: "a", Registry: "a.io/x", Default: true},
+	})
+	sources := r.Sources()
+	sources[0].Name = "mutated"
+	if r.Sources()[0].Name == "mutated" {
+		t.Error("Sources() should return a copy, not the internal slice")
 	}
 }
 

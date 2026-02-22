@@ -43,6 +43,17 @@ func (sc *ServerContext) SetSourceConfig(cfg *config.SourceConfig) {
 	sc.sourceConfig = cfg
 }
 
+// ReloadSourceConfig re-reads the sources file from disk and updates the
+// in-memory config. This should be called after mutating the sources file.
+func (sc *ServerContext) ReloadSourceConfig() error {
+	cfg, err := config.LoadSourceConfig(sc.Paths.SourcesFile)
+	if err != nil {
+		return err
+	}
+	sc.sourceConfig = cfg
+	return nil
+}
+
 // SourceResolver returns a SourceResolver from the loaded source config.
 // If no source config has been loaded, the default built-in source is used.
 func (sc *ServerContext) SourceResolver() *config.SourceResolver {

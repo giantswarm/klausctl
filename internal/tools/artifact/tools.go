@@ -133,16 +133,11 @@ func toolchainListLocal(ctx context.Context, sc *server.ServerContext, resolver 
 }
 
 func toolchainListRemote(ctx context.Context, resolver *config.SourceResolver) (*mcp.CallToolResult, error) {
-	registries := resolver.ToolchainRegistries()
-	var allEntries []remoteArtifactEntry
-	for _, sr := range registries {
-		entries, err := listLatestRemote(ctx, sr.Registry, nil)
-		if err != nil {
-			return mcp.NewToolResultError(fmt.Sprintf("listing remote toolchains: %v", err)), nil
-		}
-		allEntries = append(allEntries, entries...)
+	entries, err := listRemoteFromRegistries(ctx, resolver.ToolchainRegistries(), "toolchains")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
 	}
-	return server.JSONResult(allEntries)
+	return server.JSONResult(entries)
 }
 
 func handlePersonalityList(ctx context.Context, req mcp.CallToolRequest, sc *server.ServerContext) (*mcp.CallToolResult, error) {
@@ -153,16 +148,11 @@ func handlePersonalityList(ctx context.Context, req mcp.CallToolRequest, sc *ser
 	}
 
 	if remote {
-		registries := resolver.PersonalityRegistries()
-		var allEntries []remoteArtifactEntry
-		for _, sr := range registries {
-			entries, err := listLatestRemote(ctx, sr.Registry, nil)
-			if err != nil {
-				return mcp.NewToolResultError(fmt.Sprintf("listing remote personalities: %v", err)), nil
-			}
-			allEntries = append(allEntries, entries...)
+		entries, err := listRemoteFromRegistries(ctx, resolver.PersonalityRegistries(), "personalities")
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
 		}
-		return server.JSONResult(allEntries)
+		return server.JSONResult(entries)
 	}
 
 	artifacts, err := listLocalArtifacts(sc.Paths.PersonalitiesDir)
@@ -180,16 +170,11 @@ func handlePluginList(ctx context.Context, req mcp.CallToolRequest, sc *server.S
 	}
 
 	if remote {
-		registries := resolver.PluginRegistries()
-		var allEntries []remoteArtifactEntry
-		for _, sr := range registries {
-			entries, err := listLatestRemote(ctx, sr.Registry, nil)
-			if err != nil {
-				return mcp.NewToolResultError(fmt.Sprintf("listing remote plugins: %v", err)), nil
-			}
-			allEntries = append(allEntries, entries...)
+		entries, err := listRemoteFromRegistries(ctx, resolver.PluginRegistries(), "plugins")
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
 		}
-		return server.JSONResult(allEntries)
+		return server.JSONResult(entries)
 	}
 
 	artifacts, err := listLocalArtifacts(sc.Paths.PluginsDir)
@@ -247,6 +232,19 @@ type remoteArtifactEntry struct {
 type remoteListOptions struct {
 	Filter    func(repo string) bool
 	ShortName func(repo string) string
+}
+
+// listRemoteFromRegistries aggregates remote artifacts from multiple source registries.
+func listRemoteFromRegistries(ctx context.Context, registries []config.SourceRegistry, artifactType string) ([]remoteArtifactEntry, error) {
+	var all []remoteArtifactEntry
+	for _, sr := range registries {
+		entries, err := listLatestRemote(ctx, sr.Registry, nil)
+		if err != nil {
+			return nil, fmt.Errorf("listing remote %s: %w", artifactType, err)
+		}
+		all = append(all, entries...)
+	}
+	return all, nil
 }
 
 // listLatestRemote discovers repositories from the registry, resolves the
@@ -506,6 +504,10 @@ func handleSourceAdd(_ context.Context, req mcp.CallToolRequest, sc *server.Serv
 		return mcp.NewToolResultError(fmt.Sprintf("saving sources: %v", err)), nil
 	}
 
+	if err := sc.ReloadSourceConfig(); err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("reloading sources: %v", err)), nil
+	}
+
 	return server.JSONResult(map[string]string{
 		"name":   name,
 		"status": "added",
@@ -539,6 +541,10 @@ func handleSourceRemove(_ context.Context, req mcp.CallToolRequest, sc *server.S
 
 	if err := cfg.SaveTo(sc.Paths.SourcesFile); err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("saving sources: %v", err)), nil
+	}
+
+	if err := sc.ReloadSourceConfig(); err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("reloading sources: %v", err)), nil
 	}
 
 	return server.JSONResult(map[string]string{

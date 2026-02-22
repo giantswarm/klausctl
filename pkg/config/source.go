@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
-	"strings"
+	"slices"
 
 	"gopkg.in/yaml.v3"
 )
@@ -143,6 +143,7 @@ func (sc *SourceConfig) SaveTo(path string) error {
 // Validate checks the source configuration for errors.
 func (sc *SourceConfig) Validate() error {
 	seen := make(map[string]bool, len(sc.Sources))
+	defaultCount := 0
 	for _, s := range sc.Sources {
 		if err := ValidateSourceName(s.Name); err != nil {
 			return err
@@ -154,18 +155,36 @@ func (sc *SourceConfig) Validate() error {
 			return fmt.Errorf("duplicate source name %q", s.Name)
 		}
 		seen[s.Name] = true
+		if s.Default {
+			defaultCount++
+		}
+	}
+	if defaultCount > 1 {
+		return fmt.Errorf("multiple sources marked as default; only one is allowed")
 	}
 	return nil
 }
 
 // ensureBuiltin ensures the built-in Giant Swarm source is always present.
+// If no other source is marked as default, the builtin gets Default: true.
 func (sc *SourceConfig) ensureBuiltin() {
 	for _, s := range sc.Sources {
 		if s.Name == DefaultSourceName {
 			return
 		}
 	}
-	sc.Sources = append([]Source{builtinSource()}, sc.Sources...)
+	hasDefault := false
+	for _, s := range sc.Sources {
+		if s.Default {
+			hasDefault = true
+			break
+		}
+	}
+	b := builtinSource()
+	if hasDefault {
+		b.Default = false
+	}
+	sc.Sources = append([]Source{b}, sc.Sources...)
 }
 
 // Add adds a new source. Returns an error if a source with the same name already exists.
@@ -227,17 +246,30 @@ func (sc *SourceConfig) Get(name string) *Source {
 }
 
 // SourceResolver wraps a list of sources and provides artifact reference resolution.
+// The default source (if any) is placed first for short-name resolution priority.
 type SourceResolver struct {
 	sources []Source
 }
 
 // NewSourceResolver creates a resolver from the given sources.
 // If sources is empty, the built-in default source is used.
+// Sources are reordered so the one marked Default comes first.
 func NewSourceResolver(sources []Source) *SourceResolver {
 	if len(sources) == 0 {
 		sources = []Source{builtinSource()}
 	}
-	return &SourceResolver{sources: sources}
+	ordered := make([]Source, len(sources))
+	copy(ordered, sources)
+	slices.SortStableFunc(ordered, func(a, b Source) int {
+		if a.Default && !b.Default {
+			return -1
+		}
+		if !a.Default && b.Default {
+			return 1
+		}
+		return 0
+	})
+	return &SourceResolver{sources: ordered}
 }
 
 // DefaultSourceResolver returns a resolver with only the built-in source.
@@ -256,27 +288,18 @@ func (r *SourceResolver) ForSource(name string) (*SourceResolver, error) {
 	return nil, fmt.Errorf("source %q not found", name)
 }
 
-// ResolvePluginRef expands a short plugin name using the first source in priority order.
+// ResolvePluginRef expands a short plugin name using the default source.
 func (r *SourceResolver) ResolvePluginRef(ref string) string {
-	if len(r.sources) == 0 {
-		return expandArtifactRef(ref, DefaultPluginRegistry)
-	}
 	return expandArtifactRef(ref, r.sources[0].PluginRegistry())
 }
 
-// ResolvePersonalityRef expands a short personality name using the first source in priority order.
+// ResolvePersonalityRef expands a short personality name using the default source.
 func (r *SourceResolver) ResolvePersonalityRef(ref string) string {
-	if len(r.sources) == 0 {
-		return expandArtifactRef(ref, DefaultPersonalityRegistry)
-	}
 	return expandArtifactRef(ref, r.sources[0].PersonalityRegistry())
 }
 
-// ResolveToolchainRef expands a short toolchain name using the first source in priority order.
+// ResolveToolchainRef expands a short toolchain name using the default source.
 func (r *SourceResolver) ResolveToolchainRef(ref string) string {
-	if len(r.sources) == 0 {
-		return expandArtifactRef(ref, DefaultToolchainRegistry)
-	}
 	return expandArtifactRef(ref, r.sources[0].ToolchainRegistry())
 }
 
@@ -307,46 +330,7 @@ func (r *SourceResolver) ToolchainRegistries() []SourceRegistry {
 	return result
 }
 
-// Sources returns the underlying list of sources.
+// Sources returns a copy of the underlying list of sources.
 func (r *SourceResolver) Sources() []Source {
-	return r.sources
-}
-
-// ResolvePluginRefWithSource expands a short plugin name and returns the resolved
-// ref along with the source name. Full OCI refs bypass source resolution.
-func (r *SourceResolver) ResolvePluginRefWithSource(ref string) (string, string) {
-	ref = strings.TrimSpace(ref)
-	if ref == "" || strings.Contains(ref, "/") {
-		return ref, ""
-	}
-	for _, s := range r.sources {
-		return expandArtifactRef(ref, s.PluginRegistry()), s.Name
-	}
-	return expandArtifactRef(ref, DefaultPluginRegistry), DefaultSourceName
-}
-
-// ResolvePersonalityRefWithSource expands a short personality name and returns the resolved
-// ref along with the source name. Full OCI refs bypass source resolution.
-func (r *SourceResolver) ResolvePersonalityRefWithSource(ref string) (string, string) {
-	ref = strings.TrimSpace(ref)
-	if ref == "" || strings.Contains(ref, "/") {
-		return ref, ""
-	}
-	for _, s := range r.sources {
-		return expandArtifactRef(ref, s.PersonalityRegistry()), s.Name
-	}
-	return expandArtifactRef(ref, DefaultPersonalityRegistry), DefaultSourceName
-}
-
-// ResolveToolchainRefWithSource expands a short toolchain name and returns the resolved
-// ref along with the source name. Full OCI refs bypass source resolution.
-func (r *SourceResolver) ResolveToolchainRefWithSource(ref string) (string, string) {
-	ref = strings.TrimSpace(ref)
-	if ref == "" || strings.Contains(ref, "/") {
-		return ref, ""
-	}
-	for _, s := range r.sources {
-		return expandArtifactRef(ref, s.ToolchainRegistry()), s.Name
-	}
-	return expandArtifactRef(ref, DefaultToolchainRegistry), DefaultSourceName
+	return slices.Clone(r.sources)
 }
