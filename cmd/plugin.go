@@ -21,6 +21,9 @@ var (
 	pluginValidateOut string
 	pluginPullOut     string
 	pluginPullSource  string
+	pluginPushOut     string
+	pluginPushSource  string
+	pluginPushDryRun  bool
 	pluginListOut     string
 	pluginListLocal   bool
 	pluginListSource  string
@@ -65,6 +68,22 @@ Accepts a short name, short name with tag, or full OCI reference:
 	RunE: runPluginPull,
 }
 
+var pluginPushCmd = &cobra.Command{
+	Use:   "push <directory> <reference>",
+	Short: "Push a plugin to the OCI registry",
+	Long: `Push a local plugin directory as an OCI artifact to the registry.
+
+The directory must contain valid plugin content (skills/, agents/, hooks/,
+or .mcp.json) and a .claude-plugin/plugin.json manifest.
+
+Accepts a full OCI reference with tag or a short name with tag:
+
+  klausctl plugin push ./my-plugin gs-base:v1.0.0
+  klausctl plugin push ./my-plugin gsoci.azurecr.io/giantswarm/klaus-plugins/gs-base:v1.0.0`,
+	Args: cobra.ExactArgs(2),
+	RunE: runPluginPush,
+}
+
 var pluginListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List plugins",
@@ -88,6 +107,9 @@ func init() {
 	pluginValidateCmd.Flags().StringVarP(&pluginValidateOut, "output", "o", "text", "output format: text, json")
 	pluginPullCmd.Flags().StringVarP(&pluginPullOut, "output", "o", "text", "output format: text, json")
 	pluginPullCmd.Flags().StringVar(&pluginPullSource, "source", "", "resolve against a specific source")
+	pluginPushCmd.Flags().StringVarP(&pluginPushOut, "output", "o", "text", "output format: text, json")
+	pluginPushCmd.Flags().StringVar(&pluginPushSource, "source", "", "use a specific source registry for the push destination")
+	pluginPushCmd.Flags().BoolVar(&pluginPushDryRun, "dry-run", false, "validate and resolve without pushing")
 	pluginListCmd.Flags().StringVarP(&pluginListOut, "output", "o", "text", "output format: text, json")
 	pluginListCmd.Flags().BoolVar(&pluginListLocal, "local", false, "list only locally cached plugins")
 	pluginListCmd.Flags().StringVar(&pluginListSource, "source", "", "list plugins from a specific source only")
@@ -95,6 +117,7 @@ func init() {
 
 	pluginCmd.AddCommand(pluginValidateCmd)
 	pluginCmd.AddCommand(pluginPullCmd)
+	pluginCmd.AddCommand(pluginPushCmd)
 	pluginCmd.AddCommand(pluginListCmd)
 	rootCmd.AddCommand(pluginCmd)
 }
@@ -147,7 +170,7 @@ func validatePluginDir(dir string, out io.Writer, outputFmt string) error {
 }
 
 // pullPluginFn wraps the typed PullPlugin method for use with pullArtifact.
-var pullPluginFn = func(ctx context.Context, client *klausoci.Client, ref, destDir string) (string, bool, error) {
+var pullPluginFn pullFn = func(ctx context.Context, client *klausoci.Client, ref, destDir string) (string, bool, error) {
 	result, err := client.PullPlugin(ctx, ref, destDir)
 	if err != nil {
 		return "", false, err
@@ -158,6 +181,45 @@ var pullPluginFn = func(ctx context.Context, client *klausoci.Client, ref, destD
 // listPluginsFn wraps the typed ListPlugins method for use with listLatestRemoteArtifacts.
 var listPluginsFn listFn = func(ctx context.Context, client *klausoci.Client, opts ...klausoci.ListOption) ([]klausoci.ListEntry, error) {
 	return client.ListPlugins(ctx, opts...)
+}
+
+// pushPluginFn reads plugin metadata from sourceDir and pushes it as an OCI artifact.
+var pushPluginFn pushFn = func(ctx context.Context, client *klausoci.Client, sourceDir, ref string) (string, error) {
+	plugin, err := klausoci.ReadPluginFromDir(sourceDir)
+	if err != nil {
+		return "", err
+	}
+	result, err := client.PushPlugin(ctx, sourceDir, ref, *plugin)
+	if err != nil {
+		return "", err
+	}
+	return result.Digest, nil
+}
+
+func runPluginPush(cmd *cobra.Command, args []string) error {
+	if err := validateOutputFormat(pluginPushOut); err != nil {
+		return err
+	}
+
+	dir := args[0]
+	if err := validatePluginDir(dir, io.Discard, "text"); err != nil {
+		return err
+	}
+
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer cancel()
+
+	resolver, err := buildSourceResolver(pluginPushSource)
+	if err != nil {
+		return err
+	}
+
+	ref := resolver.ResolvePluginRef(args[1])
+	if err := validatePushRef(ref); err != nil {
+		return err
+	}
+
+	return pushArtifact(ctx, dir, ref, pushPluginFn, cmd.OutOrStdout(), pluginPushOut, pushOpts{dryRun: pluginPushDryRun})
 }
 
 func runPluginPull(cmd *cobra.Command, args []string) error {

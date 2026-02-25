@@ -20,6 +20,9 @@ var (
 	personalityValidateOut string
 	personalityPullOut     string
 	personalityPullSource  string
+	personalityPushOut     string
+	personalityPushSource  string
+	personalityPushDryRun  bool
 	personalityListOut     string
 	personalityListLocal   bool
 	personalityListSource  string
@@ -61,6 +64,21 @@ Accepts a short name, short name with tag, or full OCI reference:
 	RunE: runPersonalityPull,
 }
 
+var personalityPushCmd = &cobra.Command{
+	Use:   "push <directory> <reference>",
+	Short: "Push a personality to the OCI registry",
+	Long: `Push a local personality directory as an OCI artifact to the registry.
+
+The directory must contain a valid personality.yaml file.
+
+Accepts a full OCI reference with tag or a short name with tag:
+
+  klausctl personality push ./my-personality sre:v1.0.0
+  klausctl personality push ./my-personality gsoci.azurecr.io/giantswarm/klaus-personalities/sre:v1.0.0`,
+	Args: cobra.ExactArgs(2),
+	RunE: runPersonalityPush,
+}
+
 var personalityListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List personalities",
@@ -86,6 +104,9 @@ func init() {
 	personalityValidateCmd.Flags().StringVarP(&personalityValidateOut, "output", "o", "text", "output format: text, json")
 	personalityPullCmd.Flags().StringVarP(&personalityPullOut, "output", "o", "text", "output format: text, json")
 	personalityPullCmd.Flags().StringVar(&personalityPullSource, "source", "", "resolve against a specific source")
+	personalityPushCmd.Flags().StringVarP(&personalityPushOut, "output", "o", "text", "output format: text, json")
+	personalityPushCmd.Flags().StringVar(&personalityPushSource, "source", "", "use a specific source registry for the push destination")
+	personalityPushCmd.Flags().BoolVar(&personalityPushDryRun, "dry-run", false, "validate and resolve without pushing")
 	personalityListCmd.Flags().StringVarP(&personalityListOut, "output", "o", "text", "output format: text, json")
 	personalityListCmd.Flags().BoolVar(&personalityListLocal, "local", false, "list only locally cached personalities")
 	personalityListCmd.Flags().StringVar(&personalityListSource, "source", "", "list personalities from a specific source only")
@@ -93,6 +114,7 @@ func init() {
 
 	personalityCmd.AddCommand(personalityValidateCmd)
 	personalityCmd.AddCommand(personalityPullCmd)
+	personalityCmd.AddCommand(personalityPushCmd)
 	personalityCmd.AddCommand(personalityListCmd)
 	rootCmd.AddCommand(personalityCmd)
 }
@@ -148,7 +170,7 @@ func validatePersonalityDir(dir string, out io.Writer, outputFmt string) error {
 }
 
 // pullPersonalityFn wraps the typed PullPersonality method for use with pullArtifact.
-var pullPersonalityFn = func(ctx context.Context, client *klausoci.Client, ref, destDir string) (string, bool, error) {
+var pullPersonalityFn pullFn = func(ctx context.Context, client *klausoci.Client, ref, destDir string) (string, bool, error) {
 	result, err := client.PullPersonality(ctx, ref, destDir)
 	if err != nil {
 		return "", false, err
@@ -159,6 +181,45 @@ var pullPersonalityFn = func(ctx context.Context, client *klausoci.Client, ref, 
 // listPersonalitiesFn wraps the typed ListPersonalities method for use with listLatestRemoteArtifacts.
 var listPersonalitiesFn listFn = func(ctx context.Context, client *klausoci.Client, opts ...klausoci.ListOption) ([]klausoci.ListEntry, error) {
 	return client.ListPersonalities(ctx, opts...)
+}
+
+// pushPersonalityFn reads personality metadata from sourceDir and pushes it as an OCI artifact.
+var pushPersonalityFn pushFn = func(ctx context.Context, client *klausoci.Client, sourceDir, ref string) (string, error) {
+	personality, err := klausoci.ReadPersonalityFromDir(sourceDir)
+	if err != nil {
+		return "", err
+	}
+	result, err := client.PushPersonality(ctx, sourceDir, ref, *personality)
+	if err != nil {
+		return "", err
+	}
+	return result.Digest, nil
+}
+
+func runPersonalityPush(cmd *cobra.Command, args []string) error {
+	if err := validateOutputFormat(personalityPushOut); err != nil {
+		return err
+	}
+
+	dir := args[0]
+	if err := validatePersonalityDir(dir, io.Discard, "text"); err != nil {
+		return err
+	}
+
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer cancel()
+
+	resolver, err := buildSourceResolver(personalityPushSource)
+	if err != nil {
+		return err
+	}
+
+	ref := resolver.ResolvePersonalityRef(args[1])
+	if err := validatePushRef(ref); err != nil {
+		return err
+	}
+
+	return pushArtifact(ctx, dir, ref, pushPersonalityFn, cmd.OutOrStdout(), personalityPushOut, pushOpts{dryRun: personalityPushDryRun})
 }
 
 func runPersonalityPull(cmd *cobra.Command, args []string) error {

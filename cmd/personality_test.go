@@ -21,7 +21,7 @@ plugins:
 `
 
 func TestPersonalitySubcommandsRegistered(t *testing.T) {
-	assertSubcommandsRegistered(t, personalityCmd, []string{"validate", "pull", "list"})
+	assertSubcommandsRegistered(t, personalityCmd, []string{"validate", "pull", "push", "list"})
 }
 
 func TestPersonalityCommandRegisteredOnRoot(t *testing.T) {
@@ -134,6 +134,9 @@ func TestValidatePersonalityDirJSONOutput(t *testing.T) {
 func TestPersonalityFlagsRegistered(t *testing.T) {
 	assertFlagRegistered(t, personalityValidateCmd, "output")
 	assertFlagRegistered(t, personalityPullCmd, "output")
+	assertFlagRegistered(t, personalityPushCmd, "output")
+	assertFlagRegistered(t, personalityPushCmd, "source")
+	assertFlagRegistered(t, personalityPushCmd, "dry-run")
 	assertFlagRegistered(t, personalityListCmd, "output")
 	assertFlagRegistered(t, personalityListCmd, "local")
 }

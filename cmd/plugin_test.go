@@ -11,7 +11,7 @@ import (
 )
 
 func TestPluginSubcommandsRegistered(t *testing.T) {
-	assertSubcommandsRegistered(t, pluginCmd, []string{"validate", "pull", "list"})
+	assertSubcommandsRegistered(t, pluginCmd, []string{"validate", "pull", "push", "list"})
 }
 
 func TestPluginCommandRegisteredOnRoot(t *testing.T) {
@@ -125,6 +125,9 @@ func TestValidatePluginDirJSONOutput(t *testing.T) {
 func TestPluginFlagsRegistered(t *testing.T) {
 	assertFlagRegistered(t, pluginValidateCmd, "output")
 	assertFlagRegistered(t, pluginPullCmd, "output")
+	assertFlagRegistered(t, pluginPushCmd, "output")
+	assertFlagRegistered(t, pluginPushCmd, "source")
+	assertFlagRegistered(t, pluginPushCmd, "dry-run")
 	assertFlagRegistered(t, pluginListCmd, "output")
 	assertFlagRegistered(t, pluginListCmd, "local")
 }
