@@ -341,6 +341,7 @@ func runPersonalityDescribe(cmd *cobra.Command, args []string) error {
 		fmt.Fprintf(out, "%-14s %s\n", "Toolchain:", dp.Personality.Toolchain.Ref())
 	}
 	if len(dp.Personality.Plugins) > 0 {
+		fmt.Fprintln(out)
 		fmt.Fprintln(out, "Plugins:")
 		for _, p := range dp.Personality.Plugins {
 			fmt.Fprintf(out, "  - %s\n", p.Ref())
@@ -356,6 +357,9 @@ func runPersonalityDescribe(cmd *cobra.Command, args []string) error {
 
 // printResolvedDeps prints resolved dependency metadata for a personality.
 func printResolvedDeps(out io.Writer, deps *klausoci.ResolvedDependencies) {
+	if deps == nil {
+		return
+	}
 	if deps.Toolchain != nil {
 		fmt.Fprintln(out)
 		fmt.Fprintln(out, "Resolved Toolchain:")
@@ -371,19 +375,8 @@ func printResolvedDeps(out io.Writer, deps *klausoci.ResolvedDependencies) {
 	}
 }
 
-// printIndentedMeta prints artifact metadata with two-space indentation.
+// printIndentedMeta prints artifact metadata with two-space indentation,
+// showing only the most important fields for dependency summaries.
 func printIndentedMeta(out io.Writer, meta artifactMeta) {
-	fmt.Fprintf(out, "  %-14s %s\n", "Name:", meta.Name)
-	if meta.Version != "" {
-		fmt.Fprintf(out, "  %-14s %s\n", "Version:", meta.Version)
-	}
-	if meta.Description != "" {
-		fmt.Fprintf(out, "  %-14s %s\n", "Description:", meta.Description)
-	}
-	if meta.Author != "" {
-		fmt.Fprintf(out, "  %-14s %s\n", "Author:", meta.Author)
-	}
-	if meta.Digest != "" {
-		fmt.Fprintf(out, "  %-14s %s\n", "Digest:", meta.Digest)
-	}
+	printArtifactMetaWith(out, meta, printMetaOpts{prefix: "  ", compact: true})
 }
