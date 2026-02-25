@@ -329,11 +329,11 @@ func validatePushRef(ref string) error {
 // pushResult describes the outcome of pushing an OCI artifact, used for
 // --output json on push commands.
 type pushResult struct {
-	Name     string `json:"name"`
-	Ref      string `json:"ref"`
-	Digest   string `json:"digest"`
-	DryRun   bool   `json:"dryRun,omitempty"`
-	Overwrote bool  `json:"overwrote,omitempty"`
+	Name      string `json:"name"`
+	Ref       string `json:"ref"`
+	Digest    string `json:"digest"`
+	DryRun    bool   `json:"dryRun,omitempty"`
+	Overwrote bool   `json:"overwrote,omitempty"`
 }
 
 // pushFn is a callback that performs a typed push and returns
