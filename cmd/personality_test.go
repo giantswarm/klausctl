@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	klausoci "github.com/giantswarm/klaus-oci"
 )
 
 const personalitySpecYAML = `name: sre
@@ -21,7 +23,7 @@ plugins:
 `
 
 func TestPersonalitySubcommandsRegistered(t *testing.T) {
-	assertSubcommandsRegistered(t, personalityCmd, []string{"validate", "pull", "push", "list"})
+	assertSubcommandsRegistered(t, personalityCmd, []string{"validate", "pull", "push", "list", "describe"})
 }
 
 func TestPersonalityCommandRegisteredOnRoot(t *testing.T) {
@@ -139,4 +141,56 @@ func TestPersonalityFlagsRegistered(t *testing.T) {
 	assertFlagRegistered(t, personalityPushCmd, "dry-run")
 	assertFlagRegistered(t, personalityListCmd, "output")
 	assertFlagRegistered(t, personalityListCmd, "local")
+	assertFlagRegistered(t, personalityDescribeCmd, "output")
+	assertFlagRegistered(t, personalityDescribeCmd, "source")
+	assertFlagRegistered(t, personalityDescribeCmd, "deps")
+}
+
+func TestPrintResolvedDeps(t *testing.T) {
+	deps := &klausoci.ResolvedDependencies{
+		Toolchain: &klausoci.DescribedToolchain{
+			ArtifactInfo: klausoci.ArtifactInfo{Digest: "sha256:tc123"},
+			Toolchain:    klausoci.Toolchain{Name: "go", Version: "v1.0.0"},
+		},
+		Plugins: []klausoci.DescribedPlugin{
+			{
+				ArtifactInfo: klausoci.ArtifactInfo{Digest: "sha256:p1"},
+				Plugin:       klausoci.Plugin{Name: "gs-base", Version: "v0.1.0"},
+			},
+		},
+		Warnings: []string{"plugin gs-sre: not found"},
+	}
+
+	var buf bytes.Buffer
+	printResolvedDeps(&buf, deps)
+	output := buf.String()
+
+	for _, want := range []string{
+		"Resolved Toolchain:",
+		"Name:          go",
+		"Resolved Plugin [gs-base]:",
+		"Warning: plugin gs-sre: not found",
+	} {
+		if !strings.Contains(output, want) {
+			t.Errorf("output missing %q\ngot:\n%s", want, output)
+		}
+	}
+}
+
+func TestPrintIndentedMeta(t *testing.T) {
+	var buf bytes.Buffer
+	printIndentedMeta(&buf, artifactMeta{
+		Name:        "go",
+		Version:     "v1.0.0",
+		Description: "Go toolchain",
+		Author:      "GS",
+		Digest:      "sha256:abc",
+	})
+	output := buf.String()
+
+	for _, want := range []string{"  Name:", "  Version:", "  Description:", "  Author:", "  Digest:"} {
+		if !strings.Contains(output, want) {
+			t.Errorf("output missing indented %q", want)
+		}
+	}
 }
