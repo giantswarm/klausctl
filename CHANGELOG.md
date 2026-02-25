@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add `klausctl plugin push` and `klausctl personality push` commands for pushing OCI artifacts from local directories to registries, designed for CI pipeline use.
 - Add secrets management with `klausctl secret set|list|delete` CLI commands and `klaus_secret_list` MCP tool. Secrets are stored in `~/.config/klausctl/secrets.yaml` with 0600 permissions and can be referenced by name in instance configs.
 - Add managed MCP servers with `klausctl mcpserver add|list|remove` CLI commands and `klaus_mcpserver_add`, `klaus_mcpserver_list`, `klaus_mcpserver_remove` MCP tools. Managed servers are stored in `~/.config/klausctl/mcpservers.yaml` and resolved with optional Bearer token authentication at start time.
 - Add `secretEnvVars`, `secretFiles`, and `mcpServerRefs` config fields for referencing secrets by name in instance configurations. At start time, `secretEnvVars` injects resolved secret values as container environment variables, `secretFiles` writes secret values to files and mounts them read-only, and `mcpServerRefs` merges managed MCP server definitions into `mcpServers` with Bearer token headers.

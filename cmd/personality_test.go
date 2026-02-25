@@ -21,7 +21,7 @@ plugins:
 `
 
 func TestPersonalitySubcommandsRegistered(t *testing.T) {
-	assertSubcommandsRegistered(t, personalityCmd, []string{"validate", "pull", "list"})
+	assertSubcommandsRegistered(t, personalityCmd, []string{"validate", "pull", "push", "list"})
 }
 
 func TestPersonalityCommandRegisteredOnRoot(t *testing.T) {
@@ -131,9 +131,44 @@ func TestValidatePersonalityDirJSONOutput(t *testing.T) {
 	}
 }
 
+func TestValidatePersonalityDirBeforePush(t *testing.T) {
+	t.Run("missing personality.yaml fails", func(t *testing.T) {
+		dir := t.TempDir()
+		err := validatePersonalityDir(dir, io.Discard, "text")
+		if err == nil {
+			t.Fatal("expected error for missing personality.yaml")
+		}
+		if !strings.Contains(err.Error(), "personality.yaml") {
+			t.Errorf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("valid personality.yaml passes", func(t *testing.T) {
+		dir := t.TempDir()
+		if err := os.WriteFile(filepath.Join(dir, "personality.yaml"), []byte(personalitySpecYAML), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := validatePersonalityDir(dir, io.Discard, "text"); err != nil {
+			t.Errorf("validatePersonalityDir() error = %v", err)
+		}
+	})
+
+	t.Run("nonexistent dir fails", func(t *testing.T) {
+		err := validatePersonalityDir("/nonexistent/push-test", io.Discard, "text")
+		if err == nil {
+			t.Fatal("expected error for nonexistent directory")
+		}
+		if !strings.Contains(err.Error(), "does not exist") {
+			t.Errorf("unexpected error: %v", err)
+		}
+	})
+}
+
 func TestPersonalityFlagsRegistered(t *testing.T) {
 	assertFlagRegistered(t, personalityValidateCmd, "output")
 	assertFlagRegistered(t, personalityPullCmd, "output")
+	assertFlagRegistered(t, personalityPushCmd, "output")
+	assertFlagRegistered(t, personalityPushCmd, "source")
 	assertFlagRegistered(t, personalityListCmd, "output")
 	assertFlagRegistered(t, personalityListCmd, "local")
 }

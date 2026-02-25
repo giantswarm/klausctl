@@ -314,6 +314,45 @@ func printLocalArtifacts(out io.Writer, artifacts []cachedArtifact, outputFmt st
 	return w.Flush()
 }
 
+// pushResult describes the outcome of pushing an OCI artifact, used for
+// --output json on push commands.
+type pushResult struct {
+	Name   string `json:"name"`
+	Ref    string `json:"ref"`
+	Digest string `json:"digest"`
+}
+
+// pushFn is a callback that performs a typed push and returns
+// (digest, error). The callback is responsible for reading metadata from
+// sourceDir and calling the appropriate typed push method.
+type pushFn func(ctx context.Context, client *klausoci.Client, sourceDir, ref string) (digest string, err error)
+
+// pushArtifact pushes a local directory as an OCI artifact to a registry.
+// The caller provides a typed push function that reads metadata and calls the
+// appropriate client method. Output is formatted as text or JSON.
+func pushArtifact(ctx context.Context, sourceDir, ref string, push pushFn, out io.Writer, outputFmt string) error {
+	shortName := klausoci.ShortName(klausoci.RepositoryFromRef(ref))
+
+	client := orchestrator.NewDefaultClient()
+	digest, err := push(ctx, client, sourceDir, ref)
+	if err != nil {
+		return err
+	}
+
+	if outputFmt == "json" {
+		enc := json.NewEncoder(out)
+		enc.SetIndent("", "  ")
+		return enc.Encode(pushResult{
+			Name:   shortName,
+			Ref:    ref,
+			Digest: digest,
+		})
+	}
+
+	fmt.Fprintf(out, "%s: pushed (%s)\n", shortName, klausoci.TruncateDigest(digest))
+	return nil
+}
+
 // formatAge returns a human-readable age string from a timestamp.
 func formatAge(t time.Time) string {
 	if t.IsZero() {

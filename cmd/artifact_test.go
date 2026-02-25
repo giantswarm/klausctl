@@ -2,7 +2,9 @@ package cmd
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -189,6 +191,70 @@ func TestPrintEmptyText(t *testing.T) {
 	}
 	if !strings.Contains(output, "Try pulling first.") {
 		t.Error("expected hint line 2")
+	}
+}
+
+func TestPushArtifactText(t *testing.T) {
+	var buf bytes.Buffer
+	fakePush := func(_ context.Context, _ *klausoci.Client, _, _ string) (string, error) {
+		return "sha256:deadbeef12345678", nil
+	}
+
+	err := pushArtifact(context.Background(), "/tmp/src", "example.com/plugins/gs-base:v1.0.0", fakePush, &buf, "text")
+	if err != nil {
+		t.Fatalf("pushArtifact() error = %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "gs-base") {
+		t.Error("expected output to contain short name")
+	}
+	if !strings.Contains(output, "pushed") {
+		t.Error("expected output to contain 'pushed'")
+	}
+	if !strings.Contains(output, "sha256:deadbeef1234") {
+		t.Error("expected output to contain truncated digest")
+	}
+}
+
+func TestPushArtifactJSON(t *testing.T) {
+	var buf bytes.Buffer
+	fakePush := func(_ context.Context, _ *klausoci.Client, _, _ string) (string, error) {
+		return "sha256:deadbeef12345678", nil
+	}
+
+	err := pushArtifact(context.Background(), "/tmp/src", "example.com/plugins/gs-base:v1.0.0", fakePush, &buf, "json")
+	if err != nil {
+		t.Fatalf("pushArtifact() error = %v", err)
+	}
+
+	var result pushResult
+	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
+		t.Fatalf("JSON parse error: %v", err)
+	}
+	if result.Name != "gs-base" {
+		t.Errorf("Name = %q, want %q", result.Name, "gs-base")
+	}
+	if result.Ref != "example.com/plugins/gs-base:v1.0.0" {
+		t.Errorf("Ref = %q, want full ref", result.Ref)
+	}
+	if result.Digest != "sha256:deadbeef12345678" {
+		t.Errorf("Digest = %q, want %q", result.Digest, "sha256:deadbeef12345678")
+	}
+}
+
+func TestPushArtifactError(t *testing.T) {
+	var buf bytes.Buffer
+	fakePush := func(_ context.Context, _ *klausoci.Client, _, _ string) (string, error) {
+		return "", fmt.Errorf("registry unavailable")
+	}
+
+	err := pushArtifact(context.Background(), "/tmp/src", "example.com/plugins/gs-base:v1.0.0", fakePush, &buf, "text")
+	if err == nil {
+		t.Fatal("expected error from push")
+	}
+	if !strings.Contains(err.Error(), "registry unavailable") {
+		t.Errorf("unexpected error: %v", err)
 	}
 }
 

@@ -11,7 +11,7 @@ import (
 )
 
 func TestPluginSubcommandsRegistered(t *testing.T) {
-	assertSubcommandsRegistered(t, pluginCmd, []string{"validate", "pull", "list"})
+	assertSubcommandsRegistered(t, pluginCmd, []string{"validate", "pull", "push", "list"})
 }
 
 func TestPluginCommandRegisteredOnRoot(t *testing.T) {
@@ -122,9 +122,44 @@ func TestValidatePluginDirJSONOutput(t *testing.T) {
 	}
 }
 
+func TestValidatePluginDirBeforePush(t *testing.T) {
+	t.Run("empty dir fails", func(t *testing.T) {
+		dir := t.TempDir()
+		err := validatePluginDir(dir, io.Discard, "text")
+		if err == nil {
+			t.Fatal("expected error for empty directory")
+		}
+		if !strings.Contains(err.Error(), "no recognized plugin content") {
+			t.Errorf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("dir with skills passes", func(t *testing.T) {
+		dir := t.TempDir()
+		if err := os.MkdirAll(filepath.Join(dir, "skills"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := validatePluginDir(dir, io.Discard, "text"); err != nil {
+			t.Errorf("validatePluginDir() error = %v", err)
+		}
+	})
+
+	t.Run("nonexistent dir fails", func(t *testing.T) {
+		err := validatePluginDir("/nonexistent/push-test", io.Discard, "text")
+		if err == nil {
+			t.Fatal("expected error for nonexistent directory")
+		}
+		if !strings.Contains(err.Error(), "does not exist") {
+			t.Errorf("unexpected error: %v", err)
+		}
+	})
+}
+
 func TestPluginFlagsRegistered(t *testing.T) {
 	assertFlagRegistered(t, pluginValidateCmd, "output")
 	assertFlagRegistered(t, pluginPullCmd, "output")
+	assertFlagRegistered(t, pluginPushCmd, "output")
+	assertFlagRegistered(t, pluginPushCmd, "source")
 	assertFlagRegistered(t, pluginListCmd, "output")
 	assertFlagRegistered(t, pluginListCmd, "local")
 }
