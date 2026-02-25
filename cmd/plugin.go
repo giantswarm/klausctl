@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 
 	klausoci "github.com/giantswarm/klaus-oci"
 	"github.com/spf13/cobra"
@@ -18,16 +19,18 @@ import (
 )
 
 var (
-	pluginValidateOut string
-	pluginPullOut     string
-	pluginPullSource  string
-	pluginPushOut     string
-	pluginPushSource  string
-	pluginPushDryRun  bool
-	pluginListOut     string
-	pluginListLocal   bool
-	pluginListSource  string
-	pluginListAll     bool
+	pluginValidateOut    string
+	pluginPullOut        string
+	pluginPullSource     string
+	pluginPushOut        string
+	pluginPushSource     string
+	pluginPushDryRun     bool
+	pluginListOut        string
+	pluginListLocal      bool
+	pluginListSource     string
+	pluginListAll        bool
+	pluginDescribeOut    string
+	pluginDescribeSource string
 )
 
 var pluginCmd = &cobra.Command{
@@ -96,6 +99,20 @@ With --local, shows only locally cached plugins with full detail.`,
 	RunE: runPluginList,
 }
 
+var pluginDescribeCmd = &cobra.Command{
+	Use:   "describe <reference>",
+	Short: "Describe a plugin from the OCI registry",
+	Long: `Fetch and display metadata for a plugin OCI artifact without downloading content.
+
+Accepts a short name, short name with tag, or full OCI reference:
+
+  klausctl plugin describe gs-base
+  klausctl plugin describe gs-base:v0.1.0
+  klausctl plugin describe gsoci.azurecr.io/giantswarm/klaus-plugins/gs-base:v0.1.0`,
+	Args: cobra.ExactArgs(1),
+	RunE: runPluginDescribe,
+}
+
 // pluginValidation is the JSON representation of a successful plugin validation.
 type pluginValidation struct {
 	Valid     bool     `json:"valid"`
@@ -114,11 +131,14 @@ func init() {
 	pluginListCmd.Flags().BoolVar(&pluginListLocal, "local", false, "list only locally cached plugins")
 	pluginListCmd.Flags().StringVar(&pluginListSource, "source", "", "list plugins from a specific source only")
 	pluginListCmd.Flags().BoolVar(&pluginListAll, "all", false, "list plugins from all configured sources")
+	pluginDescribeCmd.Flags().StringVarP(&pluginDescribeOut, "output", "o", "text", "output format: text, json")
+	pluginDescribeCmd.Flags().StringVar(&pluginDescribeSource, "source", "", "resolve against a specific source")
 
 	pluginCmd.AddCommand(pluginValidateCmd)
 	pluginCmd.AddCommand(pluginPullCmd)
 	pluginCmd.AddCommand(pluginPushCmd)
 	pluginCmd.AddCommand(pluginListCmd)
+	pluginCmd.AddCommand(pluginDescribeCmd)
 	rootCmd.AddCommand(pluginCmd)
 }
 
@@ -273,4 +293,72 @@ func runPluginList(cmd *cobra.Command, _ []string) error {
 	}
 
 	return listOCIArtifacts(ctx, cmd.OutOrStdout(), paths.PluginsDir, pluginListOut, "plugin", "plugins", resolver.PluginRegistries(), pluginListLocal, listPluginsFn)
+}
+
+func runPluginDescribe(cmd *cobra.Command, args []string) error {
+	if err := validateOutputFormat(pluginDescribeOut); err != nil {
+		return err
+	}
+
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer cancel()
+
+	resolver, err := buildSourceResolver(pluginDescribeSource)
+	if err != nil {
+		return err
+	}
+
+	ref := resolver.ResolvePluginRef(args[0])
+	client := orchestrator.NewDefaultClient()
+	dp, err := client.DescribePlugin(ctx, ref)
+	if err != nil {
+		return err
+	}
+
+	out := cmd.OutOrStdout()
+
+	if pluginDescribeOut == "json" {
+		enc := json.NewEncoder(out)
+		enc.SetIndent("", "  ")
+		return enc.Encode(newDescribePluginJSON(dp))
+	}
+
+	printArtifactMeta(out, metaFromPlugin(dp))
+	printPluginComponents(out, dp)
+	return nil
+}
+
+// printPluginComponents prints the Components section for a described plugin.
+func printPluginComponents(out io.Writer, dp *klausoci.DescribedPlugin) {
+	hasComponents := len(dp.Plugin.Skills) > 0 ||
+		len(dp.Plugin.Commands) > 0 ||
+		len(dp.Plugin.Agents) > 0 ||
+		dp.Plugin.HasHooks ||
+		len(dp.Plugin.MCPServers) > 0 ||
+		len(dp.Plugin.LSPServers) > 0
+
+	if !hasComponents {
+		return
+	}
+
+	fmt.Fprintln(out)
+	fmt.Fprintln(out, "Components:")
+	if len(dp.Plugin.Skills) > 0 {
+		fmt.Fprintf(out, "  %-14s %s\n", "Skills:", strings.Join(dp.Plugin.Skills, ", "))
+	}
+	if len(dp.Plugin.Commands) > 0 {
+		fmt.Fprintf(out, "  %-14s %s\n", "Commands:", strings.Join(dp.Plugin.Commands, ", "))
+	}
+	if len(dp.Plugin.Agents) > 0 {
+		fmt.Fprintf(out, "  %-14s %s\n", "Agents:", strings.Join(dp.Plugin.Agents, ", "))
+	}
+	if dp.Plugin.HasHooks {
+		fmt.Fprintf(out, "  %-14s %s\n", "Hooks:", "yes")
+	}
+	if len(dp.Plugin.MCPServers) > 0 {
+		fmt.Fprintf(out, "  %-14s %s\n", "MCP Servers:", strings.Join(dp.Plugin.MCPServers, ", "))
+	}
+	if len(dp.Plugin.LSPServers) > 0 {
+		fmt.Fprintf(out, "  %-14s %s\n", "LSP Servers:", strings.Join(dp.Plugin.LSPServers, ", "))
+	}
 }

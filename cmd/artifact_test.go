@@ -468,6 +468,243 @@ func TestPrintRemoteArtifactsJSON(t *testing.T) {
 	}
 }
 
+func TestPrintArtifactMetaFull(t *testing.T) {
+	var buf bytes.Buffer
+	printArtifactMeta(&buf, artifactMeta{
+		Name:        "gs-base",
+		Version:     "v0.1.0",
+		Description: "Base plugin for Giant Swarm",
+		Author:      "Giant Swarm <support@giantswarm.io>",
+		Homepage:    "https://giantswarm.io",
+		Repository:  "https://github.com/giantswarm/gs-base",
+		License:     "Apache-2.0",
+		Keywords:    []string{"kubernetes", "platform"},
+		Digest:      "sha256:abc123def456",
+	})
+
+	output := buf.String()
+	for _, want := range []string{
+		"Name:          gs-base",
+		"Version:       v0.1.0",
+		"Description:   Base plugin for Giant Swarm",
+		"Author:        Giant Swarm <support@giantswarm.io>",
+		"Homepage:      https://giantswarm.io",
+		"Repository:    https://github.com/giantswarm/gs-base",
+		"License:       Apache-2.0",
+		"Keywords:      kubernetes, platform",
+		"Digest:        sha256:abc123def456",
+	} {
+		if !strings.Contains(output, want) {
+			t.Errorf("output missing %q\ngot:\n%s", want, output)
+		}
+	}
+}
+
+func TestPrintArtifactMetaMinimal(t *testing.T) {
+	var buf bytes.Buffer
+	printArtifactMeta(&buf, artifactMeta{
+		Name: "minimal",
+	})
+
+	output := buf.String()
+	if !strings.Contains(output, "Name:") {
+		t.Error("expected Name field")
+	}
+	for _, field := range []string{"Version:", "Description:", "Author:", "Homepage:", "Repository:", "License:", "Keywords:", "Digest:"} {
+		if strings.Contains(output, field) {
+			t.Errorf("expected empty field %q to be omitted", field)
+		}
+	}
+}
+
+func TestFormatAuthor(t *testing.T) {
+	tests := []struct {
+		name   string
+		author *klausoci.Author
+		want   string
+	}{
+		{name: "nil", author: nil, want: ""},
+		{name: "name only", author: &klausoci.Author{Name: "GS"}, want: "GS"},
+		{name: "name and email", author: &klausoci.Author{Name: "GS", Email: "hi@gs.io"}, want: "GS <hi@gs.io>"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := formatAuthor(tt.author)
+			if got != tt.want {
+				t.Errorf("formatAuthor() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestMetaFromPlugin(t *testing.T) {
+	dp := &klausoci.DescribedPlugin{
+		ArtifactInfo: klausoci.ArtifactInfo{Digest: "sha256:abc"},
+		Plugin: klausoci.Plugin{
+			Name:        "gs-base",
+			Version:     "v0.1.0",
+			Description: "desc",
+			Author:      &klausoci.Author{Name: "GS", Email: "e@gs.io"},
+			License:     "MIT",
+		},
+	}
+	m := metaFromPlugin(dp)
+	if m.Name != "gs-base" {
+		t.Errorf("Name = %q", m.Name)
+	}
+	if m.Author != "GS <e@gs.io>" {
+		t.Errorf("Author = %q", m.Author)
+	}
+	if m.Digest != "sha256:abc" {
+		t.Errorf("Digest = %q", m.Digest)
+	}
+}
+
+func TestMetaFromPersonality(t *testing.T) {
+	dp := &klausoci.DescribedPersonality{
+		ArtifactInfo: klausoci.ArtifactInfo{Digest: "sha256:def"},
+		Personality: klausoci.Personality{
+			Name:    "sre",
+			Version: "v0.2.0",
+			Author:  &klausoci.Author{Name: "GS"},
+		},
+	}
+	m := metaFromPersonality(dp)
+	if m.Name != "sre" {
+		t.Errorf("Name = %q", m.Name)
+	}
+	if m.Version != "v0.2.0" {
+		t.Errorf("Version = %q", m.Version)
+	}
+}
+
+func TestMetaFromToolchain(t *testing.T) {
+	dt := &klausoci.DescribedToolchain{
+		ArtifactInfo: klausoci.ArtifactInfo{Digest: "sha256:789"},
+		Toolchain: klausoci.Toolchain{
+			Name:    "go",
+			Version: "v1.0.0",
+		},
+	}
+	m := metaFromToolchain(dt)
+	if m.Name != "go" {
+		t.Errorf("Name = %q", m.Name)
+	}
+	if m.Version != "v1.0.0" {
+		t.Errorf("Version = %q", m.Version)
+	}
+}
+
+func TestNewDescribePluginJSON(t *testing.T) {
+	dp := &klausoci.DescribedPlugin{
+		ArtifactInfo: klausoci.ArtifactInfo{Ref: "example.com/p:v1", Digest: "sha256:abc"},
+		Plugin: klausoci.Plugin{
+			Name:       "gs-base",
+			Version:    "v0.1.0",
+			Skills:     []string{"k8s", "flux"},
+			MCPServers: []string{"github"},
+			HasHooks:   true,
+		},
+	}
+	j := newDescribePluginJSON(dp)
+	if j.Name != "gs-base" {
+		t.Errorf("Name = %q", j.Name)
+	}
+	if j.Ref != "example.com/p:v1" {
+		t.Errorf("Ref = %q", j.Ref)
+	}
+	if len(j.Skills) != 2 {
+		t.Errorf("Skills = %v", j.Skills)
+	}
+	if !j.HasHooks {
+		t.Error("expected HasHooks=true")
+	}
+}
+
+func TestNewDescribePersonalityJSON(t *testing.T) {
+	dp := &klausoci.DescribedPersonality{
+		ArtifactInfo: klausoci.ArtifactInfo{Ref: "example.com/p:v1", Digest: "sha256:def"},
+		Personality: klausoci.Personality{
+			Name:      "sre",
+			Version:   "v0.2.0",
+			Toolchain: klausoci.ToolchainReference{Repository: "example.com/tc", Tag: "v1.0.0"},
+			Plugins: []klausoci.PluginReference{
+				{Repository: "example.com/p1", Tag: "v0.1.0"},
+			},
+		},
+	}
+	j := newDescribePersonalityJSON(dp, nil)
+	if j.Toolchain != "example.com/tc:v1.0.0" {
+		t.Errorf("Toolchain = %q", j.Toolchain)
+	}
+	if len(j.Plugins) != 1 {
+		t.Errorf("Plugins = %v", j.Plugins)
+	}
+	if j.ResolvedDeps != nil {
+		t.Error("expected nil ResolvedDeps without deps")
+	}
+}
+
+func TestNewDescribePersonalityJSONWithDeps(t *testing.T) {
+	dp := &klausoci.DescribedPersonality{
+		ArtifactInfo: klausoci.ArtifactInfo{Ref: "example.com/p:v1", Digest: "sha256:def"},
+		Personality: klausoci.Personality{
+			Name:    "sre",
+			Version: "v0.2.0",
+		},
+	}
+	deps := &klausoci.ResolvedDependencies{
+		Toolchain: &klausoci.DescribedToolchain{
+			ArtifactInfo: klausoci.ArtifactInfo{Ref: "example.com/tc:v1", Digest: "sha256:tc"},
+			Toolchain:    klausoci.Toolchain{Name: "go", Version: "v1.0.0"},
+		},
+		Plugins: []klausoci.DescribedPlugin{
+			{
+				ArtifactInfo: klausoci.ArtifactInfo{Ref: "example.com/p1:v1", Digest: "sha256:p1"},
+				Plugin:       klausoci.Plugin{Name: "gs-base", Version: "v0.1.0"},
+			},
+		},
+		Warnings: []string{"plugin gs-sre: not found"},
+	}
+	j := newDescribePersonalityJSON(dp, deps)
+	if j.ResolvedDeps == nil {
+		t.Fatal("expected ResolvedDeps")
+	}
+	if j.ResolvedDeps.Toolchain == nil {
+		t.Fatal("expected ResolvedDeps.Toolchain")
+	}
+	if j.ResolvedDeps.Toolchain.Name != "go" {
+		t.Errorf("Toolchain.Name = %q", j.ResolvedDeps.Toolchain.Name)
+	}
+	if len(j.ResolvedDeps.Plugins) != 1 {
+		t.Errorf("Plugins = %d", len(j.ResolvedDeps.Plugins))
+	}
+	if len(j.ResolvedDeps.Warnings) != 1 {
+		t.Errorf("Warnings = %v", j.ResolvedDeps.Warnings)
+	}
+}
+
+func TestNewDescribeToolchainJSON(t *testing.T) {
+	dt := &klausoci.DescribedToolchain{
+		ArtifactInfo: klausoci.ArtifactInfo{Ref: "example.com/tc:v1", Digest: "sha256:789"},
+		Toolchain: klausoci.Toolchain{
+			Name:    "go",
+			Version: "v1.0.0",
+			Author:  &klausoci.Author{Name: "GS"},
+		},
+	}
+	j := newDescribeToolchainJSON(dt)
+	if j.Name != "go" {
+		t.Errorf("Name = %q", j.Name)
+	}
+	if j.Version != "v1.0.0" {
+		t.Errorf("Version = %q", j.Version)
+	}
+	if j.Author != "GS" {
+		t.Errorf("Author = %q", j.Author)
+	}
+}
+
 func TestFormatAge(t *testing.T) {
 	tests := []struct {
 		name     string

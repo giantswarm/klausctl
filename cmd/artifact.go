@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"text/tabwriter"
 	"time"
 
@@ -394,6 +395,234 @@ func pushArtifact(ctx context.Context, sourceDir, ref string, push pushFn, out i
 
 	fmt.Fprintf(out, "%s: pushed (%s)\n", shortName, klausoci.TruncateDigest(digest))
 	return nil
+}
+
+// printMetaOpts controls formatting for printArtifactMetaWith.
+type printMetaOpts struct {
+	prefix  string
+	compact bool // only print Name, Version, Description, Author, Digest
+}
+
+// printArtifactMetaWith prints metadata fields with configurable prefix and
+// verbosity. When compact is true, only the most important fields are shown.
+func printArtifactMetaWith(out io.Writer, meta artifactMeta, opts printMetaOpts) {
+	p := opts.prefix
+	fmt.Fprintf(out, "%s%-14s %s\n", p, "Name:", meta.Name)
+	if meta.Version != "" {
+		fmt.Fprintf(out, "%s%-14s %s\n", p, "Version:", meta.Version)
+	}
+	if meta.Description != "" {
+		fmt.Fprintf(out, "%s%-14s %s\n", p, "Description:", meta.Description)
+	}
+	if meta.Author != "" {
+		fmt.Fprintf(out, "%s%-14s %s\n", p, "Author:", meta.Author)
+	}
+	if !opts.compact {
+		if meta.Homepage != "" {
+			fmt.Fprintf(out, "%s%-14s %s\n", p, "Homepage:", meta.Homepage)
+		}
+		if meta.Repository != "" {
+			fmt.Fprintf(out, "%s%-14s %s\n", p, "Repository:", meta.Repository)
+		}
+		if meta.License != "" {
+			fmt.Fprintf(out, "%s%-14s %s\n", p, "License:", meta.License)
+		}
+		if len(meta.Keywords) > 0 {
+			fmt.Fprintf(out, "%s%-14s %s\n", p, "Keywords:", strings.Join(meta.Keywords, ", "))
+		}
+	}
+	if meta.Digest != "" {
+		fmt.Fprintf(out, "%s%-14s %s\n", p, "Digest:", meta.Digest)
+	}
+}
+
+// printArtifactMeta prints common metadata fields shared by all describe
+// commands in a key: value layout.
+func printArtifactMeta(out io.Writer, meta artifactMeta) {
+	printArtifactMetaWith(out, meta, printMetaOpts{})
+}
+
+// artifactMeta holds the common metadata fields used by printArtifactMeta.
+type artifactMeta struct {
+	Name        string
+	Version     string
+	Description string
+	Author      string
+	Homepage    string
+	Repository  string
+	License     string
+	Keywords    []string
+	Digest      string
+}
+
+// metaFromPlugin builds an artifactMeta from a DescribedPlugin.
+func metaFromPlugin(dp *klausoci.DescribedPlugin) artifactMeta {
+	m := artifactMeta{
+		Name:        dp.Plugin.Name,
+		Version:     dp.Plugin.Version,
+		Description: dp.Plugin.Description,
+		Homepage:    dp.Plugin.Homepage,
+		Repository:  dp.Plugin.SourceRepo,
+		License:     dp.Plugin.License,
+		Keywords:    dp.Plugin.Keywords,
+		Digest:      dp.ArtifactInfo.Digest,
+	}
+	if dp.Plugin.Author != nil {
+		m.Author = formatAuthor(dp.Plugin.Author)
+	}
+	return m
+}
+
+// metaFromPersonality builds an artifactMeta from a DescribedPersonality.
+func metaFromPersonality(dp *klausoci.DescribedPersonality) artifactMeta {
+	m := artifactMeta{
+		Name:        dp.Personality.Name,
+		Version:     dp.Personality.Version,
+		Description: dp.Personality.Description,
+		Homepage:    dp.Personality.Homepage,
+		Repository:  dp.Personality.SourceRepo,
+		License:     dp.Personality.License,
+		Keywords:    dp.Personality.Keywords,
+		Digest:      dp.ArtifactInfo.Digest,
+	}
+	if dp.Personality.Author != nil {
+		m.Author = formatAuthor(dp.Personality.Author)
+	}
+	return m
+}
+
+// metaFromToolchain builds an artifactMeta from a DescribedToolchain.
+func metaFromToolchain(dt *klausoci.DescribedToolchain) artifactMeta {
+	m := artifactMeta{
+		Name:        dt.Toolchain.Name,
+		Version:     dt.Toolchain.Version,
+		Description: dt.Toolchain.Description,
+		Homepage:    dt.Toolchain.Homepage,
+		Repository:  dt.Toolchain.SourceRepo,
+		License:     dt.Toolchain.License,
+		Keywords:    dt.Toolchain.Keywords,
+		Digest:      dt.ArtifactInfo.Digest,
+	}
+	if dt.Toolchain.Author != nil {
+		m.Author = formatAuthor(dt.Toolchain.Author)
+	}
+	return m
+}
+
+// formatAuthor renders an Author as a display string.
+func formatAuthor(a *klausoci.Author) string {
+	if a == nil {
+		return ""
+	}
+	if a.Email != "" {
+		return fmt.Sprintf("%s <%s>", a.Name, a.Email)
+	}
+	return a.Name
+}
+
+// describeBaseJSON holds the common metadata fields shared by all describe
+// JSON envelopes. Embedded by the type-specific structs below.
+type describeBaseJSON struct {
+	Name        string   `json:"name"`
+	Version     string   `json:"version,omitempty"`
+	Description string   `json:"description,omitempty"`
+	Author      string   `json:"author,omitempty"`
+	Homepage    string   `json:"homepage,omitempty"`
+	Repository  string   `json:"repository,omitempty"`
+	License     string   `json:"license,omitempty"`
+	Keywords    []string `json:"keywords,omitempty"`
+	Ref         string   `json:"ref"`
+	Digest      string   `json:"digest"`
+}
+
+func newDescribeBaseJSON(m artifactMeta, ref string) describeBaseJSON {
+	return describeBaseJSON{
+		Name:        m.Name,
+		Version:     m.Version,
+		Description: m.Description,
+		Author:      m.Author,
+		Homepage:    m.Homepage,
+		Repository:  m.Repository,
+		License:     m.License,
+		Keywords:    m.Keywords,
+		Ref:         ref,
+		Digest:      m.Digest,
+	}
+}
+
+// describePluginJSON is the JSON envelope for plugin describe output.
+type describePluginJSON struct {
+	describeBaseJSON
+	Skills     []string `json:"skills,omitempty"`
+	Commands   []string `json:"commands,omitempty"`
+	Agents     []string `json:"agents,omitempty"`
+	HasHooks   bool     `json:"hasHooks,omitempty"`
+	MCPServers []string `json:"mcpServers,omitempty"`
+	LSPServers []string `json:"lspServers,omitempty"`
+}
+
+func newDescribePluginJSON(dp *klausoci.DescribedPlugin) describePluginJSON {
+	return describePluginJSON{
+		describeBaseJSON: newDescribeBaseJSON(metaFromPlugin(dp), dp.ArtifactInfo.Ref),
+		Skills:           dp.Plugin.Skills,
+		Commands:         dp.Plugin.Commands,
+		Agents:           dp.Plugin.Agents,
+		HasHooks:         dp.Plugin.HasHooks,
+		MCPServers:       dp.Plugin.MCPServers,
+		LSPServers:       dp.Plugin.LSPServers,
+	}
+}
+
+// describePersonalityJSON is the JSON envelope for personality describe output.
+type describePersonalityJSON struct {
+	describeBaseJSON
+	Toolchain string   `json:"toolchain,omitempty"`
+	Plugins   []string `json:"plugins,omitempty"`
+
+	ResolvedDeps *resolvedDepsJSON `json:"resolvedDependencies,omitempty"`
+}
+
+type resolvedDepsJSON struct {
+	Toolchain *describeToolchainJSON `json:"toolchain,omitempty"`
+	Plugins   []describePluginJSON   `json:"plugins,omitempty"`
+	Warnings  []string               `json:"warnings,omitempty"`
+}
+
+func newDescribePersonalityJSON(dp *klausoci.DescribedPersonality, deps *klausoci.ResolvedDependencies) describePersonalityJSON {
+	result := describePersonalityJSON{
+		describeBaseJSON: newDescribeBaseJSON(metaFromPersonality(dp), dp.ArtifactInfo.Ref),
+	}
+	if dp.Personality.Toolchain.Repository != "" {
+		result.Toolchain = dp.Personality.Toolchain.Ref()
+	}
+	for _, p := range dp.Personality.Plugins {
+		result.Plugins = append(result.Plugins, p.Ref())
+	}
+	if deps != nil {
+		rd := &resolvedDepsJSON{
+			Warnings: deps.Warnings,
+		}
+		if deps.Toolchain != nil {
+			tc := newDescribeToolchainJSON(deps.Toolchain)
+			rd.Toolchain = &tc
+		}
+		for i := range deps.Plugins {
+			rd.Plugins = append(rd.Plugins, newDescribePluginJSON(&deps.Plugins[i]))
+		}
+		result.ResolvedDeps = rd
+	}
+	return result
+}
+
+// describeToolchainJSON is the JSON envelope for toolchain describe output.
+type describeToolchainJSON struct {
+	describeBaseJSON
+}
+
+func newDescribeToolchainJSON(dt *klausoci.DescribedToolchain) describeToolchainJSON {
+	return describeToolchainJSON{
+		describeBaseJSON: newDescribeBaseJSON(metaFromToolchain(dt), dt.ArtifactInfo.Ref),
+	}
 }
 
 // formatAge returns a human-readable age string from a timestamp.

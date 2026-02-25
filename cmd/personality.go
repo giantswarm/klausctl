@@ -17,16 +17,19 @@ import (
 )
 
 var (
-	personalityValidateOut string
-	personalityPullOut     string
-	personalityPullSource  string
-	personalityPushOut     string
-	personalityPushSource  string
-	personalityPushDryRun  bool
-	personalityListOut     string
-	personalityListLocal   bool
-	personalityListSource  string
-	personalityListAll     bool
+	personalityValidateOut    string
+	personalityPullOut        string
+	personalityPullSource     string
+	personalityPushOut        string
+	personalityPushSource     string
+	personalityPushDryRun     bool
+	personalityListOut        string
+	personalityListLocal      bool
+	personalityListSource     string
+	personalityListAll        bool
+	personalityDescribeOut    string
+	personalityDescribeSource string
+	personalityDescribeDeps   bool
 )
 
 var personalityCmd = &cobra.Command{
@@ -91,6 +94,23 @@ With --local, shows only locally cached personalities with full detail.`,
 	RunE: runPersonalityList,
 }
 
+var personalityDescribeCmd = &cobra.Command{
+	Use:   "describe <reference>",
+	Short: "Describe a personality from the OCI registry",
+	Long: `Fetch and display metadata for a personality OCI artifact without downloading content.
+
+Accepts a short name, short name with tag, or full OCI reference:
+
+  klausctl personality describe sre
+  klausctl personality describe sre:v0.2.0
+  klausctl personality describe gsoci.azurecr.io/giantswarm/klaus-personalities/sre:v0.2.0
+
+Dependencies are resolved automatically in text mode. Use --no-deps to skip.
+In JSON mode, pass --deps to include resolved dependency metadata.`,
+	Args: cobra.ExactArgs(1),
+	RunE: runPersonalityDescribe,
+}
+
 // personalityValidation is the JSON representation of a successful personality validation.
 type personalityValidation struct {
 	Valid       bool   `json:"valid"`
@@ -111,11 +131,15 @@ func init() {
 	personalityListCmd.Flags().BoolVar(&personalityListLocal, "local", false, "list only locally cached personalities")
 	personalityListCmd.Flags().StringVar(&personalityListSource, "source", "", "list personalities from a specific source only")
 	personalityListCmd.Flags().BoolVar(&personalityListAll, "all", false, "list personalities from all configured sources")
+	personalityDescribeCmd.Flags().StringVarP(&personalityDescribeOut, "output", "o", "text", "output format: text, json")
+	personalityDescribeCmd.Flags().StringVar(&personalityDescribeSource, "source", "", "resolve against a specific source")
+	personalityDescribeCmd.Flags().BoolVar(&personalityDescribeDeps, "deps", false, "resolve and display dependency metadata (default: auto for text, off for json)")
 
 	personalityCmd.AddCommand(personalityValidateCmd)
 	personalityCmd.AddCommand(personalityPullCmd)
 	personalityCmd.AddCommand(personalityPushCmd)
 	personalityCmd.AddCommand(personalityListCmd)
+	personalityCmd.AddCommand(personalityDescribeCmd)
 	rootCmd.AddCommand(personalityCmd)
 }
 
@@ -273,4 +297,92 @@ func runPersonalityList(cmd *cobra.Command, _ []string) error {
 	}
 
 	return listOCIArtifacts(ctx, cmd.OutOrStdout(), paths.PersonalitiesDir, personalityListOut, "personality", "personalities", resolver.PersonalityRegistries(), personalityListLocal, listPersonalitiesFn)
+}
+
+func runPersonalityDescribe(cmd *cobra.Command, args []string) error {
+	if err := validateOutputFormat(personalityDescribeOut); err != nil {
+		return err
+	}
+
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer cancel()
+
+	resolver, err := buildSourceResolver(personalityDescribeSource)
+	if err != nil {
+		return err
+	}
+
+	ref := resolver.ResolvePersonalityRef(args[0])
+	client := orchestrator.NewDefaultClient()
+	dp, err := client.DescribePersonality(ctx, ref)
+	if err != nil {
+		return err
+	}
+
+	resolveDeps := personalityDescribeDeps
+	if !cmd.Flags().Changed("deps") && personalityDescribeOut != "json" {
+		resolveDeps = true
+	}
+
+	var deps *klausoci.ResolvedDependencies
+	if resolveDeps {
+		deps, err = client.ResolvePersonalityDeps(ctx, dp.Personality)
+		if err != nil {
+			return fmt.Errorf("resolving dependencies: %w", err)
+		}
+	}
+
+	out := cmd.OutOrStdout()
+
+	if personalityDescribeOut == "json" {
+		enc := json.NewEncoder(out)
+		enc.SetIndent("", "  ")
+		return enc.Encode(newDescribePersonalityJSON(dp, deps))
+	}
+
+	printArtifactMeta(out, metaFromPersonality(dp))
+
+	if dp.Personality.Toolchain.Repository != "" {
+		fmt.Fprintln(out)
+		fmt.Fprintf(out, "%-14s %s\n", "Toolchain:", dp.Personality.Toolchain.Ref())
+	}
+	if len(dp.Personality.Plugins) > 0 {
+		fmt.Fprintln(out)
+		fmt.Fprintln(out, "Plugins:")
+		for _, p := range dp.Personality.Plugins {
+			fmt.Fprintf(out, "  - %s\n", p.Ref())
+		}
+	}
+
+	if deps != nil {
+		printResolvedDeps(out, deps)
+	}
+
+	return nil
+}
+
+// printResolvedDeps prints resolved dependency metadata for a personality.
+func printResolvedDeps(out io.Writer, deps *klausoci.ResolvedDependencies) {
+	if deps == nil {
+		return
+	}
+	if deps.Toolchain != nil {
+		fmt.Fprintln(out)
+		fmt.Fprintln(out, "Resolved Toolchain:")
+		printIndentedMeta(out, metaFromToolchain(deps.Toolchain))
+	}
+	for i := range deps.Plugins {
+		fmt.Fprintln(out)
+		fmt.Fprintf(out, "Resolved Plugin [%s]:\n", deps.Plugins[i].Plugin.Name)
+		printIndentedMeta(out, metaFromPlugin(&deps.Plugins[i]))
+	}
+	for _, w := range deps.Warnings {
+		fmt.Fprintf(out, "\nWarning: %s\n", w)
+	}
+}
+
+// printIndentedMeta prints artifact metadata with two-space indentation,
+// showing only the most important fields for dependency summaries.
+func printIndentedMeta(out io.Writer, meta artifactMeta) {
+	printArtifactMetaWith(out, meta, printMetaOpts{prefix: "  ", compact: true})
 }

@@ -42,7 +42,7 @@ func (m *mockRuntime) Images(_ context.Context, _ string) ([]runtime.ImageInfo, 
 func TestSubcommandsRegistered(t *testing.T) {
 	assertCommandOnRoot(t, "toolchain")
 	assertCommandOnRoot(t, "completion")
-	assertSubcommandsRegistered(t, toolchainCmd, []string{"list", "init", "validate", "pull"})
+	assertSubcommandsRegistered(t, toolchainCmd, []string{"list", "init", "validate", "pull", "describe"})
 }
 
 func TestToolchainInitNameFlagRequired(t *testing.T) {
@@ -405,4 +405,6 @@ func TestToolchainFlagsRegistered(t *testing.T) {
 	assertFlagRegistered(t, toolchainValidateCmd, "output")
 	assertFlagRegistered(t, toolchainPullCmd, "output")
 	assertFlagRegistered(t, toolchainListCmd, "output")
+	assertFlagRegistered(t, toolchainDescribeCmd, "output")
+	assertFlagRegistered(t, toolchainDescribeCmd, "source")
 }

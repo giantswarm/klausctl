@@ -8,10 +8,12 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	klausoci "github.com/giantswarm/klaus-oci"
 )
 
 func TestPluginSubcommandsRegistered(t *testing.T) {
-	assertSubcommandsRegistered(t, pluginCmd, []string{"validate", "pull", "push", "list"})
+	assertSubcommandsRegistered(t, pluginCmd, []string{"validate", "pull", "push", "list", "describe"})
 }
 
 func TestPluginCommandRegisteredOnRoot(t *testing.T) {
@@ -130,4 +132,49 @@ func TestPluginFlagsRegistered(t *testing.T) {
 	assertFlagRegistered(t, pluginPushCmd, "dry-run")
 	assertFlagRegistered(t, pluginListCmd, "output")
 	assertFlagRegistered(t, pluginListCmd, "local")
+	assertFlagRegistered(t, pluginDescribeCmd, "output")
+	assertFlagRegistered(t, pluginDescribeCmd, "source")
+}
+
+func TestPrintPluginComponents(t *testing.T) {
+	dp := &klausoci.DescribedPlugin{
+		Plugin: klausoci.Plugin{
+			Skills:     []string{"kubernetes", "fluxcd"},
+			Commands:   []string{"hello"},
+			Agents:     []string{"code-reviewer"},
+			HasHooks:   true,
+			MCPServers: []string{"github", "jira"},
+			LSPServers: []string{"gopls"},
+		},
+	}
+
+	var buf bytes.Buffer
+	printPluginComponents(&buf, dp)
+	output := buf.String()
+
+	for _, want := range []string{
+		"Components:",
+		"Skills:        kubernetes, fluxcd",
+		"Commands:      hello",
+		"Agents:        code-reviewer",
+		"Hooks:         yes",
+		"MCP Servers:   github, jira",
+		"LSP Servers:   gopls",
+	} {
+		if !strings.Contains(output, want) {
+			t.Errorf("output missing %q\ngot:\n%s", want, output)
+		}
+	}
+}
+
+func TestPrintPluginComponentsEmpty(t *testing.T) {
+	dp := &klausoci.DescribedPlugin{
+		Plugin: klausoci.Plugin{},
+	}
+
+	var buf bytes.Buffer
+	printPluginComponents(&buf, dp)
+	if buf.Len() != 0 {
+		t.Errorf("expected no output for plugin with no components, got:\n%s", buf.String())
+	}
 }

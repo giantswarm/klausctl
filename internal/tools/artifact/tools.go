@@ -27,6 +27,9 @@ func RegisterTools(s *mcpserver.MCPServer, sc *server.ServerContext) {
 	registerToolchainList(s, sc)
 	registerPersonalityList(s, sc)
 	registerPluginList(s, sc)
+	registerPluginDescribe(s, sc)
+	registerPersonalityDescribe(s, sc)
+	registerToolchainDescribe(s, sc)
 	registerSecretList(s, sc)
 	registerMcpServerAdd(s, sc)
 	registerMcpServerList(s, sc)
@@ -196,6 +199,132 @@ func handlePluginList(ctx context.Context, req mcp.CallToolRequest, sc *server.S
 		return mcp.NewToolResultError(fmt.Sprintf("listing local plugins: %v", err)), nil
 	}
 	return server.JSONResult(artifacts)
+}
+
+// --- Describe tools ---
+
+func registerPluginDescribe(s *mcpserver.MCPServer, sc *server.ServerContext) {
+	tool := mcp.NewTool("klaus_plugin_describe",
+		mcp.WithDescription("Describe a plugin artifact from the OCI registry (metadata only, no download)"),
+		mcp.WithString("ref", mcp.Required(), mcp.Description("Plugin reference: short name, name:tag, or full OCI reference")),
+		mcp.WithString("source", mcp.Description("Resolve against a specific source")),
+	)
+	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return handlePluginDescribe(ctx, req, sc)
+	})
+}
+
+func handlePluginDescribe(ctx context.Context, req mcp.CallToolRequest, sc *server.ServerContext) (*mcp.CallToolResult, error) {
+	ref, err := req.RequireString("ref")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	resolver, err := describeResolver(req, sc)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	resolved := resolver.ResolvePluginRef(ref)
+	client := orchestrator.NewDefaultClient()
+	dp, err := client.DescribePlugin(ctx, resolved)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("describing plugin: %v", err)), nil
+	}
+
+	return server.JSONResult(dp)
+}
+
+func registerPersonalityDescribe(s *mcpserver.MCPServer, sc *server.ServerContext) {
+	tool := mcp.NewTool("klaus_personality_describe",
+		mcp.WithDescription("Describe a personality artifact from the OCI registry (metadata only, no download)"),
+		mcp.WithString("ref", mcp.Required(), mcp.Description("Personality reference: short name, name:tag, or full OCI reference")),
+		mcp.WithString("source", mcp.Description("Resolve against a specific source")),
+		mcp.WithBoolean("deps", mcp.Description("Resolve and include dependency metadata in the response (default: false)")),
+	)
+	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return handlePersonalityDescribe(ctx, req, sc)
+	})
+}
+
+type personalityDescribeResult struct {
+	klausoci.DescribedPersonality
+	ResolvedDeps *klausoci.ResolvedDependencies `json:"resolvedDependencies,omitempty"`
+}
+
+func handlePersonalityDescribe(ctx context.Context, req mcp.CallToolRequest, sc *server.ServerContext) (*mcp.CallToolResult, error) {
+	ref, err := req.RequireString("ref")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	resolver, err := describeResolver(req, sc)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	resolved := resolver.ResolvePersonalityRef(ref)
+	client := orchestrator.NewDefaultClient()
+	dp, err := client.DescribePersonality(ctx, resolved)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("describing personality: %v", err)), nil
+	}
+
+	if req.GetBool("deps", false) {
+		deps, err := client.ResolvePersonalityDeps(ctx, dp.Personality)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("resolving dependencies: %v", err)), nil
+		}
+		return server.JSONResult(personalityDescribeResult{
+			DescribedPersonality: *dp,
+			ResolvedDeps:         deps,
+		})
+	}
+
+	return server.JSONResult(dp)
+}
+
+func registerToolchainDescribe(s *mcpserver.MCPServer, sc *server.ServerContext) {
+	tool := mcp.NewTool("klaus_toolchain_describe",
+		mcp.WithDescription("Describe a toolchain image from the OCI registry (metadata only, no download)"),
+		mcp.WithString("ref", mcp.Required(), mcp.Description("Toolchain reference: short name, name:tag, or full OCI reference")),
+		mcp.WithString("source", mcp.Description("Resolve against a specific source")),
+	)
+	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return handleToolchainDescribe(ctx, req, sc)
+	})
+}
+
+func handleToolchainDescribe(ctx context.Context, req mcp.CallToolRequest, sc *server.ServerContext) (*mcp.CallToolResult, error) {
+	ref, err := req.RequireString("ref")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	resolver, err := describeResolver(req, sc)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	resolved := resolver.ResolveToolchainRef(ref)
+	client := orchestrator.NewDefaultClient()
+	dt, err := client.DescribeToolchain(ctx, resolved)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("describing toolchain: %v", err)), nil
+	}
+
+	return server.JSONResult(dt)
+}
+
+// describeResolver builds a SourceResolver for describe operations.
+// Uses the specified source or falls back to the default source.
+func describeResolver(req mcp.CallToolRequest, sc *server.ServerContext) (*config.SourceResolver, error) {
+	resolver := sc.SourceResolver()
+	sourceFilter := req.GetString("source", "")
+	if sourceFilter != "" {
+		return resolver.ForSource(sourceFilter)
+	}
+	return resolver.DefaultOnly(), nil
 }
 
 // --- Shared helpers ---

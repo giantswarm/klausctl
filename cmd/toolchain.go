@@ -17,20 +17,23 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/giantswarm/klausctl/pkg/config"
+	"github.com/giantswarm/klausctl/pkg/orchestrator"
 	"github.com/giantswarm/klausctl/pkg/runtime"
 )
 
 var (
-	toolchainInitName    string
-	toolchainInitDir     string
-	toolchainValidateOut string
-	toolchainPullOut     string
-	toolchainPullSource  string
-	toolchainListOut     string
-	toolchainListWide    bool
-	toolchainListLocal   bool
-	toolchainListSource  string
-	toolchainListAll     bool
+	toolchainInitName       string
+	toolchainInitDir        string
+	toolchainValidateOut    string
+	toolchainPullOut        string
+	toolchainPullSource     string
+	toolchainListOut        string
+	toolchainListWide       bool
+	toolchainListLocal      bool
+	toolchainListSource     string
+	toolchainListAll        bool
+	toolchainDescribeOut    string
+	toolchainDescribeSource string
 )
 
 var toolchainCmd = &cobra.Command{
@@ -88,6 +91,20 @@ The reference should be a full image reference:
 	RunE: runToolchainPull,
 }
 
+var toolchainDescribeCmd = &cobra.Command{
+	Use:   "describe <reference>",
+	Short: "Describe a toolchain image from the OCI registry",
+	Long: `Fetch and display metadata for a toolchain image without pulling it.
+
+Accepts a short name, short name with tag, or full OCI reference:
+
+  klausctl toolchain describe go
+  klausctl toolchain describe go:v1.0.0
+  klausctl toolchain describe gsoci.azurecr.io/giantswarm/klaus-toolchains/go:v1.0.0`,
+	Args: cobra.ExactArgs(1),
+	RunE: runToolchainDescribe,
+}
+
 // toolchainValidation is the JSON representation of a successful toolchain validation.
 type toolchainValidation struct {
 	Valid     bool   `json:"valid"`
@@ -113,11 +130,14 @@ func init() {
 	toolchainInitCmd.Flags().StringVar(&toolchainInitName, "name", "", "toolchain name (required)")
 	toolchainInitCmd.Flags().StringVar(&toolchainInitDir, "dir", "", "output directory (default: ./klaus-<name>)")
 	_ = toolchainInitCmd.MarkFlagRequired("name")
+	toolchainDescribeCmd.Flags().StringVarP(&toolchainDescribeOut, "output", "o", "text", "output format: text, json")
+	toolchainDescribeCmd.Flags().StringVar(&toolchainDescribeSource, "source", "", "resolve against a specific source")
 
 	toolchainCmd.AddCommand(toolchainListCmd)
 	toolchainCmd.AddCommand(toolchainInitCmd)
 	toolchainCmd.AddCommand(toolchainValidateCmd)
 	toolchainCmd.AddCommand(toolchainPullCmd)
+	toolchainCmd.AddCommand(toolchainDescribeCmd)
 	rootCmd.AddCommand(toolchainCmd)
 }
 
@@ -316,6 +336,38 @@ func runToolchainPull(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Fprintf(out, "Successfully pulled %s\n", ref)
+	return nil
+}
+
+func runToolchainDescribe(cmd *cobra.Command, args []string) error {
+	if err := validateOutputFormat(toolchainDescribeOut); err != nil {
+		return err
+	}
+
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer cancel()
+
+	resolver, err := buildSourceResolver(toolchainDescribeSource)
+	if err != nil {
+		return err
+	}
+
+	ref := resolver.ResolveToolchainRef(args[0])
+	client := orchestrator.NewDefaultClient()
+	dt, err := client.DescribeToolchain(ctx, ref)
+	if err != nil {
+		return err
+	}
+
+	out := cmd.OutOrStdout()
+
+	if toolchainDescribeOut == "json" {
+		enc := json.NewEncoder(out)
+		enc.SetIndent("", "  ")
+		return enc.Encode(newDescribeToolchainJSON(dt))
+	}
+
+	printArtifactMeta(out, metaFromToolchain(dt))
 	return nil
 }
 
