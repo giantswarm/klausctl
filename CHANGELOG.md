@@ -11,7 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Upgrade `klaus-oci` to v0.0.8 for the unified `Personality` type and typed artifact operations. `PersonalitySpec` is replaced by `Personality` with a `Toolchain` field (`ToolchainReference`) instead of the `Image` string. Generic `Pull` and `ListArtifacts` are replaced by typed `PullPlugin`/`PullPersonality` and `ListPlugins`/`ListPersonalities`/`ListToolchains` methods. Batch `ResolvePluginRefs` is replaced by individual `ResolvePluginRef` calls. `ArtifactKind` constants are removed. Registry base is now passed via `WithRegistry` list option and `ListEntry` is the unified list result type.
+- Upgrade `klaus-oci` to v0.0.8 for the unified `Personality` type and typed artifact operations:
+  - `PersonalitySpec` replaced by `Personality` with `Toolchain` field (`ToolchainReference`) instead of `Image` string.
+  - Generic `Pull`/`ListArtifacts` replaced by typed `PullPlugin`/`PullPersonality` and `ListPlugins`/`ListPersonalities`/`ListToolchains`.
+  - Batch `ResolvePluginRefs` replaced by individual `ResolvePluginRef` calls.
+  - `ArtifactKind` constants removed; registry base passed via `WithRegistry` list option.
 
 ### Added
 

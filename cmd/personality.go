@@ -8,11 +8,9 @@ import (
 	"io"
 	"os"
 	"os/signal"
-	"path/filepath"
 
 	klausoci "github.com/giantswarm/klaus-oci"
 	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v3"
 
 	"github.com/giantswarm/klausctl/pkg/config"
 	"github.com/giantswarm/klausctl/pkg/orchestrator"
@@ -119,18 +117,9 @@ func validatePersonalityDir(dir string, out io.Writer, outputFmt string) error {
 		return fmt.Errorf("not a directory: %s", dir)
 	}
 
-	specPath := filepath.Join(dir, "personality.yaml")
-	data, err := os.ReadFile(specPath)
+	spec, err := orchestrator.LoadPersonalitySpec(dir)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("personality.yaml not found in %s", dir)
-		}
-		return fmt.Errorf("reading personality.yaml: %w", err)
-	}
-
-	var spec klausoci.Personality
-	if err := yaml.Unmarshal(data, &spec); err != nil {
-		return fmt.Errorf("parsing personality.yaml: %w", err)
+		return err
 	}
 
 	if outputFmt == "json" {

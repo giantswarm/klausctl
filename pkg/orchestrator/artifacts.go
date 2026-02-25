@@ -70,7 +70,7 @@ func ResolvePluginRefs(ctx context.Context, client *klausoci.Client, refs []klau
 	for _, ref := range refs {
 		resolved, err := client.ResolvePluginRef(ctx, ref.Ref())
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("resolving plugin %s: %w", ref.Ref(), err)
 		}
 		repo, tag := klausoci.SplitNameTag(resolved)
 		plugins = append(plugins, config.Plugin{

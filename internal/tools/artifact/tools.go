@@ -243,26 +243,26 @@ type remoteArtifactEntry struct {
 	Ref  string `json:"ref"`
 }
 
-// artifactListFn is a callback that performs a typed list operation and returns
+// listFn is a callback that performs a typed list operation and returns
 // a slice of ListEntry results.
-type artifactListFn func(ctx context.Context, client *klausoci.Client, opts ...klausoci.ListOption) ([]klausoci.ListEntry, error)
+type listFn func(ctx context.Context, client *klausoci.Client, opts ...klausoci.ListOption) ([]klausoci.ListEntry, error)
 
-var listToolchainsFn artifactListFn = func(ctx context.Context, client *klausoci.Client, opts ...klausoci.ListOption) ([]klausoci.ListEntry, error) {
+var listToolchainsFn listFn = func(ctx context.Context, client *klausoci.Client, opts ...klausoci.ListOption) ([]klausoci.ListEntry, error) {
 	return client.ListToolchains(ctx, opts...)
 }
 
-var listPersonalitiesFn artifactListFn = func(ctx context.Context, client *klausoci.Client, opts ...klausoci.ListOption) ([]klausoci.ListEntry, error) {
+var listPersonalitiesFn listFn = func(ctx context.Context, client *klausoci.Client, opts ...klausoci.ListOption) ([]klausoci.ListEntry, error) {
 	return client.ListPersonalities(ctx, opts...)
 }
 
-var listPluginsFn artifactListFn = func(ctx context.Context, client *klausoci.Client, opts ...klausoci.ListOption) ([]klausoci.ListEntry, error) {
+var listPluginsFn listFn = func(ctx context.Context, client *klausoci.Client, opts ...klausoci.ListOption) ([]klausoci.ListEntry, error) {
 	return client.ListPlugins(ctx, opts...)
 }
 
 // listRemoteFromRegistries aggregates remote artifacts from multiple source registries.
 // When querying multiple sources, failures on individual sources are collected
 // rather than aborting the entire operation.
-func listRemoteFromRegistries(ctx context.Context, registries []config.SourceRegistry, artifactType string, list artifactListFn) ([]remoteArtifactEntry, error) {
+func listRemoteFromRegistries(ctx context.Context, registries []config.SourceRegistry, artifactType string, list listFn) ([]remoteArtifactEntry, error) {
 	entries, _, err := config.AggregateFromSources(registries, artifactType, func(sr config.SourceRegistry) ([]remoteArtifactEntry, error) {
 		return listLatestRemote(ctx, sr.Registry, list)
 	})
@@ -271,7 +271,7 @@ func listRemoteFromRegistries(ctx context.Context, registries []config.SourceReg
 
 // listLatestRemote discovers repositories from the registry, resolves the
 // latest semver tag for each, and returns a sorted list.
-func listLatestRemote(ctx context.Context, registryBase string, list artifactListFn) ([]remoteArtifactEntry, error) {
+func listLatestRemote(ctx context.Context, registryBase string, list listFn) ([]remoteArtifactEntry, error) {
 	client := orchestrator.NewDefaultClient()
 
 	artifacts, err := list(ctx, client, klausoci.WithRegistry(registryBase))
