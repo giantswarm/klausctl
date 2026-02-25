@@ -160,6 +160,11 @@ func runToolchainList(cmd *cobra.Command, _ []string) error {
 	return runToolchainListRemote(ctx, out, resolver)
 }
 
+// listToolchainsFn wraps the typed ListToolchains method for use with listLatestRemoteArtifacts.
+var listToolchainsFn listFn = func(ctx context.Context, client *klausoci.Client, opts ...klausoci.ListOption) ([]klausoci.ListEntry, error) {
+	return client.ListToolchains(ctx, opts...)
+}
+
 // runToolchainListRemote discovers toolchain images from the registry,
 // resolves the latest semver tag and digest for each, and checks local
 // pull status. Toolchains don't use the OCI cache directory so cacheDir
@@ -167,7 +172,7 @@ func runToolchainList(cmd *cobra.Command, _ []string) error {
 func runToolchainListRemote(ctx context.Context, out io.Writer, resolver *config.SourceResolver) error {
 	registries := resolver.ToolchainRegistries()
 	return listMultiSourceRemoteArtifacts(ctx, out, "", registries, toolchainListOut,
-		"No toolchain images found in the remote registry.")
+		"No toolchain images found in the remote registry.", listToolchainsFn)
 }
 
 // toolchainListOptions controls output formatting for the toolchain list.

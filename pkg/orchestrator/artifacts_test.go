@@ -226,8 +226,11 @@ func TestMergePluginsDeduplicatesPersonality(t *testing.T) {
 func TestLoadPersonalitySpec(t *testing.T) {
 	dir := t.TempDir()
 	specContent := `
+name: sre
 description: SRE personality
-image: gsoci.azurecr.io/giantswarm/klaus-toolchains/go:1.0.0
+toolchain:
+  repository: gsoci.azurecr.io/giantswarm/klaus-toolchains/go
+  tag: "1.0.0"
 plugins:
   - repository: gsoci.azurecr.io/giantswarm/klaus-plugins/gs-platform
     tag: v1.0.0
@@ -246,8 +249,11 @@ plugins:
 	if spec.Description != "SRE personality" {
 		t.Errorf("Description = %q, want %q", spec.Description, "SRE personality")
 	}
-	if spec.Image != "gsoci.azurecr.io/giantswarm/klaus-toolchains/go:1.0.0" {
-		t.Errorf("Image = %q, want toolchain image", spec.Image)
+	if spec.Toolchain.Repository != "gsoci.azurecr.io/giantswarm/klaus-toolchains/go" {
+		t.Errorf("Toolchain.Repository = %q, want toolchain repo", spec.Toolchain.Repository)
+	}
+	if spec.Toolchain.Tag != "1.0.0" {
+		t.Errorf("Toolchain.Tag = %q, want 1.0.0", spec.Toolchain.Tag)
 	}
 	if len(spec.Plugins) != 2 {
 		t.Fatalf("len(Plugins) = %d, want 2", len(spec.Plugins))

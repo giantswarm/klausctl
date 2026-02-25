@@ -147,7 +147,7 @@ func toolchainListLocal(ctx context.Context, sc *server.ServerContext, resolver 
 }
 
 func toolchainListRemote(ctx context.Context, resolver *config.SourceResolver) (*mcp.CallToolResult, error) {
-	entries, err := listRemoteFromRegistries(ctx, resolver.ToolchainRegistries(), "toolchains")
+	entries, err := listRemoteFromRegistries(ctx, resolver.ToolchainRegistries(), "toolchains", listToolchainsFn)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
@@ -162,7 +162,7 @@ func handlePersonalityList(ctx context.Context, req mcp.CallToolRequest, sc *ser
 	}
 
 	if remote {
-		entries, err := listRemoteFromRegistries(ctx, resolver.PersonalityRegistries(), "personalities")
+		entries, err := listRemoteFromRegistries(ctx, resolver.PersonalityRegistries(), "personalities", listPersonalitiesFn)
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
@@ -184,7 +184,7 @@ func handlePluginList(ctx context.Context, req mcp.CallToolRequest, sc *server.S
 	}
 
 	if remote {
-		entries, err := listRemoteFromRegistries(ctx, resolver.PluginRegistries(), "plugins")
+		entries, err := listRemoteFromRegistries(ctx, resolver.PluginRegistries(), "plugins", listPluginsFn)
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
@@ -243,46 +243,46 @@ type remoteArtifactEntry struct {
 	Ref  string `json:"ref"`
 }
 
-type remoteListOptions struct {
-	Filter    func(repo string) bool
-	ShortName func(repo string) string
+// artifactListFn is a callback that performs a typed list operation and returns
+// a slice of ListEntry results.
+type artifactListFn func(ctx context.Context, client *klausoci.Client, opts ...klausoci.ListOption) ([]klausoci.ListEntry, error)
+
+var listToolchainsFn artifactListFn = func(ctx context.Context, client *klausoci.Client, opts ...klausoci.ListOption) ([]klausoci.ListEntry, error) {
+	return client.ListToolchains(ctx, opts...)
+}
+
+var listPersonalitiesFn artifactListFn = func(ctx context.Context, client *klausoci.Client, opts ...klausoci.ListOption) ([]klausoci.ListEntry, error) {
+	return client.ListPersonalities(ctx, opts...)
+}
+
+var listPluginsFn artifactListFn = func(ctx context.Context, client *klausoci.Client, opts ...klausoci.ListOption) ([]klausoci.ListEntry, error) {
+	return client.ListPlugins(ctx, opts...)
 }
 
 // listRemoteFromRegistries aggregates remote artifacts from multiple source registries.
 // When querying multiple sources, failures on individual sources are collected
 // rather than aborting the entire operation.
-func listRemoteFromRegistries(ctx context.Context, registries []config.SourceRegistry, artifactType string) ([]remoteArtifactEntry, error) {
+func listRemoteFromRegistries(ctx context.Context, registries []config.SourceRegistry, artifactType string, list artifactListFn) ([]remoteArtifactEntry, error) {
 	entries, _, err := config.AggregateFromSources(registries, artifactType, func(sr config.SourceRegistry) ([]remoteArtifactEntry, error) {
-		return listLatestRemote(ctx, sr.Registry, nil)
+		return listLatestRemote(ctx, sr.Registry, list)
 	})
 	return entries, err
 }
 
 // listLatestRemote discovers repositories from the registry, resolves the
-// latest semver tag for each, and returns a sorted list. Uses the high-level
-// ListArtifacts API for concurrent resolution.
-func listLatestRemote(ctx context.Context, registryBase string, opts *remoteListOptions) ([]remoteArtifactEntry, error) {
+// latest semver tag for each, and returns a sorted list.
+func listLatestRemote(ctx context.Context, registryBase string, list artifactListFn) ([]remoteArtifactEntry, error) {
 	client := orchestrator.NewDefaultClient()
 
-	var listOpts []klausoci.ListOption
-	if opts != nil && opts.Filter != nil {
-		listOpts = append(listOpts, klausoci.WithFilter(opts.Filter))
-	}
-
-	artifacts, err := client.ListArtifacts(ctx, registryBase, listOpts...)
+	artifacts, err := list(ctx, client, klausoci.WithRegistry(registryBase))
 	if err != nil {
 		return nil, fmt.Errorf("discovering remote repositories: %w", err)
-	}
-
-	shortNameFn := klausoci.ShortName
-	if opts != nil && opts.ShortName != nil {
-		shortNameFn = opts.ShortName
 	}
 
 	var entries []remoteArtifactEntry
 	for _, a := range artifacts {
 		entries = append(entries, remoteArtifactEntry{
-			Name: shortNameFn(a.Repository),
+			Name: a.Name,
 			Ref:  a.Reference,
 		})
 	}

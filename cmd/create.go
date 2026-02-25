@@ -159,7 +159,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 				return nil, fmt.Errorf("resolving personality plugins: %w", err)
 			}
 
-			image, err := client.ResolveToolchainRef(ctx, pr.Spec.Image)
+			image, err := client.ResolveToolchainRef(ctx, pr.Spec.Toolchain.Ref())
 			if err != nil {
 				return nil, fmt.Errorf("resolving personality image: %w", err)
 			}
