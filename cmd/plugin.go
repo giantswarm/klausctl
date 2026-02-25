@@ -146,6 +146,20 @@ func validatePluginDir(dir string, out io.Writer, outputFmt string) error {
 	return nil
 }
 
+// pullPluginFn wraps the typed PullPlugin method for use with pullArtifact.
+var pullPluginFn = func(ctx context.Context, client *klausoci.Client, ref, destDir string) (string, bool, error) {
+	result, err := client.PullPlugin(ctx, ref, destDir)
+	if err != nil {
+		return "", false, err
+	}
+	return result.Digest, result.Cached, nil
+}
+
+// listPluginsFn wraps the typed ListPlugins method for use with listLatestRemoteArtifacts.
+var listPluginsFn listFn = func(ctx context.Context, client *klausoci.Client, opts ...klausoci.ListOption) ([]klausoci.ListEntry, error) {
+	return client.ListPlugins(ctx, opts...)
+}
+
 func runPluginPull(cmd *cobra.Command, args []string) error {
 	if err := validateOutputFormat(pluginPullOut); err != nil {
 		return err
@@ -175,7 +189,7 @@ func runPluginPull(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	return pullArtifact(ctx, ref, paths.PluginsDir, klausoci.PluginArtifact, cmd.OutOrStdout(), pluginPullOut)
+	return pullArtifact(ctx, ref, paths.PluginsDir, pullPluginFn, cmd.OutOrStdout(), pluginPullOut)
 }
 
 func runPluginList(cmd *cobra.Command, _ []string) error {
@@ -196,5 +210,5 @@ func runPluginList(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	return listOCIArtifacts(ctx, cmd.OutOrStdout(), paths.PluginsDir, pluginListOut, "plugin", "plugins", resolver.PluginRegistries(), pluginListLocal)
+	return listOCIArtifacts(ctx, cmd.OutOrStdout(), paths.PluginsDir, pluginListOut, "plugin", "plugins", resolver.PluginRegistries(), pluginListLocal, listPluginsFn)
 }

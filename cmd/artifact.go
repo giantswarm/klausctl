@@ -86,15 +86,19 @@ type pullResult struct {
 	Cached bool   `json:"cached"`
 }
 
+// pullFn is a callback that performs a typed pull and returns
+// (digest, cached, error).
+type pullFn func(ctx context.Context, client *klausoci.Client, ref, destDir string) (digest string, cached bool, err error)
+
 // pullArtifact pulls an OCI artifact by reference to a cache directory.
 // The artifact is stored at <cacheDir>/<shortName>/. The shortName is
 // extracted from the repository portion of the reference (tag/digest stripped).
-func pullArtifact(ctx context.Context, ref string, cacheDir string, kind klausoci.ArtifactKind, out io.Writer, outputFmt string) error {
+func pullArtifact(ctx context.Context, ref string, cacheDir string, pull pullFn, out io.Writer, outputFmt string) error {
 	shortName := klausoci.ShortName(klausoci.RepositoryFromRef(ref))
 	destDir := filepath.Join(cacheDir, shortName)
 
 	client := orchestrator.NewDefaultClient()
-	result, err := client.Pull(ctx, ref, destDir, kind)
+	digest, cached, err := pull(ctx, client, ref, destDir)
 	if err != nil {
 		return err
 	}
@@ -105,15 +109,15 @@ func pullArtifact(ctx context.Context, ref string, cacheDir string, kind klausoc
 		return enc.Encode(pullResult{
 			Name:   shortName,
 			Ref:    ref,
-			Digest: result.Digest,
-			Cached: result.Cached,
+			Digest: digest,
+			Cached: cached,
 		})
 	}
 
-	if result.Cached {
-		fmt.Fprintf(out, "%s: up-to-date (%s)\n", shortName, klausoci.TruncateDigest(result.Digest))
+	if cached {
+		fmt.Fprintf(out, "%s: up-to-date (%s)\n", shortName, klausoci.TruncateDigest(digest))
 	} else {
-		fmt.Fprintf(out, "%s: pulled (%s)\n", shortName, klausoci.TruncateDigest(result.Digest))
+		fmt.Fprintf(out, "%s: pulled (%s)\n", shortName, klausoci.TruncateDigest(digest))
 	}
 
 	return nil
@@ -128,36 +132,19 @@ type remoteArtifactEntry struct {
 	PulledAt time.Time `json:"pulledAt,omitempty"`
 }
 
-// remoteListOptions customises how listLatestRemoteArtifacts discovers and
-// names repositories.
-type remoteListOptions struct {
-	// Filter, when non-nil, is called for each discovered repository.
-	// Only repositories for which it returns true are included.
-	Filter func(repo string) bool
-	// ShortName extracts a display name from a repository path.
-	// Defaults to klausoci.ShortName when nil.
-	ShortName func(repo string) string
-}
+// listFn is a callback that performs a typed list operation and returns
+// a slice of ListEntry results.
+type listFn func(ctx context.Context, client *klausoci.Client, opts ...klausoci.ListOption) ([]klausoci.ListEntry, error)
 
 // listLatestRemoteArtifacts discovers repositories from the registry,
 // resolves the latest semver tag for each, and checks local pull status.
-// Uses the high-level ListArtifacts API for concurrent resolution.
-func listLatestRemoteArtifacts(ctx context.Context, cacheDir, registryBase string, opts *remoteListOptions) ([]remoteArtifactEntry, error) {
+// The caller provides a typed list function (e.g. client.ListPlugins).
+func listLatestRemoteArtifacts(ctx context.Context, cacheDir, registryBase string, list listFn) ([]remoteArtifactEntry, error) {
 	client := orchestrator.NewDefaultClient()
 
-	var listOpts []klausoci.ListOption
-	if opts != nil && opts.Filter != nil {
-		listOpts = append(listOpts, klausoci.WithFilter(opts.Filter))
-	}
-
-	artifacts, err := client.ListArtifacts(ctx, registryBase, listOpts...)
+	artifacts, err := list(ctx, client, klausoci.WithRegistry(registryBase))
 	if err != nil {
 		return nil, fmt.Errorf("discovering remote artifacts: %w", err)
-	}
-
-	shortNameFn := klausoci.ShortName
-	if opts != nil && opts.ShortName != nil {
-		shortNameFn = opts.ShortName
 	}
 
 	localArtifacts, _ := listLocalArtifacts(cacheDir)
@@ -168,13 +155,12 @@ func listLatestRemoteArtifacts(ctx context.Context, cacheDir, registryBase strin
 
 	var entries []remoteArtifactEntry
 	for _, a := range artifacts {
-		name := shortNameFn(a.Repository)
 		entry := remoteArtifactEntry{
-			Name: name,
+			Name: a.Name,
 			Ref:  a.Reference,
 		}
 
-		if cached, ok := cacheByName[name]; ok {
+		if cached, ok := cacheByName[a.Name]; ok {
 			entry.PulledAt = cached.PulledAt
 		}
 
@@ -229,7 +215,7 @@ func printRemoteArtifacts(out io.Writer, entries []remoteArtifactEntry, outputFm
 // types (plugins, personalities). By default it queries the remote registry for
 // the latest available version of each artifact and indicates local cache status.
 // With --local, it shows only locally cached artifacts.
-func listOCIArtifacts(ctx context.Context, out io.Writer, cacheDir, outputFmt, typeName, typePlural string, registries []config.SourceRegistry, local bool) error {
+func listOCIArtifacts(ctx context.Context, out io.Writer, cacheDir, outputFmt, typeName, typePlural string, registries []config.SourceRegistry, local bool, list listFn) error {
 	if local {
 		artifacts, err := listLocalArtifacts(cacheDir)
 		if err != nil {
@@ -245,17 +231,17 @@ func listOCIArtifacts(ctx context.Context, out io.Writer, cacheDir, outputFmt, t
 	}
 
 	return listMultiSourceRemoteArtifacts(ctx, out, cacheDir, registries, outputFmt,
-		fmt.Sprintf("No %s found in the remote registry.", typePlural))
+		fmt.Sprintf("No %s found in the remote registry.", typePlural), list)
 }
 
 // listMultiSourceRemoteArtifacts aggregates remote artifacts from multiple source registries.
 // When querying multiple sources, failures on individual sources are reported
 // as warnings rather than aborting the entire operation.
-func listMultiSourceRemoteArtifacts(ctx context.Context, out io.Writer, cacheDir string, registries []config.SourceRegistry, outputFmt, emptyMsg string) error {
+func listMultiSourceRemoteArtifacts(ctx context.Context, out io.Writer, cacheDir string, registries []config.SourceRegistry, outputFmt, emptyMsg string, list listFn) error {
 	multiSource := len(registries) > 1
 
 	allEntries, warnings, err := config.AggregateFromSources(registries, "artifacts", func(sr config.SourceRegistry) ([]remoteArtifactEntry, error) {
-		entries, err := listLatestRemoteArtifacts(ctx, cacheDir, sr.Registry, nil)
+		entries, err := listLatestRemoteArtifacts(ctx, cacheDir, sr.Registry, list)
 		if err != nil {
 			return nil, err
 		}

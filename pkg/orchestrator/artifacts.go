@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 
 	klausoci "github.com/giantswarm/klaus-oci"
-	"gopkg.in/yaml.v3"
 
 	"github.com/giantswarm/klausctl/pkg/config"
 )
@@ -67,13 +66,17 @@ func ResolveCreateRefs(ctx context.Context, resolver *config.SourceResolver, per
 // "latest" or empty tags with the actual latest semver tag from the registry.
 // The resolved references are returned as config.Plugin entries.
 func ResolvePluginRefs(ctx context.Context, client *klausoci.Client, refs []klausoci.PluginReference) ([]config.Plugin, error) {
-	resolved, err := client.ResolvePluginRefs(ctx, refs)
-	if err != nil {
-		return nil, err
-	}
-	plugins := make([]config.Plugin, len(resolved))
-	for i, r := range resolved {
-		plugins[i] = PluginFromReference(r)
+	plugins := make([]config.Plugin, 0, len(refs))
+	for _, ref := range refs {
+		resolved, err := client.ResolvePluginRef(ctx, ref.Ref())
+		if err != nil {
+			return nil, fmt.Errorf("resolving plugin %s: %w", ref.Ref(), err)
+		}
+		repo, tag := klausoci.SplitNameTag(resolved)
+		plugins = append(plugins, config.Plugin{
+			Repository: repo,
+			Tag:        tag,
+		})
 	}
 	return plugins, nil
 }
@@ -85,30 +88,22 @@ func ResolvePluginRefs(ctx context.Context, client *klausoci.Client, refs []klau
 // Plugins with a "latest" tag or no tag are resolved to the latest semver
 // tag from the registry before pulling.
 func PullPlugins(ctx context.Context, client *klausoci.Client, plugins []config.Plugin, pluginsDir string, w io.Writer) error {
-	refs := make([]klausoci.PluginReference, len(plugins))
-	for i, p := range plugins {
-		refs[i] = klausoci.PluginReference{
-			Repository: p.Repository,
-			Tag:        p.Tag,
-			Digest:     p.Digest,
-		}
-	}
+	for _, p := range plugins {
+		ref := BuildRef(p)
 
-	resolved, err := client.ResolvePluginRefs(ctx, refs)
-	if err != nil {
-		return err
-	}
-
-	for _, ref := range resolved {
-		shortName := klausoci.ShortName(ref.Repository)
-		destDir := filepath.Join(pluginsDir, shortName)
-		refStr := ref.Ref()
-
-		fmt.Fprintf(w, "  Pulling %s...\n", refStr)
-
-		result, err := client.Pull(ctx, refStr, destDir, klausoci.PluginArtifact)
+		resolved, err := client.ResolvePluginRef(ctx, ref)
 		if err != nil {
-			return fmt.Errorf("pulling plugin %s: %w", refStr, err)
+			return fmt.Errorf("resolving plugin %s: %w", ref, err)
+		}
+
+		shortName := klausoci.ShortName(klausoci.RepositoryFromRef(resolved))
+		destDir := filepath.Join(pluginsDir, shortName)
+
+		fmt.Fprintf(w, "  Pulling %s...\n", resolved)
+
+		result, err := client.PullPlugin(ctx, resolved, destDir)
+		if err != nil {
+			return fmt.Errorf("pulling plugin %s: %w", resolved, err)
 		}
 
 		if result.Cached {
@@ -144,8 +139,8 @@ func BuildRef(p config.Plugin) string {
 
 // PersonalityResult holds the outcome of resolving a personality artifact.
 type PersonalityResult struct {
-	// Spec is the parsed personality.yaml content.
-	Spec klausoci.PersonalitySpec
+	// Spec is the parsed personality metadata.
+	Spec klausoci.Personality
 	// Dir is the local directory where the personality was pulled.
 	Dir string
 	// ShortName is the short name extracted from the OCI reference.
@@ -160,7 +155,7 @@ func ResolvePersonality(ctx context.Context, client *klausoci.Client, ref, perso
 	destDir := filepath.Join(personalitiesDir, shortName)
 
 	fmt.Fprintf(w, "  Pulling personality %s...\n", ref)
-	result, err := client.Pull(ctx, ref, destDir, klausoci.PersonalityArtifact)
+	result, err := client.PullPersonality(ctx, ref, destDir)
 	if err != nil {
 		return nil, fmt.Errorf("pulling personality %s: %w", ref, err)
 	}
@@ -171,31 +166,20 @@ func ResolvePersonality(ctx context.Context, client *klausoci.Client, ref, perso
 		fmt.Fprintf(w, "  %s: pulled (%s)\n", shortName, klausoci.TruncateDigest(result.Digest))
 	}
 
-	spec, err := LoadPersonalitySpec(destDir)
-	if err != nil {
-		return nil, fmt.Errorf("loading personality spec: %w", err)
-	}
-
 	return &PersonalityResult{
-		Spec:      spec,
+		Spec:      result.Personality,
 		Dir:       destDir,
 		ShortName: shortName,
 	}, nil
 }
 
 // LoadPersonalitySpec reads and parses a personality.yaml from the given directory.
-func LoadPersonalitySpec(dir string) (klausoci.PersonalitySpec, error) {
-	data, err := os.ReadFile(filepath.Join(dir, "personality.yaml"))
+func LoadPersonalitySpec(dir string) (klausoci.Personality, error) {
+	p, err := klausoci.ReadPersonalityFromDir(dir)
 	if err != nil {
-		return klausoci.PersonalitySpec{}, fmt.Errorf("reading personality.yaml: %w", err)
+		return klausoci.Personality{}, err
 	}
-
-	var spec klausoci.PersonalitySpec
-	if err := yaml.Unmarshal(data, &spec); err != nil {
-		return klausoci.PersonalitySpec{}, fmt.Errorf("parsing personality.yaml: %w", err)
-	}
-
-	return spec, nil
+	return *p, nil
 }
 
 // HasSOULFile reports whether a pulled personality directory contains a SOUL.md.

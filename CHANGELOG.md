@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Upgrade `klaus-oci` to v0.0.8 for the unified `Personality` type and typed artifact operations:
+  - `PersonalitySpec` replaced by `Personality` with `Toolchain` field (`ToolchainReference`) instead of `Image` string.
+  - Generic `Pull`/`ListArtifacts` replaced by typed `PullPlugin`/`PullPersonality` and `ListPlugins`/`ListPersonalities`/`ListToolchains`.
+  - Batch `ResolvePluginRefs` replaced by individual `ResolvePluginRef` calls.
+  - `ArtifactKind` constants removed; registry base passed via `WithRegistry` list option.
+
 ### Added
 
 - Add secrets management with `klausctl secret set|list|delete` CLI commands and `klaus_secret_list` MCP tool. Secrets are stored in `~/.config/klausctl/secrets.yaml` with 0600 permissions and can be referenced by name in instance configs.

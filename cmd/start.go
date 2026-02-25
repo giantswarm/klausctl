@@ -146,9 +146,9 @@ func startInstance(cmd *cobra.Command, instanceName, workspaceOverride, configPa
 		// Merge personality plugins with user plugins (user wins on conflict).
 		cfg.Plugins = orchestrator.MergePlugins(pr.Spec.Plugins, cfg.Plugins)
 
-		// Use personality image if the user didn't explicitly set one.
-		if !cfg.ImageExplicitlySet() && pr.Spec.Image != "" {
-			resolved, err := client.ResolveToolchainRef(ctx, pr.Spec.Image)
+		// Use personality toolchain if the user didn't explicitly set one.
+		if !cfg.ImageExplicitlySet() && pr.Spec.Toolchain.Repository != "" {
+			resolved, err := client.ResolveToolchainRef(ctx, pr.Spec.Toolchain.Ref())
 			if err != nil {
 				return fmt.Errorf("resolving personality image: %w", err)
 			}

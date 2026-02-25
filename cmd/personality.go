@@ -8,11 +8,9 @@ import (
 	"io"
 	"os"
 	"os/signal"
-	"path/filepath"
 
 	klausoci "github.com/giantswarm/klaus-oci"
 	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v3"
 
 	"github.com/giantswarm/klausctl/pkg/config"
 	"github.com/giantswarm/klausctl/pkg/orchestrator"
@@ -119,18 +117,9 @@ func validatePersonalityDir(dir string, out io.Writer, outputFmt string) error {
 		return fmt.Errorf("not a directory: %s", dir)
 	}
 
-	specPath := filepath.Join(dir, "personality.yaml")
-	data, err := os.ReadFile(specPath)
+	spec, err := orchestrator.LoadPersonalitySpec(dir)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("personality.yaml not found in %s", dir)
-		}
-		return fmt.Errorf("reading personality.yaml: %w", err)
-	}
-
-	var spec klausoci.PersonalitySpec
-	if err := yaml.Unmarshal(data, &spec); err != nil {
-		return fmt.Errorf("parsing personality.yaml: %w", err)
+		return err
 	}
 
 	if outputFmt == "json" {
@@ -140,7 +129,7 @@ func validatePersonalityDir(dir string, out io.Writer, outputFmt string) error {
 			Valid:       true,
 			Directory:   dir,
 			Description: spec.Description,
-			Image:       spec.Image,
+			Image:       spec.Toolchain.Ref(),
 			Plugins:     len(spec.Plugins),
 		})
 	}
@@ -149,13 +138,27 @@ func validatePersonalityDir(dir string, out io.Writer, outputFmt string) error {
 	if spec.Description != "" {
 		fmt.Fprintf(out, "  Description: %s\n", spec.Description)
 	}
-	if spec.Image != "" {
-		fmt.Fprintf(out, "  Image: %s\n", spec.Image)
+	if spec.Toolchain.Repository != "" {
+		fmt.Fprintf(out, "  Image: %s\n", spec.Toolchain.Ref())
 	}
 	if len(spec.Plugins) > 0 {
 		fmt.Fprintf(out, "  Plugins: %d\n", len(spec.Plugins))
 	}
 	return nil
+}
+
+// pullPersonalityFn wraps the typed PullPersonality method for use with pullArtifact.
+var pullPersonalityFn = func(ctx context.Context, client *klausoci.Client, ref, destDir string) (string, bool, error) {
+	result, err := client.PullPersonality(ctx, ref, destDir)
+	if err != nil {
+		return "", false, err
+	}
+	return result.Digest, result.Cached, nil
+}
+
+// listPersonalitiesFn wraps the typed ListPersonalities method for use with listLatestRemoteArtifacts.
+var listPersonalitiesFn listFn = func(ctx context.Context, client *klausoci.Client, opts ...klausoci.ListOption) ([]klausoci.ListEntry, error) {
+	return client.ListPersonalities(ctx, opts...)
 }
 
 func runPersonalityPull(cmd *cobra.Command, args []string) error {
@@ -187,7 +190,7 @@ func runPersonalityPull(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	return pullArtifact(ctx, ref, paths.PersonalitiesDir, klausoci.PersonalityArtifact, cmd.OutOrStdout(), personalityPullOut)
+	return pullArtifact(ctx, ref, paths.PersonalitiesDir, pullPersonalityFn, cmd.OutOrStdout(), personalityPullOut)
 }
 
 func runPersonalityList(cmd *cobra.Command, _ []string) error {
@@ -208,5 +211,5 @@ func runPersonalityList(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	return listOCIArtifacts(ctx, cmd.OutOrStdout(), paths.PersonalitiesDir, personalityListOut, "personality", "personalities", resolver.PersonalityRegistries(), personalityListLocal)
+	return listOCIArtifacts(ctx, cmd.OutOrStdout(), paths.PersonalitiesDir, personalityListOut, "personality", "personalities", resolver.PersonalityRegistries(), personalityListLocal, listPersonalitiesFn)
 }

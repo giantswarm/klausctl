@@ -10,8 +10,11 @@ import (
 	"testing"
 )
 
-const personalitySpecYAML = `description: SRE personality
-image: gsoci.azurecr.io/giantswarm/klaus-toolchains/go:1.0.0
+const personalitySpecYAML = `name: sre
+description: SRE personality
+toolchain:
+  repository: gsoci.azurecr.io/giantswarm/klaus-toolchains/go
+  tag: "1.0.0"
 plugins:
   - repository: gsoci.azurecr.io/giantswarm/klaus-plugins/gs-base
     tag: v0.6.0
@@ -38,7 +41,7 @@ func TestValidatePersonalityDirValid(t *testing.T) {
 
 func TestValidatePersonalityDirMinimal(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "personality.yaml"), []byte("{}"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "personality.yaml"), []byte("name: minimal"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -54,7 +57,7 @@ func TestValidatePersonalityDirMissingSpec(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for missing personality.yaml")
 	}
-	if !strings.Contains(err.Error(), "personality.yaml not found") {
+	if !strings.Contains(err.Error(), "personality.yaml") {
 		t.Errorf("unexpected error: %v", err)
 	}
 }

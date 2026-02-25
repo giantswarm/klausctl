@@ -215,7 +215,7 @@ func handleCreate(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 			if err != nil {
 				return nil, fmt.Errorf("resolving personality plugins: %w", err)
 			}
-			image, err := client.ResolveToolchainRef(ctx, pr.Spec.Image)
+			image, err := client.ResolveToolchainRef(ctx, pr.Spec.Toolchain.Ref())
 			if err != nil {
 				return nil, fmt.Errorf("resolving personality image: %w", err)
 			}
@@ -592,8 +592,8 @@ func startExistingInstance(ctx context.Context, name string, sc *server.ServerCo
 		}
 		personalityDir = pr.Dir
 		cfg.Plugins = orchestrator.MergePlugins(pr.Spec.Plugins, cfg.Plugins)
-		if !cfg.ImageExplicitlySet() && pr.Spec.Image != "" {
-			resolved, err := client.ResolveToolchainRef(ctx, pr.Spec.Image)
+		if !cfg.ImageExplicitlySet() && pr.Spec.Toolchain.Repository != "" {
+			resolved, err := client.ResolveToolchainRef(ctx, pr.Spec.Toolchain.Ref())
 			if err != nil {
 				return nil, fmt.Errorf("resolving personality image: %w", err)
 			}
