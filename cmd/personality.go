@@ -104,7 +104,7 @@ func init() {
 	personalityPullCmd.Flags().StringVarP(&personalityPullOut, "output", "o", "text", "output format: text, json")
 	personalityPullCmd.Flags().StringVar(&personalityPullSource, "source", "", "resolve against a specific source")
 	personalityPushCmd.Flags().StringVarP(&personalityPushOut, "output", "o", "text", "output format: text, json")
-	personalityPushCmd.Flags().StringVar(&personalityPushSource, "source", "", "resolve against a specific source")
+	personalityPushCmd.Flags().StringVar(&personalityPushSource, "source", "", "use a specific source registry for the push destination")
 	personalityListCmd.Flags().StringVarP(&personalityListOut, "output", "o", "text", "output format: text, json")
 	personalityListCmd.Flags().BoolVar(&personalityListLocal, "local", false, "list only locally cached personalities")
 	personalityListCmd.Flags().StringVar(&personalityListSource, "source", "", "list personalities from a specific source only")
@@ -168,7 +168,7 @@ func validatePersonalityDir(dir string, out io.Writer, outputFmt string) error {
 }
 
 // pullPersonalityFn wraps the typed PullPersonality method for use with pullArtifact.
-var pullPersonalityFn = func(ctx context.Context, client *klausoci.Client, ref, destDir string) (string, bool, error) {
+var pullPersonalityFn pullFn = func(ctx context.Context, client *klausoci.Client, ref, destDir string) (string, bool, error) {
 	result, err := client.PullPersonality(ctx, ref, destDir)
 	if err != nil {
 		return "", false, err
@@ -213,6 +213,9 @@ func runPersonalityPush(cmd *cobra.Command, args []string) error {
 	}
 
 	ref := resolver.ResolvePersonalityRef(args[1])
+	if err := validatePushRef(ref); err != nil {
+		return err
+	}
 
 	return pushArtifact(ctx, dir, ref, pushPersonalityFn, cmd.OutOrStdout(), personalityPushOut)
 }

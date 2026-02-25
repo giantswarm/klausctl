@@ -107,7 +107,7 @@ func init() {
 	pluginPullCmd.Flags().StringVarP(&pluginPullOut, "output", "o", "text", "output format: text, json")
 	pluginPullCmd.Flags().StringVar(&pluginPullSource, "source", "", "resolve against a specific source")
 	pluginPushCmd.Flags().StringVarP(&pluginPushOut, "output", "o", "text", "output format: text, json")
-	pluginPushCmd.Flags().StringVar(&pluginPushSource, "source", "", "resolve against a specific source")
+	pluginPushCmd.Flags().StringVar(&pluginPushSource, "source", "", "use a specific source registry for the push destination")
 	pluginListCmd.Flags().StringVarP(&pluginListOut, "output", "o", "text", "output format: text, json")
 	pluginListCmd.Flags().BoolVar(&pluginListLocal, "local", false, "list only locally cached plugins")
 	pluginListCmd.Flags().StringVar(&pluginListSource, "source", "", "list plugins from a specific source only")
@@ -168,7 +168,7 @@ func validatePluginDir(dir string, out io.Writer, outputFmt string) error {
 }
 
 // pullPluginFn wraps the typed PullPlugin method for use with pullArtifact.
-var pullPluginFn = func(ctx context.Context, client *klausoci.Client, ref, destDir string) (string, bool, error) {
+var pullPluginFn pullFn = func(ctx context.Context, client *klausoci.Client, ref, destDir string) (string, bool, error) {
 	result, err := client.PullPlugin(ctx, ref, destDir)
 	if err != nil {
 		return "", false, err
@@ -213,6 +213,9 @@ func runPluginPush(cmd *cobra.Command, args []string) error {
 	}
 
 	ref := resolver.ResolvePluginRef(args[1])
+	if err := validatePushRef(ref); err != nil {
+		return err
+	}
 
 	return pushArtifact(ctx, dir, ref, pushPluginFn, cmd.OutOrStdout(), pluginPushOut)
 }

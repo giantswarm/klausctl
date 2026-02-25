@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"text/tabwriter"
 	"time"
 
@@ -312,6 +313,15 @@ func printLocalArtifacts(out io.Writer, artifacts []cachedArtifact, outputFmt st
 		)
 	}
 	return w.Flush()
+}
+
+// validatePushRef checks that a reference contains a tag (e.g. ":v1.0.0").
+// Push operations require an explicit tag; bare names or digest-only refs are rejected.
+func validatePushRef(ref string) error {
+	if strings.Contains(ref, ":") {
+		return nil
+	}
+	return fmt.Errorf("reference %q must include a tag (e.g. %s:v1.0.0)", ref, ref)
 }
 
 // pushResult describes the outcome of pushing an OCI artifact, used for

@@ -258,6 +258,26 @@ func TestPushArtifactError(t *testing.T) {
 	}
 }
 
+func TestValidatePushRef(t *testing.T) {
+	tests := []struct {
+		ref     string
+		wantErr bool
+	}{
+		{ref: "example.com/plugins/gs-base:v1.0.0", wantErr: false},
+		{ref: "gs-base:v1.0.0", wantErr: false},
+		{ref: "example.com/plugins/gs-base", wantErr: true},
+		{ref: "gs-base", wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.ref, func(t *testing.T) {
+			err := validatePushRef(tt.ref)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("validatePushRef(%q) error = %v, wantErr %v", tt.ref, err, tt.wantErr)
+			}
+		})
+	}
+}
+
 func TestShortNameFromRef(t *testing.T) {
 	tests := []struct {
 		ref  string
