@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 	"text/tabwriter"
 	"time"
 
@@ -315,10 +314,13 @@ func printLocalArtifacts(out io.Writer, artifacts []cachedArtifact, outputFmt st
 	return w.Flush()
 }
 
-// validatePushRef checks that a reference contains a tag (e.g. ":v1.0.0").
+// validatePushRef checks that a reference contains an explicit tag (e.g. ":v1.0.0").
 // Push operations require an explicit tag; bare names or digest-only refs are rejected.
+// Uses SplitNameTag so that host:port refs (e.g. "localhost:5000/repo") are not
+// mistaken for tagged references.
 func validatePushRef(ref string) error {
-	if strings.Contains(ref, ":") {
+	_, tag := klausoci.SplitNameTag(ref)
+	if tag != "" {
 		return nil
 	}
 	return fmt.Errorf("reference %q must include a tag (e.g. %s:v1.0.0)", ref, ref)
@@ -327,9 +329,11 @@ func validatePushRef(ref string) error {
 // pushResult describes the outcome of pushing an OCI artifact, used for
 // --output json on push commands.
 type pushResult struct {
-	Name   string `json:"name"`
-	Ref    string `json:"ref"`
-	Digest string `json:"digest"`
+	Name     string `json:"name"`
+	Ref      string `json:"ref"`
+	Digest   string `json:"digest"`
+	DryRun   bool   `json:"dryRun,omitempty"`
+	Overwrote bool  `json:"overwrote,omitempty"`
 }
 
 // pushFn is a callback that performs a typed push and returns
@@ -337,13 +341,41 @@ type pushResult struct {
 // sourceDir and calling the appropriate typed push method.
 type pushFn func(ctx context.Context, client *klausoci.Client, sourceDir, ref string) (digest string, err error)
 
+// pushOpts controls optional behaviour for pushArtifact.
+type pushOpts struct {
+	dryRun bool
+}
+
 // pushArtifact pushes a local directory as an OCI artifact to a registry.
 // The caller provides a typed push function that reads metadata and calls the
 // appropriate client method. Output is formatted as text or JSON.
-func pushArtifact(ctx context.Context, sourceDir, ref string, push pushFn, out io.Writer, outputFmt string) error {
+//
+// When opts.dryRun is true the push is skipped but validation and
+// overwrite detection still run.
+func pushArtifact(ctx context.Context, sourceDir, ref string, push pushFn, out io.Writer, outputFmt string, opts pushOpts) error {
 	shortName := klausoci.ShortName(klausoci.RepositoryFromRef(ref))
-
 	client := orchestrator.NewDefaultClient()
+
+	overwrote := false
+	if existing, err := client.Resolve(ctx, ref); err == nil && existing != "" {
+		overwrote = true
+		fmt.Fprintf(os.Stderr, "Warning: tag already exists (%s); pushing will overwrite it\n", klausoci.TruncateDigest(existing))
+	}
+
+	if opts.dryRun {
+		if outputFmt == "json" {
+			enc := json.NewEncoder(out)
+			enc.SetIndent("", "  ")
+			return enc.Encode(pushResult{
+				Name:   shortName,
+				Ref:    ref,
+				DryRun: true,
+			})
+		}
+		fmt.Fprintf(out, "%s: validated (dry run, push skipped)\n", shortName)
+		return nil
+	}
+
 	digest, err := push(ctx, client, sourceDir, ref)
 	if err != nil {
 		return err
@@ -353,9 +385,10 @@ func pushArtifact(ctx context.Context, sourceDir, ref string, push pushFn, out i
 		enc := json.NewEncoder(out)
 		enc.SetIndent("", "  ")
 		return enc.Encode(pushResult{
-			Name:   shortName,
-			Ref:    ref,
-			Digest: digest,
+			Name:      shortName,
+			Ref:       ref,
+			Digest:    digest,
+			Overwrote: overwrote,
 		})
 	}
 

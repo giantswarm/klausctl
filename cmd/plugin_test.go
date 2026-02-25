@@ -127,6 +127,7 @@ func TestPluginFlagsRegistered(t *testing.T) {
 	assertFlagRegistered(t, pluginPullCmd, "output")
 	assertFlagRegistered(t, pluginPushCmd, "output")
 	assertFlagRegistered(t, pluginPushCmd, "source")
+	assertFlagRegistered(t, pluginPushCmd, "dry-run")
 	assertFlagRegistered(t, pluginListCmd, "output")
 	assertFlagRegistered(t, pluginListCmd, "local")
 }

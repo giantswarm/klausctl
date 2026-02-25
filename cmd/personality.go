@@ -22,6 +22,7 @@ var (
 	personalityPullSource  string
 	personalityPushOut     string
 	personalityPushSource  string
+	personalityPushDryRun  bool
 	personalityListOut     string
 	personalityListLocal   bool
 	personalityListSource  string
@@ -105,6 +106,7 @@ func init() {
 	personalityPullCmd.Flags().StringVar(&personalityPullSource, "source", "", "resolve against a specific source")
 	personalityPushCmd.Flags().StringVarP(&personalityPushOut, "output", "o", "text", "output format: text, json")
 	personalityPushCmd.Flags().StringVar(&personalityPushSource, "source", "", "use a specific source registry for the push destination")
+	personalityPushCmd.Flags().BoolVar(&personalityPushDryRun, "dry-run", false, "validate and resolve without pushing")
 	personalityListCmd.Flags().StringVarP(&personalityListOut, "output", "o", "text", "output format: text, json")
 	personalityListCmd.Flags().BoolVar(&personalityListLocal, "local", false, "list only locally cached personalities")
 	personalityListCmd.Flags().StringVar(&personalityListSource, "source", "", "list personalities from a specific source only")
@@ -217,7 +219,7 @@ func runPersonalityPush(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	return pushArtifact(ctx, dir, ref, pushPersonalityFn, cmd.OutOrStdout(), personalityPushOut)
+	return pushArtifact(ctx, dir, ref, pushPersonalityFn, cmd.OutOrStdout(), personalityPushOut, pushOpts{dryRun: personalityPushDryRun})
 }
 
 func runPersonalityPull(cmd *cobra.Command, args []string) error {

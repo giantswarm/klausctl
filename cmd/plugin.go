@@ -23,6 +23,7 @@ var (
 	pluginPullSource  string
 	pluginPushOut     string
 	pluginPushSource  string
+	pluginPushDryRun  bool
 	pluginListOut     string
 	pluginListLocal   bool
 	pluginListSource  string
@@ -108,6 +109,7 @@ func init() {
 	pluginPullCmd.Flags().StringVar(&pluginPullSource, "source", "", "resolve against a specific source")
 	pluginPushCmd.Flags().StringVarP(&pluginPushOut, "output", "o", "text", "output format: text, json")
 	pluginPushCmd.Flags().StringVar(&pluginPushSource, "source", "", "use a specific source registry for the push destination")
+	pluginPushCmd.Flags().BoolVar(&pluginPushDryRun, "dry-run", false, "validate and resolve without pushing")
 	pluginListCmd.Flags().StringVarP(&pluginListOut, "output", "o", "text", "output format: text, json")
 	pluginListCmd.Flags().BoolVar(&pluginListLocal, "local", false, "list only locally cached plugins")
 	pluginListCmd.Flags().StringVar(&pluginListSource, "source", "", "list plugins from a specific source only")
@@ -217,7 +219,7 @@ func runPluginPush(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	return pushArtifact(ctx, dir, ref, pushPluginFn, cmd.OutOrStdout(), pluginPushOut)
+	return pushArtifact(ctx, dir, ref, pushPluginFn, cmd.OutOrStdout(), pluginPushOut, pushOpts{dryRun: pluginPushDryRun})
 }
 
 func runPluginPull(cmd *cobra.Command, args []string) error {

@@ -200,7 +200,7 @@ func TestPushArtifactText(t *testing.T) {
 		return "sha256:deadbeef12345678", nil
 	}
 
-	err := pushArtifact(context.Background(), "/tmp/src", "example.com/plugins/gs-base:v1.0.0", fakePush, &buf, "text")
+	err := pushArtifact(context.Background(), "/tmp/src", "example.com/plugins/gs-base:v1.0.0", fakePush, &buf, "text", pushOpts{})
 	if err != nil {
 		t.Fatalf("pushArtifact() error = %v", err)
 	}
@@ -223,7 +223,7 @@ func TestPushArtifactJSON(t *testing.T) {
 		return "sha256:deadbeef12345678", nil
 	}
 
-	err := pushArtifact(context.Background(), "/tmp/src", "example.com/plugins/gs-base:v1.0.0", fakePush, &buf, "json")
+	err := pushArtifact(context.Background(), "/tmp/src", "example.com/plugins/gs-base:v1.0.0", fakePush, &buf, "json", pushOpts{})
 	if err != nil {
 		t.Fatalf("pushArtifact() error = %v", err)
 	}
@@ -249,12 +249,61 @@ func TestPushArtifactError(t *testing.T) {
 		return "", fmt.Errorf("registry unavailable")
 	}
 
-	err := pushArtifact(context.Background(), "/tmp/src", "example.com/plugins/gs-base:v1.0.0", fakePush, &buf, "text")
+	err := pushArtifact(context.Background(), "/tmp/src", "example.com/plugins/gs-base:v1.0.0", fakePush, &buf, "text", pushOpts{})
 	if err == nil {
 		t.Fatal("expected error from push")
 	}
 	if !strings.Contains(err.Error(), "registry unavailable") {
 		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestPushArtifactDryRunText(t *testing.T) {
+	var buf bytes.Buffer
+	pushCalled := false
+	fakePush := func(_ context.Context, _ *klausoci.Client, _, _ string) (string, error) {
+		pushCalled = true
+		return "sha256:deadbeef12345678", nil
+	}
+
+	err := pushArtifact(context.Background(), "/tmp/src", "example.com/plugins/gs-base:v1.0.0", fakePush, &buf, "text", pushOpts{dryRun: true})
+	if err != nil {
+		t.Fatalf("pushArtifact() error = %v", err)
+	}
+	if pushCalled {
+		t.Error("push function should not be called in dry-run mode")
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "dry run") {
+		t.Error("expected output to mention dry run")
+	}
+	if !strings.Contains(output, "gs-base") {
+		t.Error("expected output to contain short name")
+	}
+}
+
+func TestPushArtifactDryRunJSON(t *testing.T) {
+	var buf bytes.Buffer
+	fakePush := func(_ context.Context, _ *klausoci.Client, _, _ string) (string, error) {
+		t.Fatal("push function should not be called in dry-run mode")
+		return "", nil
+	}
+
+	err := pushArtifact(context.Background(), "/tmp/src", "example.com/plugins/gs-base:v1.0.0", fakePush, &buf, "json", pushOpts{dryRun: true})
+	if err != nil {
+		t.Fatalf("pushArtifact() error = %v", err)
+	}
+
+	var result pushResult
+	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
+		t.Fatalf("JSON parse error: %v", err)
+	}
+	if !result.DryRun {
+		t.Error("expected DryRun to be true")
+	}
+	if result.Digest != "" {
+		t.Errorf("expected empty Digest in dry run, got %q", result.Digest)
 	}
 }
 
@@ -267,6 +316,9 @@ func TestValidatePushRef(t *testing.T) {
 		{ref: "gs-base:v1.0.0", wantErr: false},
 		{ref: "example.com/plugins/gs-base", wantErr: true},
 		{ref: "gs-base", wantErr: true},
+		{ref: "localhost:5000/plugins/gs-base", wantErr: true},
+		{ref: "localhost:5000/plugins/gs-base:v1.0.0", wantErr: false},
+		{ref: "registry.example.com:5000/repo", wantErr: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.ref, func(t *testing.T) {
