@@ -105,7 +105,8 @@ Accepts a short name, short name with tag, or full OCI reference:
   klausctl personality describe sre:v0.2.0
   klausctl personality describe gsoci.azurecr.io/giantswarm/klaus-personalities/sre:v0.2.0
 
-With --deps, additionally resolves and displays each dependency's metadata.`,
+Dependencies are resolved automatically in text mode. Use --no-deps to skip.
+In JSON mode, pass --deps to include resolved dependency metadata.`,
 	Args: cobra.ExactArgs(1),
 	RunE: runPersonalityDescribe,
 }
@@ -132,7 +133,7 @@ func init() {
 	personalityListCmd.Flags().BoolVar(&personalityListAll, "all", false, "list personalities from all configured sources")
 	personalityDescribeCmd.Flags().StringVarP(&personalityDescribeOut, "output", "o", "text", "output format: text, json")
 	personalityDescribeCmd.Flags().StringVar(&personalityDescribeSource, "source", "", "resolve against a specific source")
-	personalityDescribeCmd.Flags().BoolVar(&personalityDescribeDeps, "deps", false, "resolve and display dependency metadata")
+	personalityDescribeCmd.Flags().BoolVar(&personalityDescribeDeps, "deps", false, "resolve and display dependency metadata (default: auto for text, off for json)")
 
 	personalityCmd.AddCommand(personalityValidateCmd)
 	personalityCmd.AddCommand(personalityPullCmd)
@@ -318,8 +319,13 @@ func runPersonalityDescribe(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	resolveDeps := personalityDescribeDeps
+	if !cmd.Flags().Changed("deps") && personalityDescribeOut != "json" {
+		resolveDeps = true
+	}
+
 	var deps *klausoci.ResolvedDependencies
-	if personalityDescribeDeps {
+	if resolveDeps {
 		deps, err = client.ResolvePersonalityDeps(ctx, dp.Personality)
 		if err != nil {
 			return fmt.Errorf("resolving dependencies: %w", err)

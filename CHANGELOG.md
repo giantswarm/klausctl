@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Add `klausctl plugin describe`, `klausctl personality describe`, and `klausctl toolchain describe` commands that fetch artifact metadata from the OCI registry without downloading content layers. Each supports `--output json` for scripting and `--source` for source selection. `personality describe` additionally supports `--deps` to resolve and display toolchain and plugin dependency metadata.
+- Add `klausctl plugin describe`, `klausctl personality describe`, and `klausctl toolchain describe` commands that fetch artifact metadata from the OCI registry without downloading content layers. Each supports `--output json` for scripting and `--source` for source selection. `personality describe` automatically resolves dependency metadata in text mode; use `--deps=false` to skip or `--deps` to include them in JSON output.
 - Add `klaus_plugin_describe`, `klaus_personality_describe`, and `klaus_toolchain_describe` MCP tools for programmatic artifact inspection. The personality tool supports an optional `deps` parameter.
 
 ### Changed

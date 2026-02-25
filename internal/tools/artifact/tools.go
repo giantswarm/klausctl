@@ -240,7 +240,7 @@ func registerPersonalityDescribe(s *mcpserver.MCPServer, sc *server.ServerContex
 		mcp.WithDescription("Describe a personality artifact from the OCI registry (metadata only, no download)"),
 		mcp.WithString("ref", mcp.Required(), mcp.Description("Personality reference: short name, name:tag, or full OCI reference")),
 		mcp.WithString("source", mcp.Description("Resolve against a specific source")),
-		mcp.WithBoolean("deps", mcp.Description("Resolve and include dependency metadata (default: false)")),
+		mcp.WithBoolean("deps", mcp.Description("Resolve and include dependency metadata in the response (default: false)")),
 	)
 	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		return handlePersonalityDescribe(ctx, req, sc)
