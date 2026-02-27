@@ -38,8 +38,8 @@ var pluginCmd = &cobra.Command{
 	Short: "Manage OCI plugins",
 	Long: `Commands for working with klaus OCI plugins.
 
-Plugins are OCI artifacts containing skills, hooks, agents, and MCP server
-configurations. They are published to the registry by CI and can be pulled
+Plugins are OCI artifacts containing skills, hooks, agents, commands, and MCP
+server configurations. They are published to the registry by CI and can be pulled
 locally for use with klausctl.`,
 }
 
@@ -52,6 +52,7 @@ A valid plugin directory must contain at least one of:
   - skills/     (with SKILL.md files)
   - agents/     (agent definition files)
   - hooks/      (hook configuration)
+  - commands/   (slash command definitions)
   - .mcp.json   (MCP server configuration)`,
 	Args: cobra.ExactArgs(1),
 	RunE: runPluginValidate,
@@ -77,7 +78,7 @@ var pluginPushCmd = &cobra.Command{
 	Long: `Push a local plugin directory as an OCI artifact to the registry.
 
 The directory must contain valid plugin content (skills/, agents/, hooks/,
-or .mcp.json) and a .claude-plugin/plugin.json manifest.
+commands/, or .mcp.json) and a .claude-plugin/plugin.json manifest.
 
 Accepts a full OCI reference with tag or a short name with tag:
 
@@ -162,7 +163,7 @@ func validatePluginDir(dir string, out io.Writer, outputFmt string) error {
 		return fmt.Errorf("not a directory: %s", dir)
 	}
 
-	recognized := []string{"skills", "agents", "hooks", ".mcp.json"}
+	recognized := []string{"skills", "agents", "hooks", "commands", ".mcp.json"}
 	var found []string
 	for _, name := range recognized {
 		if _, err := os.Stat(filepath.Join(dir, name)); err == nil {
@@ -171,7 +172,7 @@ func validatePluginDir(dir string, out io.Writer, outputFmt string) error {
 	}
 
 	if len(found) == 0 {
-		return fmt.Errorf("no recognized plugin content found in %s\nExpected at least one of: skills/, agents/, hooks/, .mcp.json", dir)
+		return fmt.Errorf("no recognized plugin content found in %s\nExpected at least one of: skills/, agents/, hooks/, commands/, .mcp.json", dir)
 	}
 
 	if outputFmt == "json" {

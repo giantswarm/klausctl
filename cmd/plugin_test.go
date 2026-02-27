@@ -50,6 +50,21 @@ func TestValidatePluginDirWithAgents(t *testing.T) {
 	}
 }
 
+func TestValidatePluginDirWithCommands(t *testing.T) {
+	dir := t.TempDir()
+
+	if err := os.MkdirAll(filepath.Join(dir, "commands"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "commands", "customer-update.md"), []byte("# Command"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := validatePluginDir(dir, io.Discard, "text"); err != nil {
+		t.Errorf("validatePluginDir() error = %v", err)
+	}
+}
+
 func TestValidatePluginDirWithMCPConfig(t *testing.T) {
 	dir := t.TempDir()
 
