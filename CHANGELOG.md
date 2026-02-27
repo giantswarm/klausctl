@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `klausctl personality validate` now resolves plugin and toolchain references against the OCI registry by default, failing if any dependency cannot be found. Use `--resolve-deps=false` for offline-only validation. Supports `--source` for source selection.
 - Upgrade `klaus-oci` to v0.0.9: common metadata (name, description, author, homepage, repository, license, keywords) moves from OCI config blobs into `io.giantswarm.klaus.*` manifest annotations for all artifact types. Config blobs now contain only type-specific data (discovered components for plugins, composition for personalities). Toolchain annotations switch from `org.opencontainers.image.*` to `io.giantswarm.klaus.*`. Existing artifacts need to be re-pushed.
 - Upgrade `klaus-oci` to v0.0.8 for the unified `Personality` type and typed artifact operations:
   - `PersonalitySpec` replaced by `Personality` with `Toolchain` field (`ToolchainReference`) instead of `Image` string.
