@@ -18,21 +18,21 @@ import (
 )
 
 var (
-	personalityValidateOut        string
-	personalityValidateSource     string
+	personalityValidateOut         string
+	personalityValidateSource      string
 	personalityValidateResolveDeps bool
-	personalityPullOut            string
-	personalityPullSource         string
-	personalityPushOut            string
-	personalityPushSource         string
-	personalityPushDryRun         bool
-	personalityListOut            string
-	personalityListLocal          bool
-	personalityListSource         string
-	personalityListAll            bool
-	personalityDescribeOut        string
-	personalityDescribeSource     string
-	personalityDescribeDeps       bool
+	personalityPullOut             string
+	personalityPullSource          string
+	personalityPushOut             string
+	personalityPushSource          string
+	personalityPushDryRun          bool
+	personalityListOut             string
+	personalityListLocal           bool
+	personalityListSource          string
+	personalityListAll             bool
+	personalityDescribeOut         string
+	personalityDescribeSource      string
+	personalityDescribeDeps        bool
 )
 
 var personalityCmd = &cobra.Command{
@@ -162,7 +162,11 @@ func runPersonalityValidate(cmd *cobra.Command, args []string) error {
 	if !personalityValidateResolveDeps {
 		return nil
 	}
-	return validatePersonalityDeps(cmd.Context(), args[0], personalityValidateSource)
+
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer cancel()
+
+	return validatePersonalityDeps(ctx, args[0], personalityValidateSource)
 }
 
 // validatePersonalityDir checks that a directory has a valid personality structure.
@@ -227,6 +231,13 @@ func validatePersonalityDeps(ctx context.Context, dir, source string) error {
 	}
 
 	client := orchestrator.NewDefaultClient()
+	return resolvePersonalityDeps(ctx, spec, resolver, client)
+}
+
+// resolvePersonalityDeps checks that all plugin and toolchain references in
+// the personality spec can be resolved via the OCI registry. It attempts
+// every reference and returns a combined error listing all failures.
+func resolvePersonalityDeps(ctx context.Context, spec klausoci.Personality, resolver *config.SourceResolver, client *klausoci.Client) error {
 	var errs []string
 
 	if spec.Toolchain.Repository != "" {

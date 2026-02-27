@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"os"
@@ -10,6 +11,8 @@ import (
 	"testing"
 
 	klausoci "github.com/giantswarm/klaus-oci"
+
+	"github.com/giantswarm/klausctl/pkg/config"
 )
 
 const personalitySpecYAML = `name: sre
@@ -156,6 +159,44 @@ func TestValidatePersonalityDepsNoDeps(t *testing.T) {
 
 	if err := validatePersonalityDeps(t.Context(), dir, ""); err != nil {
 		t.Errorf("validatePersonalityDeps() error = %v, want nil for personality without deps", err)
+	}
+}
+
+func TestResolvePersonalityDepsCollectsAllErrors(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	spec := klausoci.Personality{
+		Name: "test",
+		Toolchain: klausoci.ToolchainReference{
+			Repository: "localhost:1/toolchains/go",
+		},
+		Plugins: []klausoci.PluginReference{
+			{Repository: "localhost:1/plugins/alpha"},
+			{Repository: "localhost:1/plugins/beta"},
+		},
+	}
+
+	resolver := config.NewSourceResolver(nil)
+	client := klausoci.NewClient(klausoci.WithPlainHTTP(true))
+
+	err := resolvePersonalityDeps(ctx, spec, resolver, client)
+	if err == nil {
+		t.Fatal("expected error when all deps are unresolvable")
+	}
+
+	msg := err.Error()
+	if !strings.Contains(msg, "unresolvable dependencies") {
+		t.Errorf("error should mention unresolvable dependencies, got: %s", msg)
+	}
+	if !strings.Contains(msg, "resolving toolchain") {
+		t.Errorf("error should report toolchain failure, got: %s", msg)
+	}
+	if !strings.Contains(msg, "resolving plugin") {
+		t.Errorf("error should report plugin failures, got: %s", msg)
+	}
+	if count := strings.Count(msg, "resolving plugin"); count != 2 {
+		t.Errorf("expected 2 plugin errors, got %d in: %s", count, msg)
 	}
 }
 
