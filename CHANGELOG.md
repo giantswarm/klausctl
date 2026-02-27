@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Fix `klausctl plugin validate` rejecting commands-only plugins by adding `commands/` to the recognized plugin content list. ([#69](https://github.com/giantswarm/klausctl/issues/69))
+- `klausctl personality validate` now resolves plugin and toolchain references against the OCI registry by default, failing if any dependency cannot be found. Use `--resolve-deps=false` for offline-only validation. Supports `--source` for source selection.
 
 ### Added
 

@@ -135,6 +135,8 @@ func TestValidatePersonalityDirJSONOutput(t *testing.T) {
 
 func TestPersonalityFlagsRegistered(t *testing.T) {
 	assertFlagRegistered(t, personalityValidateCmd, "output")
+	assertFlagRegistered(t, personalityValidateCmd, "source")
+	assertFlagRegistered(t, personalityValidateCmd, "resolve-deps")
 	assertFlagRegistered(t, personalityPullCmd, "output")
 	assertFlagRegistered(t, personalityPushCmd, "output")
 	assertFlagRegistered(t, personalityPushCmd, "source")
@@ -144,6 +146,17 @@ func TestPersonalityFlagsRegistered(t *testing.T) {
 	assertFlagRegistered(t, personalityDescribeCmd, "output")
 	assertFlagRegistered(t, personalityDescribeCmd, "source")
 	assertFlagRegistered(t, personalityDescribeCmd, "deps")
+}
+
+func TestValidatePersonalityDepsNoDeps(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "personality.yaml"), []byte("name: minimal"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := validatePersonalityDeps(t.Context(), dir, ""); err != nil {
+		t.Errorf("validatePersonalityDeps() error = %v, want nil for personality without deps", err)
+	}
 }
 
 func TestPrintResolvedDeps(t *testing.T) {

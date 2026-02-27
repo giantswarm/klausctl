@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"strings"
 
 	klausoci "github.com/giantswarm/klaus-oci"
 	"github.com/spf13/cobra"
@@ -17,19 +18,21 @@ import (
 )
 
 var (
-	personalityValidateOut    string
-	personalityPullOut        string
-	personalityPullSource     string
-	personalityPushOut        string
-	personalityPushSource     string
-	personalityPushDryRun     bool
-	personalityListOut        string
-	personalityListLocal      bool
-	personalityListSource     string
-	personalityListAll        bool
-	personalityDescribeOut    string
-	personalityDescribeSource string
-	personalityDescribeDeps   bool
+	personalityValidateOut        string
+	personalityValidateSource     string
+	personalityValidateResolveDeps bool
+	personalityPullOut            string
+	personalityPullSource         string
+	personalityPushOut            string
+	personalityPushSource         string
+	personalityPushDryRun         bool
+	personalityListOut            string
+	personalityListLocal          bool
+	personalityListSource         string
+	personalityListAll            bool
+	personalityDescribeOut        string
+	personalityDescribeSource     string
+	personalityDescribeDeps       bool
 )
 
 var personalityCmd = &cobra.Command{
@@ -48,7 +51,11 @@ var personalityValidateCmd = &cobra.Command{
 	Long: `Validate a local personality directory against the expected structure.
 
 A valid personality directory must contain a personality.yaml file
-that defines the personality's plugins, image, and description.`,
+that defines the personality's plugins, image, and description.
+
+By default, referenced plugins and toolchain are resolved against the
+OCI registry to verify they exist. Use --resolve-deps=false to skip
+registry checks and perform offline validation only.`,
 	Args: cobra.ExactArgs(1),
 	RunE: runPersonalityValidate,
 }
@@ -122,6 +129,8 @@ type personalityValidation struct {
 
 func init() {
 	personalityValidateCmd.Flags().StringVarP(&personalityValidateOut, "output", "o", "text", "output format: text, json")
+	personalityValidateCmd.Flags().StringVar(&personalityValidateSource, "source", "", "resolve against a specific source")
+	personalityValidateCmd.Flags().BoolVar(&personalityValidateResolveDeps, "resolve-deps", true, "resolve plugin and toolchain references against the OCI registry")
 	personalityPullCmd.Flags().StringVarP(&personalityPullOut, "output", "o", "text", "output format: text, json")
 	personalityPullCmd.Flags().StringVar(&personalityPullSource, "source", "", "resolve against a specific source")
 	personalityPushCmd.Flags().StringVarP(&personalityPushOut, "output", "o", "text", "output format: text, json")
@@ -147,7 +156,13 @@ func runPersonalityValidate(cmd *cobra.Command, args []string) error {
 	if err := validateOutputFormat(personalityValidateOut); err != nil {
 		return err
 	}
-	return validatePersonalityDir(args[0], cmd.OutOrStdout(), personalityValidateOut)
+	if err := validatePersonalityDir(args[0], cmd.OutOrStdout(), personalityValidateOut); err != nil {
+		return err
+	}
+	if !personalityValidateResolveDeps {
+		return nil
+	}
+	return validatePersonalityDeps(cmd.Context(), args[0], personalityValidateSource)
 }
 
 // validatePersonalityDir checks that a directory has a valid personality structure.
@@ -189,6 +204,47 @@ func validatePersonalityDir(dir string, out io.Writer, outputFmt string) error {
 	}
 	if len(spec.Plugins) > 0 {
 		fmt.Fprintf(out, "  Plugins: %d\n", len(spec.Plugins))
+	}
+	return nil
+}
+
+// validatePersonalityDeps resolves all plugin and toolchain references from
+// the personality spec against the OCI registry, returning an error if any
+// dependency cannot be found.
+func validatePersonalityDeps(ctx context.Context, dir, source string) error {
+	spec, err := orchestrator.LoadPersonalitySpec(dir)
+	if err != nil {
+		return err
+	}
+
+	if len(spec.Plugins) == 0 && spec.Toolchain.Repository == "" {
+		return nil
+	}
+
+	resolver, err := buildSourceResolver(source)
+	if err != nil {
+		return err
+	}
+
+	client := orchestrator.NewDefaultClient()
+	var errs []string
+
+	if spec.Toolchain.Repository != "" {
+		ref := resolver.ResolveToolchainRef(spec.Toolchain.Ref())
+		if _, err := client.ResolveToolchainRef(ctx, ref); err != nil {
+			errs = append(errs, fmt.Sprintf("resolving toolchain %s: %v", spec.Toolchain.Ref(), err))
+		}
+	}
+
+	for _, p := range spec.Plugins {
+		ref := resolver.ResolvePluginRef(p.Ref())
+		if _, err := client.ResolvePluginRef(ctx, ref); err != nil {
+			errs = append(errs, fmt.Sprintf("resolving plugin %s: %v", p.Ref(), err))
+		}
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf("unresolvable dependencies:\n  %s", strings.Join(errs, "\n  "))
 	}
 	return nil
 }
