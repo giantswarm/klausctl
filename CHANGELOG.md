@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Fix `klausctl plugin validate` rejecting commands-only plugins by adding `commands/` to the recognized plugin content list. ([#69](https://github.com/giantswarm/klausctl/issues/69))
+
 ### Added
 
 - Add `klausctl plugin describe`, `klausctl personality describe`, and `klausctl toolchain describe` commands that fetch artifact metadata from the OCI registry without downloading content layers. Each supports `--output json` for scripting and `--source` for source selection. `personality describe` automatically resolves dependency metadata in text mode; use `--deps=false` to skip or `--deps` to include them in JSON output.
