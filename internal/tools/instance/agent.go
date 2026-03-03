@@ -88,9 +88,18 @@ func handlePrompt(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 }
 
 type agentResult struct {
-	Instance string `json:"instance"`
-	Status   string `json:"status"`
-	Result   string `json:"result,omitempty"`
+	Instance     string `json:"instance"`
+	Status       string `json:"status"`
+	MessageCount int    `json:"message_count"`
+	Result       string `json:"result,omitempty"`
+}
+
+// agentToolResponse represents the JSON payload returned by the agent's
+// result MCP tool inside the container.
+type agentToolResponse struct {
+	Status       string `json:"status"`
+	MessageCount int    `json:"message_count"`
+	ResultText   string `json:"result_text"`
 }
 
 func handleResult(ctx context.Context, req mcp.CallToolRequest, sc *server.ServerContext) (*mcp.CallToolResult, error) {
@@ -109,16 +118,30 @@ func handleResult(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 		return mcp.NewToolResultError(fmt.Sprintf("fetching result from %q: %v", name, err)), nil
 	}
 
-	text := extractText(toolResult)
-
-	status := "completed"
 	if toolResult.IsError {
-		status = "error"
+		return server.JSONResult(agentResult{
+			Instance: name,
+			Status:   "error",
+			Result:   extractText(toolResult),
+		})
 	}
 
+	text := extractText(toolResult)
+
+	var parsed agentToolResponse
+	if err := json.Unmarshal([]byte(text), &parsed); err == nil && parsed.Status != "" {
+		return server.JSONResult(agentResult{
+			Instance:     name,
+			Status:       parsed.Status,
+			MessageCount: parsed.MessageCount,
+			Result:       parsed.ResultText,
+		})
+	}
+
+	// Fallback: response is not the expected JSON structure.
 	return server.JSONResult(agentResult{
 		Instance: name,
-		Status:   status,
+		Status:   "completed",
 		Result:   text,
 	})
 }

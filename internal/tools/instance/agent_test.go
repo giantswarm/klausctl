@@ -2,6 +2,7 @@ package instance
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -149,6 +150,55 @@ func TestTerminalStatuses(t *testing.T) {
 		if terminalStatuses[status] {
 			t.Errorf("expected %q to NOT be terminal", status)
 		}
+	}
+}
+
+func TestParseAgentToolResponse(t *testing.T) {
+	tests := []struct {
+		name             string
+		text             string
+		wantStatus       string
+		wantMessageCount int
+		wantResult       string
+	}{
+		{
+			name:             "completed with result",
+			text:             `{"status":"completed","message_count":42,"result_text":"All tests passed."}`,
+			wantStatus:       "completed",
+			wantMessageCount: 42,
+			wantResult:       "All tests passed.",
+		},
+		{
+			name:             "busy agent",
+			text:             `{"status":"busy","message_count":15,"result_text":""}`,
+			wantStatus:       "busy",
+			wantMessageCount: 15,
+			wantResult:       "",
+		},
+		{
+			name:             "idle agent",
+			text:             `{"status":"idle","message_count":0,"result_text":""}`,
+			wantStatus:       "idle",
+			wantMessageCount: 0,
+			wantResult:       "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var resp agentToolResponse
+			if err := json.Unmarshal([]byte(tt.text), &resp); err != nil {
+				t.Fatalf("unexpected parse error: %v", err)
+			}
+			if resp.Status != tt.wantStatus {
+				t.Errorf("Status = %q, want %q", resp.Status, tt.wantStatus)
+			}
+			if resp.MessageCount != tt.wantMessageCount {
+				t.Errorf("MessageCount = %d, want %d", resp.MessageCount, tt.wantMessageCount)
+			}
+			if resp.ResultText != tt.wantResult {
+				t.Errorf("ResultText = %q, want %q", resp.ResultText, tt.wantResult)
+			}
+		})
 	}
 }
 

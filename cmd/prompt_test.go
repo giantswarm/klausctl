@@ -133,6 +133,8 @@ func TestColorStatus(t *testing.T) {
 	}{
 		{"started", "started"},
 		{"completed", "completed"},
+		{"idle", "idle"},
+		{"busy", "busy"},
 		{"error", "error"},
 		{"failed", "failed"},
 		{"unknown", "unknown"},

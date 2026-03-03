@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 
+	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/spf13/cobra"
 
 	"github.com/giantswarm/klausctl/pkg/config"
@@ -37,9 +38,18 @@ func init() {
 }
 
 type resultCLIResult struct {
-	Instance string `json:"instance"`
-	Status   string `json:"status"`
-	Result   string `json:"result,omitempty"`
+	Instance     string `json:"instance"`
+	Status       string `json:"status"`
+	MessageCount int    `json:"message_count"`
+	Result       string `json:"result,omitempty"`
+}
+
+// agentResultResponse represents the JSON payload returned by the agent's
+// result MCP tool. Fields are extracted to populate resultCLIResult.
+type agentResultResponse struct {
+	Status       string `json:"status"`
+	MessageCount int    `json:"message_count"`
+	ResultText   string `json:"result_text"`
 }
 
 func runResult(cmd *cobra.Command, args []string) error {
@@ -90,20 +100,42 @@ func runResult(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("fetching result from %q: %w", instanceName, err)
 	}
 
-	text := extractMCPText(toolResult)
-
-	resultStatus := "completed"
-	if toolResult != nil && toolResult.IsError {
-		resultStatus = "error"
-	}
-
-	result := resultCLIResult{
-		Instance: instanceName,
-		Status:   resultStatus,
-		Result:   text,
-	}
+	result := parseResultResponse(instanceName, toolResult)
 
 	return renderResultOutput(out, result)
+}
+
+// parseResultResponse extracts status, message_count and result_text from the
+// agent's MCP result tool response. The agent returns a JSON payload inside
+// the MCP TextContent; this function parses that payload so the CLI can display
+// accurate status and progress information instead of raw JSON.
+func parseResultResponse(instanceName string, toolResult *mcp.CallToolResult) resultCLIResult {
+	if toolResult != nil && toolResult.IsError {
+		return resultCLIResult{
+			Instance: instanceName,
+			Status:   "error",
+			Result:   extractMCPText(toolResult),
+		}
+	}
+
+	text := extractMCPText(toolResult)
+
+	var parsed agentResultResponse
+	if err := json.Unmarshal([]byte(text), &parsed); err == nil && parsed.Status != "" {
+		return resultCLIResult{
+			Instance:     instanceName,
+			Status:       parsed.Status,
+			MessageCount: parsed.MessageCount,
+			Result:       parsed.ResultText,
+		}
+	}
+
+	// Fallback: response is not the expected JSON structure.
+	return resultCLIResult{
+		Instance: instanceName,
+		Status:   "completed",
+		Result:   text,
+	}
 }
 
 func renderResultOutput(out io.Writer, result resultCLIResult) error {
@@ -115,7 +147,10 @@ func renderResultOutput(out io.Writer, result resultCLIResult) error {
 
 	fmt.Fprintf(out, "Instance: %s\n", result.Instance)
 	fmt.Fprintf(out, "Status:   %s\n", colorStatus(result.Status))
-	if result.Result != "" {
+	fmt.Fprintf(out, "Messages: %d\n", result.MessageCount)
+	if result.Status == "busy" {
+		fmt.Fprintf(out, "\nAgent is still processing the prompt.\nRun 'klausctl result %s' again to check for updates.\n", result.Instance)
+	} else if result.Result != "" {
 		fmt.Fprintf(out, "\n%s\n", result.Result)
 	}
 	return nil
