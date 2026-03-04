@@ -731,5 +731,64 @@ func TestBuildVolumes_NoGitConfigWhenEmpty(t *testing.T) {
 	}
 }
 
+func TestBuildVolumes_SourcesMount(t *testing.T) {
+	paths := testPaths(t)
+	cfg := &config.Config{Workspace: t.TempDir()}
+	env := make(map[string]string)
+
+	// Write a sources.yaml to the config dir so it gets mounted.
+	if err := config.EnsureDir(paths.ConfigDir); err != nil {
+		t.Fatal(err)
+	}
+	sourcesContent := "sources:\n- name: giantswarm\n  registry: gsoci.azurecr.io/giantswarm\n  default: true\n- name: spiffy\n  registry: spiffy.example.com/artifacts\n"
+	if err := os.WriteFile(paths.SourcesFile, []byte(sourcesContent), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	vols, err := BuildVolumes(cfg, paths, env, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	found := false
+	for _, v := range vols {
+		if v.ContainerPath == "/etc/klaus/sources.yaml" {
+			found = true
+			if !v.ReadOnly {
+				t.Error("expected sources mount to be read-only")
+			}
+			if v.HostPath != paths.SourcesFile {
+				t.Errorf("expected host path %q, got %q", paths.SourcesFile, v.HostPath)
+			}
+		}
+	}
+	if !found {
+		t.Error("expected /etc/klaus/sources.yaml volume mount")
+	}
+	if env["KLAUSCTL_SOURCES_FILE"] != "/etc/klaus/sources.yaml" {
+		t.Errorf("expected KLAUSCTL_SOURCES_FILE=/etc/klaus/sources.yaml, got %q", env["KLAUSCTL_SOURCES_FILE"])
+	}
+}
+
+func TestBuildVolumes_NoSourcesMountWhenFileMissing(t *testing.T) {
+	paths := testPaths(t)
+	cfg := &config.Config{Workspace: t.TempDir()}
+	env := make(map[string]string)
+
+	vols, err := BuildVolumes(cfg, paths, env, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	for _, v := range vols {
+		if v.ContainerPath == "/etc/klaus/sources.yaml" {
+			t.Error("expected no sources mount when sources.yaml does not exist")
+		}
+	}
+	if _, ok := env["KLAUSCTL_SOURCES_FILE"]; ok {
+		t.Error("expected KLAUSCTL_SOURCES_FILE to be absent when sources.yaml does not exist")
+	}
+}
+
 // Verify RunOptions types match expected runtime types (compilation check).
 var _ runtime.RunOptions = runtime.RunOptions{}

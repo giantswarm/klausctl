@@ -4,6 +4,7 @@ package orchestrator
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -244,6 +245,22 @@ func BuildVolumes(cfg *config.Config, paths *config.Paths, env map[string]string
 		return nil, err
 	}
 	vols = append(vols, secretVols...)
+
+	// Mount host sources config so klausctl inside the container can resolve
+	// --source references (e.g. "klausctl push --source spiffy").
+	if _, err := os.Stat(paths.SourcesFile); err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			return nil, fmt.Errorf("checking sources file: %w", err)
+		}
+	} else {
+		vols = append(vols, runtime.Volume{
+			HostPath:      paths.SourcesFile,
+			ContainerPath: "/etc/klaus/sources.yaml",
+			ReadOnly:      true,
+		})
+		// Set the container-internal path, overriding any host value from envForward.
+		env["KLAUSCTL_SOURCES_FILE"] = "/etc/klaus/sources.yaml"
+	}
 
 	return vols, nil
 }

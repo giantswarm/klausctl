@@ -47,6 +47,12 @@ func DefaultPaths() (*Paths, error) {
 	base := filepath.Join(configDir, "klausctl")
 	instancesDir := filepath.Join(base, "instances")
 	defaultInstanceDir := filepath.Join(instancesDir, "default")
+
+	sourcesFile := filepath.Join(base, "sources.yaml")
+	if override := os.Getenv("KLAUSCTL_SOURCES_FILE"); override != "" {
+		sourcesFile = filepath.Clean(override)
+	}
+
 	return &Paths{
 		ConfigDir:        base,
 		ConfigFile:       filepath.Join(defaultInstanceDir, "config.yaml"),
@@ -59,7 +65,7 @@ func DefaultPaths() (*Paths, error) {
 		InstanceFile:     filepath.Join(defaultInstanceDir, "instance.json"),
 		SecretsFile:      filepath.Join(base, "secrets.yaml"),
 		McpServersFile:   filepath.Join(base, "mcpservers.yaml"),
-		SourcesFile:      filepath.Join(base, "sources.yaml"),
+		SourcesFile:      sourcesFile,
 	}, nil
 }
 
