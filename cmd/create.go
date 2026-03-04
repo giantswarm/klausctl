@@ -12,6 +12,7 @@ import (
 
 	"github.com/giantswarm/klausctl/pkg/config"
 	"github.com/giantswarm/klausctl/pkg/orchestrator"
+	"github.com/giantswarm/klausctl/pkg/worktree"
 )
 
 var (
@@ -29,6 +30,7 @@ var (
 	createSystemPrompt string
 	createMaxBudget    float64
 	createSource       string
+	createNoIsolate    bool
 )
 
 var createCmd = &cobra.Command{
@@ -62,10 +64,11 @@ func init() {
 	createCmd.Flags().StringArrayVar(&createSecretFile, "secret-file", nil, "secret file /container/path=secret-name (repeatable)")
 	createCmd.Flags().StringArrayVar(&createMcpServer, "mcpserver", nil, "managed MCP server name (repeatable)")
 	createCmd.Flags().StringVar(&createSource, "source", "", "resolve artifact short names against a specific source")
+	createCmd.Flags().BoolVar(&createNoIsolate, "no-isolate", false, "skip git worktree creation and bind-mount workspace directly")
 	rootCmd.AddCommand(createCmd)
 }
 
-func runCreate(cmd *cobra.Command, args []string) error {
+func runCreate(cmd *cobra.Command, args []string) (retErr error) {
 	instanceName := args[0]
 	if err := config.ValidateInstanceName(instanceName); err != nil {
 		return err
@@ -129,6 +132,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 	opts := config.CreateOptions{
 		Name:           instanceName,
 		Workspace:      workspace,
+		NoIsolate:      createNoIsolate,
 		Personality:    personality,
 		Toolchain:      toolchain,
 		Plugins:        plugins,
@@ -177,6 +181,15 @@ func runCreate(cmd *cobra.Command, args []string) error {
 	cfg, err := config.GenerateInstanceConfig(paths, opts)
 	if err != nil {
 		return err
+	}
+
+	// Clean up the worktree if any subsequent step fails.
+	if cfg.WorktreePath != "" {
+		defer func() {
+			if retErr != nil {
+				_ = worktree.Remove(cfg.Workspace, cfg.WorktreePath)
+			}
+		}()
 	}
 
 	if err := config.EnsureDir(instancePaths.InstanceDir); err != nil {

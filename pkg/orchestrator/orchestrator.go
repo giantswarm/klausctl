@@ -149,8 +149,12 @@ func BuildVolumes(cfg *config.Config, paths *config.Paths, env map[string]string
 	var vols []runtime.Volume
 
 	workspace := config.ExpandPath(cfg.Workspace)
+	mountPath := workspace
+	if cfg.WorktreePath != "" {
+		mountPath = cfg.WorktreePath
+	}
 	vols = append(vols, runtime.Volume{
-		HostPath:      workspace,
+		HostPath:      mountPath,
 		ContainerPath: "/workspace",
 	})
 	env["CLAUDE_WORKSPACE"] = "/workspace"

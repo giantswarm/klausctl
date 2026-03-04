@@ -10,6 +10,8 @@ import (
 	"slices"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/giantswarm/klausctl/pkg/worktree"
 )
 
 // CreateOptions defines user-facing parameters for klausctl create.
@@ -20,6 +22,11 @@ type CreateOptions struct {
 	Toolchain   string
 	Plugins     []string
 	Port        int
+
+	// NoIsolate disables git worktree creation even when the workspace is a
+	// git repository. When false (the default), a worktree is created
+	// automatically for git-backed workspaces.
+	NoIsolate bool
 
 	// Override fields applied after personality resolution.
 	EnvVars        map[string]string
@@ -70,6 +77,22 @@ func GenerateInstanceConfig(paths *Paths, opts CreateOptions) (*Config, error) {
 
 	cfg := DefaultConfig()
 	cfg.Workspace = workspace
+
+	// Create a git worktree for isolation when the workspace is a git repo.
+	if !opts.NoIsolate && worktree.IsGitRepo(workspace) {
+		instanceDir := filepath.Join(paths.InstancesDir, opts.Name)
+		wtPath := filepath.Join(instanceDir, "workspace")
+
+		if err := EnsureDir(instanceDir); err != nil {
+			return nil, fmt.Errorf("creating instance directory for worktree: %w", err)
+		}
+
+		if err := worktree.Create(workspace, wtPath); err != nil {
+			return nil, fmt.Errorf("creating git worktree: %w", err)
+		}
+
+		cfg.WorktreePath = wtPath
+	}
 
 	resolver := opts.SourceResolver
 	if resolver == nil {

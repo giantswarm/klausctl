@@ -88,6 +88,14 @@ func startInstance(cmd *cobra.Command, instanceName, workspaceOverride, configPa
 		}
 		return fmt.Errorf("checking workspace directory: %w", err)
 	}
+	if cfg.WorktreePath != "" {
+		if _, err := os.Stat(cfg.WorktreePath); err != nil {
+			if os.IsNotExist(err) {
+				return fmt.Errorf("worktree directory does not exist: %s", cfg.WorktreePath)
+			}
+			return fmt.Errorf("checking worktree directory: %w", err)
+		}
+	}
 
 	// Detect or validate container runtime.
 	rt, err := runtime.New(cfg.Runtime)
@@ -202,7 +210,12 @@ func startInstance(cmd *cobra.Command, instanceName, workspaceOverride, configPa
 		return fmt.Errorf("starting container: %w", err)
 	}
 
-	// Save instance state.
+	// Save instance state. Use the worktree path as the effective workspace
+	// when available so that status and list commands show the mounted path.
+	effectiveWorkspace := workspace
+	if cfg.WorktreePath != "" {
+		effectiveWorkspace = cfg.WorktreePath
+	}
 	inst = &instance.Instance{
 		Name:        instanceName,
 		ContainerID: containerID,
@@ -210,7 +223,7 @@ func startInstance(cmd *cobra.Command, instanceName, workspaceOverride, configPa
 		Personality: cfg.Personality,
 		Image:       image,
 		Port:        cfg.Port,
-		Workspace:   workspace,
+		Workspace:   effectiveWorkspace,
 		StartedAt:   time.Now(),
 	}
 	if err := inst.Save(paths); err != nil {
@@ -241,5 +254,6 @@ func startInstance(cmd *cobra.Command, instanceName, workspaceOverride, configPa
 func applyWorkspaceOverride(cfg *config.Config, workspaceOverride string) {
 	if workspaceOverride != "" {
 		cfg.Workspace = workspaceOverride
+		cfg.WorktreePath = "" // override disables worktree isolation
 	}
 }
