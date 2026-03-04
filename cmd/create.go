@@ -160,9 +160,9 @@ func runCreate(cmd *cobra.Command, args []string) (retErr error) {
 		PermissionMode:       createPermMode,
 		Model:                createModel,
 		SystemPrompt:         createSystemPrompt,
-		SourceResolver: resolver,
-		Context:        ctx,
-		Output:         cmd.OutOrStdout(),
+		SourceResolver:       resolver,
+		Context:              ctx,
+		Output:               cmd.OutOrStdout(),
 		ResolvePersonality: func(ctx context.Context, ref string, outWriter io.Writer) (*config.ResolvedPersonality, error) {
 			if err := config.EnsureDir(paths.PersonalitiesDir); err != nil {
 				return nil, fmt.Errorf("creating personalities directory: %w", err)

@@ -29,9 +29,9 @@ type CreateOptions struct {
 	NoIsolate bool
 
 	// Git identity and auth overrides.
-	GitAuthorName      string
-	GitAuthorEmail     string
-	GitCredentialHelper string
+	GitAuthorName        string
+	GitAuthorEmail       string
+	GitCredentialHelper  string
 	GitHTTPSInsteadOfSSH bool
 
 	// Override fields applied after personality resolution.
