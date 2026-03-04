@@ -59,6 +59,7 @@ func registerCreate(s *mcpserver.MCPServer, sc *server.ServerContext) {
 		mcp.WithString("model", mcp.Description("Claude model (overrides personality default, e.g. sonnet, opus, claude-sonnet-4-20250514)")),
 		mcp.WithString("systemPrompt", mcp.Description("System prompt for the Claude agent (overrides personality default)")),
 		mcp.WithBoolean("noIsolate", mcp.Description("Skip git worktree creation and bind-mount workspace directly (default: false)")),
+		mcp.WithNumber("port", mcp.Description("Override auto-selected host port for the instance MCP endpoint (0 or omitted = auto-select starting from 8080)")),
 	)
 	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		return handleCreate(ctx, req, sc)
@@ -187,6 +188,11 @@ func handleCreate(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 		return mcp.NewToolResultError(fmt.Sprintf("instance %q already exists", name)), nil
 	}
 
+	port := int(req.GetFloat("port", 0))
+	if port < 0 || port > 65535 {
+		return mcp.NewToolResultError(fmt.Sprintf("port must be between 1 and 65535, got %d", port)), nil
+	}
+
 	createOpts := config.CreateOptions{
 		Name:           name,
 		Workspace:      workspace,
@@ -194,6 +200,7 @@ func handleCreate(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 		Personality:    personality,
 		Toolchain:      toolchain,
 		Plugins:        pluginArgs,
+		Port:           port,
 		EnvVars:        envVars,
 		EnvForward:     req.GetStringSlice("envForward", nil),
 		McpServers:     mcpServers,
