@@ -333,6 +333,69 @@ func TestImageExplicitlySetFalse(t *testing.T) {
 	}
 }
 
+func TestValidateGitCredentialHelper(t *testing.T) {
+	tests := []struct {
+		name    string
+		helper  string
+		wantErr bool
+	}{
+		{name: "empty is valid", helper: ""},
+		{name: "gh is valid", helper: "gh"},
+		{name: "invalid helper", helper: "store", wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := Config{
+				Workspace: "/tmp",
+				Port:      8080,
+				Git:       GitConfig{CredentialHelper: tt.helper},
+			}
+			err := cfg.Validate()
+			if tt.wantErr && err == nil {
+				t.Fatal("expected error")
+			}
+			if !tt.wantErr && err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+func TestLoadGitConfig(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+
+	content := `
+workspace: /tmp/test
+git:
+  authorName: "Klaus Agent"
+  authorEmail: "klaus@example.com"
+  credentialHelper: gh
+  httpsInsteadOfSsh: true
+`
+	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("Load() returned error: %v", err)
+	}
+
+	if cfg.Git.AuthorName != "Klaus Agent" {
+		t.Errorf("Git.AuthorName = %q, want %q", cfg.Git.AuthorName, "Klaus Agent")
+	}
+	if cfg.Git.AuthorEmail != "klaus@example.com" {
+		t.Errorf("Git.AuthorEmail = %q, want %q", cfg.Git.AuthorEmail, "klaus@example.com")
+	}
+	if cfg.Git.CredentialHelper != "gh" {
+		t.Errorf("Git.CredentialHelper = %q, want %q", cfg.Git.CredentialHelper, "gh")
+	}
+	if !cfg.Git.HTTPSInsteadOfSSH {
+		t.Error("Git.HTTPSInsteadOfSSH = false, want true")
+	}
+}
+
 func TestMarshal(t *testing.T) {
 	cfg := DefaultConfig()
 	cfg.Workspace = "/tmp/test"

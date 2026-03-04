@@ -83,6 +83,11 @@ type Config struct {
 	// and mounted read-only into the container at the specified path.
 	SecretFiles map[string]string `yaml:"secretFiles,omitempty"`
 
+	// Git configures git identity, credential helper, and URL rewriting
+	// inside the container. When set, the corresponding environment variables
+	// and/or a container-local gitconfig are injected at start time.
+	Git GitConfig `yaml:"git,omitempty"`
+
 	// McpServerRefs lists managed MCP server names to include.
 	// At start time each reference is resolved from the global mcpservers.yaml
 	// and merged into McpServers with a Bearer token header.
@@ -155,6 +160,30 @@ type ClaudeConfig struct {
 	// PluginDirs are directories to load plugins from.
 	PluginDirs []string `yaml:"pluginDirs,omitempty"`
 }
+
+// GitConfig configures git identity, authentication, and URL rewriting
+// inside the container. These settings are applied via environment variables
+// and a container-local gitconfig, avoiding modifications to the bind-mounted
+// workspace's .git/config.
+type GitConfig struct {
+	// AuthorName sets GIT_AUTHOR_NAME and GIT_COMMITTER_NAME.
+	AuthorName string `yaml:"authorName,omitempty"`
+	// AuthorEmail sets GIT_AUTHOR_EMAIL and GIT_COMMITTER_EMAIL.
+	AuthorEmail string `yaml:"authorEmail,omitempty"`
+	// CredentialHelper configures the git credential helper. Currently
+	// only "gh" is supported, which configures git to call
+	// "gh auth git-credential" as the credential helper for
+	// github.com and gist.github.com.
+	CredentialHelper string `yaml:"credentialHelper,omitempty"`
+	// HTTPSInsteadOfSSH when true adds url.<https>.insteadOf rules to a
+	// container-local gitconfig so that SSH-style GitHub URLs
+	// (git@github.com:...) are rewritten to HTTPS without modifying
+	// the workspace .git/config.
+	HTTPSInsteadOfSSH bool `yaml:"httpsInsteadOfSsh,omitempty"`
+}
+
+// validCredentialHelpers lists valid credential helper values.
+var validCredentialHelpers = []string{"gh"}
 
 // Skill defines an inline Claude Code skill rendered as a SKILL.md file.
 type Skill struct {
@@ -332,6 +361,12 @@ func (c *Config) Validate() error {
 		}
 		if !strings.Contains(c.Personality, "/") {
 			return fmt.Errorf("personality %q does not look like a valid OCI reference (expected registry/path format)", c.Personality)
+		}
+	}
+
+	if c.Git.CredentialHelper != "" {
+		if err := validateOneOf("credential helper", c.Git.CredentialHelper, validCredentialHelpers); err != nil {
+			return err
 		}
 	}
 
