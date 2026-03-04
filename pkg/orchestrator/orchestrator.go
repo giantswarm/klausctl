@@ -82,6 +82,7 @@ func BuildEnvVars(cfg *config.Config, paths *config.Paths) (map[string]string, e
 		}
 	}
 
+	setGitEnvVars(env, &cfg.Git)
 	setClaudeEnvVars(env, &cfg.Claude)
 
 	if len(cfg.Agents) > 0 {
@@ -230,6 +231,14 @@ func BuildVolumes(cfg *config.Config, paths *config.Paths, env map[string]string
 		})
 	}
 
+	gitconfigVol, err := buildGitConfigVolume(cfg, paths, env)
+	if err != nil {
+		return nil, err
+	}
+	if gitconfigVol != nil {
+		vols = append(vols, *gitconfigVol)
+	}
+
 	secretVols, err := resolveSecretFiles(cfg, paths)
 	if err != nil {
 		return nil, err
@@ -255,10 +264,74 @@ func buildPluginDirs(cfg *config.Config) []string {
 	return dirs
 }
 
+func setGitEnvVars(env map[string]string, git *config.GitConfig) {
+	if git.AuthorName != "" {
+		env["GIT_AUTHOR_NAME"] = git.AuthorName
+		env["GIT_COMMITTER_NAME"] = git.AuthorName
+	}
+	if git.AuthorEmail != "" {
+		env["GIT_AUTHOR_EMAIL"] = git.AuthorEmail
+		env["GIT_COMMITTER_EMAIL"] = git.AuthorEmail
+	}
+}
+
+// BuildGitConfig generates a container-local gitconfig file content for
+// credential helper and/or URL rewriting. Returns empty string if no
+// gitconfig is needed.
+func BuildGitConfig(git *config.GitConfig) string {
+	if !git.HTTPSInsteadOfSSH && git.CredentialHelper == "" {
+		return ""
+	}
+
+	var b strings.Builder
+
+	if git.CredentialHelper == "gh" {
+		b.WriteString("[credential \"https://github.com\"]\n")
+		b.WriteString("\thelper = !/usr/bin/gh auth git-credential\n")
+		b.WriteString("[credential \"https://gist.github.com\"]\n")
+		b.WriteString("\thelper = !/usr/bin/gh auth git-credential\n")
+	}
+
+	if git.HTTPSInsteadOfSSH {
+		b.WriteString("[url \"https://github.com/\"]\n")
+		b.WriteString("\tinsteadOf = git@github.com:\n")
+		b.WriteString("\tinsteadOf = ssh://git@github.com/\n")
+	}
+
+	return b.String()
+}
+
 func setEnvIfNotEmpty(env map[string]string, key, value string) {
 	if value != "" {
 		env[key] = value
 	}
+}
+
+// buildGitConfigVolume writes a container-local gitconfig and returns a
+// volume mount for it when git.credentialHelper or git.httpsInsteadOfSsh
+// is configured. The GIT_CONFIG_GLOBAL env var is set to point at the
+// mounted file so the workspace's .git/config is not modified.
+func buildGitConfigVolume(cfg *config.Config, paths *config.Paths, env map[string]string) (*runtime.Volume, error) {
+	content := BuildGitConfig(&cfg.Git)
+	if content == "" {
+		return nil, nil
+	}
+
+	if err := config.EnsureDir(paths.RenderedDir); err != nil {
+		return nil, fmt.Errorf("creating rendered directory for gitconfig: %w", err)
+	}
+
+	hostPath := filepath.Join(paths.RenderedDir, "gitconfig")
+	if err := os.WriteFile(hostPath, []byte(content), 0o600); err != nil {
+		return nil, fmt.Errorf("writing gitconfig: %w", err)
+	}
+
+	env["GIT_CONFIG_GLOBAL"] = "/etc/klaus/gitconfig"
+	return &runtime.Volume{
+		HostPath:      hostPath,
+		ContainerPath: "/etc/klaus/gitconfig",
+		ReadOnly:      true,
+	}, nil
 }
 
 // ResolveSecretRefs resolves all secret-related references in the config:

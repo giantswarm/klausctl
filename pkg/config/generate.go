@@ -28,6 +28,12 @@ type CreateOptions struct {
 	// automatically for git-backed workspaces.
 	NoIsolate bool
 
+	// Git identity and auth overrides.
+	GitAuthorName        string
+	GitAuthorEmail       string
+	GitCredentialHelper  string
+	GitHTTPSInsteadOfSSH bool
+
 	// Override fields applied after personality resolution.
 	EnvVars        map[string]string
 	EnvForward     []string
@@ -193,6 +199,19 @@ func applyCreateOverrides(cfg *Config, opts CreateOptions) {
 		cfg.McpServerRefs = append(cfg.McpServerRefs, opts.McpServerRefs...)
 		slices.Sort(cfg.McpServerRefs)
 		cfg.McpServerRefs = slices.Compact(cfg.McpServerRefs)
+	}
+
+	if opts.GitAuthorName != "" {
+		cfg.Git.AuthorName = opts.GitAuthorName
+	}
+	if opts.GitAuthorEmail != "" {
+		cfg.Git.AuthorEmail = opts.GitAuthorEmail
+	}
+	if opts.GitCredentialHelper != "" {
+		cfg.Git.CredentialHelper = opts.GitCredentialHelper
+	}
+	if opts.GitHTTPSInsteadOfSSH {
+		cfg.Git.HTTPSInsteadOfSSH = true
 	}
 
 	if opts.MaxBudgetUSD != nil {

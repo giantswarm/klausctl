@@ -263,6 +263,49 @@ func TestParseEnvFlags(t *testing.T) {
 	}
 }
 
+func TestParseGitAuthor(t *testing.T) {
+	tests := []struct {
+		name      string
+		input     string
+		wantName  string
+		wantEmail string
+		wantErr   bool
+	}{
+		{name: "empty", input: "", wantName: "", wantEmail: ""},
+		{name: "valid", input: "Klaus Agent <klaus@example.com>", wantName: "Klaus Agent", wantEmail: "klaus@example.com"},
+		{name: "extra spaces", input: "  Klaus  <klaus@test.com> ", wantName: "Klaus", wantEmail: "klaus@test.com"},
+		{name: "missing angle brackets", input: "Klaus klaus@test.com", wantErr: true},
+		{name: "empty name", input: "<klaus@test.com>", wantErr: true},
+		{name: "empty email", input: "Klaus <>", wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			name, email, err := parseGitAuthor(tt.input)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if name != tt.wantName {
+				t.Errorf("name = %q, want %q", name, tt.wantName)
+			}
+			if email != tt.wantEmail {
+				t.Errorf("email = %q, want %q", email, tt.wantEmail)
+			}
+		})
+	}
+}
+
+func TestCreateGitFlags(t *testing.T) {
+	assertFlagRegistered(t, createCmd, "git-author")
+	assertFlagRegistered(t, createCmd, "git-credential-helper")
+	assertFlagRegistered(t, createCmd, "git-https-instead-of-ssh")
+}
+
 type fakeRuntime struct {
 	status      string
 	stopCalls   int

@@ -3,6 +3,7 @@ package orchestrator
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/giantswarm/klausctl/pkg/config"
@@ -574,6 +575,159 @@ func TestResolveSecretRefs_Empty(t *testing.T) {
 
 	if err := ResolveSecretRefs(cfg, paths); err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestBuildEnvVars_GitIdentity(t *testing.T) {
+	cfg := &config.Config{
+		Git: config.GitConfig{
+			AuthorName:  "Klaus Agent",
+			AuthorEmail: "klaus@example.com",
+		},
+	}
+	paths := testPaths(t)
+
+	env, err := BuildEnvVars(cfg, paths)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if env["GIT_AUTHOR_NAME"] != "Klaus Agent" {
+		t.Errorf("GIT_AUTHOR_NAME = %q, want %q", env["GIT_AUTHOR_NAME"], "Klaus Agent")
+	}
+	if env["GIT_COMMITTER_NAME"] != "Klaus Agent" {
+		t.Errorf("GIT_COMMITTER_NAME = %q, want %q", env["GIT_COMMITTER_NAME"], "Klaus Agent")
+	}
+	if env["GIT_AUTHOR_EMAIL"] != "klaus@example.com" {
+		t.Errorf("GIT_AUTHOR_EMAIL = %q, want %q", env["GIT_AUTHOR_EMAIL"], "klaus@example.com")
+	}
+	if env["GIT_COMMITTER_EMAIL"] != "klaus@example.com" {
+		t.Errorf("GIT_COMMITTER_EMAIL = %q, want %q", env["GIT_COMMITTER_EMAIL"], "klaus@example.com")
+	}
+}
+
+func TestBuildEnvVars_NoGitIdentityWhenEmpty(t *testing.T) {
+	cfg := &config.Config{}
+	paths := testPaths(t)
+
+	env, err := BuildEnvVars(cfg, paths)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	for _, key := range []string{"GIT_AUTHOR_NAME", "GIT_COMMITTER_NAME", "GIT_AUTHOR_EMAIL", "GIT_COMMITTER_EMAIL"} {
+		if _, ok := env[key]; ok {
+			t.Errorf("expected %s to be absent for empty git config", key)
+		}
+	}
+}
+
+func TestBuildGitConfig_Empty(t *testing.T) {
+	git := &config.GitConfig{}
+	if got := BuildGitConfig(git); got != "" {
+		t.Errorf("expected empty gitconfig, got %q", got)
+	}
+}
+
+func TestBuildGitConfig_CredentialHelper(t *testing.T) {
+	git := &config.GitConfig{CredentialHelper: "gh"}
+	content := BuildGitConfig(git)
+
+	if !strings.Contains(content, `[credential "https://github.com"]`) {
+		t.Error("expected github credential section")
+	}
+	if !strings.Contains(content, "helper = !/usr/bin/gh auth git-credential") {
+		t.Error("expected gh credential helper")
+	}
+	if !strings.Contains(content, `[credential "https://gist.github.com"]`) {
+		t.Error("expected gist credential section")
+	}
+}
+
+func TestBuildGitConfig_HTTPSInsteadOfSSH(t *testing.T) {
+	git := &config.GitConfig{HTTPSInsteadOfSSH: true}
+	content := BuildGitConfig(git)
+
+	if !strings.Contains(content, `[url "https://github.com/"]`) {
+		t.Error("expected url rewrite section")
+	}
+	if !strings.Contains(content, "insteadOf = git@github.com:") {
+		t.Error("expected SSH insteadOf rule")
+	}
+	if !strings.Contains(content, "insteadOf = ssh://git@github.com/") {
+		t.Error("expected ssh:// insteadOf rule")
+	}
+}
+
+func TestBuildGitConfig_Both(t *testing.T) {
+	git := &config.GitConfig{
+		CredentialHelper:  "gh",
+		HTTPSInsteadOfSSH: true,
+	}
+	content := BuildGitConfig(git)
+
+	if !strings.Contains(content, "credential") {
+		t.Error("expected credential section")
+	}
+	if !strings.Contains(content, "insteadOf") {
+		t.Error("expected insteadOf section")
+	}
+}
+
+func TestBuildVolumes_GitConfigMount(t *testing.T) {
+	cfg := &config.Config{
+		Workspace: t.TempDir(),
+		Git: config.GitConfig{
+			HTTPSInsteadOfSSH: true,
+		},
+	}
+	paths := testPaths(t)
+	env := make(map[string]string)
+
+	// Ensure rendered dir exists.
+	if err := config.EnsureDir(paths.RenderedDir); err != nil {
+		t.Fatal(err)
+	}
+
+	vols, err := BuildVolumes(cfg, paths, env, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	found := false
+	for _, v := range vols {
+		if v.ContainerPath == "/etc/klaus/gitconfig" {
+			found = true
+			if !v.ReadOnly {
+				t.Error("expected gitconfig mount to be read-only")
+			}
+		}
+	}
+	if !found {
+		t.Error("expected /etc/klaus/gitconfig volume mount")
+	}
+	if env["GIT_CONFIG_GLOBAL"] != "/etc/klaus/gitconfig" {
+		t.Errorf("GIT_CONFIG_GLOBAL = %q, want /etc/klaus/gitconfig", env["GIT_CONFIG_GLOBAL"])
+	}
+}
+
+func TestBuildVolumes_NoGitConfigWhenEmpty(t *testing.T) {
+	cfg := &config.Config{Workspace: t.TempDir()}
+	paths := testPaths(t)
+	env := make(map[string]string)
+
+	vols, err := BuildVolumes(cfg, paths, env, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	for _, v := range vols {
+		if v.ContainerPath == "/etc/klaus/gitconfig" {
+			t.Error("expected no gitconfig mount when git config is empty")
+		}
+	}
+	if _, ok := env["GIT_CONFIG_GLOBAL"]; ok {
+		t.Error("expected GIT_CONFIG_GLOBAL to be absent")
 	}
 }
 

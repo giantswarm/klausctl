@@ -404,6 +404,46 @@ func TestGenerateInstanceConfig_Overrides(t *testing.T) {
 	}
 }
 
+func TestGenerateInstanceConfig_GitOverrides(t *testing.T) {
+	base := t.TempDir()
+	workspace := filepath.Join(base, "workspace")
+	if err := os.MkdirAll(workspace, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	paths := &Paths{
+		ConfigDir:        base,
+		InstancesDir:     filepath.Join(base, "instances"),
+		PluginsDir:       filepath.Join(base, "plugins"),
+		PersonalitiesDir: filepath.Join(base, "personalities"),
+	}
+
+	cfg, err := GenerateInstanceConfig(paths, CreateOptions{
+		Name:                 "test",
+		Workspace:            workspace,
+		GitAuthorName:        "Klaus",
+		GitAuthorEmail:       "klaus@example.com",
+		GitCredentialHelper:  "gh",
+		GitHTTPSInsteadOfSSH: true,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if cfg.Git.AuthorName != "Klaus" {
+		t.Errorf("Git.AuthorName = %q, want %q", cfg.Git.AuthorName, "Klaus")
+	}
+	if cfg.Git.AuthorEmail != "klaus@example.com" {
+		t.Errorf("Git.AuthorEmail = %q, want %q", cfg.Git.AuthorEmail, "klaus@example.com")
+	}
+	if cfg.Git.CredentialHelper != "gh" {
+		t.Errorf("Git.CredentialHelper = %q, want %q", cfg.Git.CredentialHelper, "gh")
+	}
+	if !cfg.Git.HTTPSInsteadOfSSH {
+		t.Error("Git.HTTPSInsteadOfSSH = false, want true")
+	}
+}
+
 func TestParsePluginRef(t *testing.T) {
 	p := ParsePluginRef("gs-platform:v1.2.0")
 	if p.Repository != "gsoci.azurecr.io/giantswarm/klaus-plugins/gs-platform" {

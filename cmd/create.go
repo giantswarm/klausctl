@@ -16,21 +16,24 @@ import (
 )
 
 var (
-	createPersonality  string
-	createToolchain    string
-	createPlugins      []string
-	createPort         int
-	createEnv          []string
-	createEnvForward   []string
-	createSecretEnv    []string
-	createSecretFile   []string
-	createMcpServer    []string
-	createPermMode     string
-	createModel        string
-	createSystemPrompt string
-	createMaxBudget    float64
-	createSource       string
-	createNoIsolate    bool
+	createPersonality       string
+	createToolchain         string
+	createPlugins           []string
+	createPort              int
+	createEnv               []string
+	createEnvForward        []string
+	createSecretEnv         []string
+	createSecretFile        []string
+	createMcpServer         []string
+	createPermMode          string
+	createModel             string
+	createSystemPrompt      string
+	createMaxBudget         float64
+	createSource            string
+	createNoIsolate         bool
+	createGitAuthor         string
+	createGitCredHelper     string
+	createGitHTTPSInsteadOf bool
 )
 
 var createCmd = &cobra.Command{
@@ -65,6 +68,9 @@ func init() {
 	createCmd.Flags().StringArrayVar(&createMcpServer, "mcpserver", nil, "managed MCP server name (repeatable)")
 	createCmd.Flags().StringVar(&createSource, "source", "", "resolve artifact short names against a specific source")
 	createCmd.Flags().BoolVar(&createNoIsolate, "no-isolate", false, "skip git worktree creation and bind-mount workspace directly")
+	createCmd.Flags().StringVar(&createGitAuthor, "git-author", "", `git author identity "Name <email>"`)
+	createCmd.Flags().StringVar(&createGitCredHelper, "git-credential-helper", "", "git credential helper (currently only 'gh')")
+	createCmd.Flags().BoolVar(&createGitHTTPSInsteadOf, "git-https-instead-of-ssh", false, "rewrite SSH git URLs to HTTPS via container-local gitconfig")
 	rootCmd.AddCommand(createCmd)
 }
 
@@ -129,25 +135,34 @@ func runCreate(cmd *cobra.Command, args []string) (retErr error) {
 		return fmt.Errorf("parsing --secret-file: %w", err)
 	}
 
+	gitName, gitEmail, err := parseGitAuthor(createGitAuthor)
+	if err != nil {
+		return err
+	}
+
 	opts := config.CreateOptions{
-		Name:           instanceName,
-		Workspace:      workspace,
-		NoIsolate:      createNoIsolate,
-		Personality:    personality,
-		Toolchain:      toolchain,
-		Plugins:        plugins,
-		Port:           createPort,
-		EnvVars:        envVars,
-		EnvForward:     createEnvForward,
-		SecretEnvVars:  secretEnvVars,
-		SecretFiles:    secretFiles,
-		McpServerRefs:  createMcpServer,
-		PermissionMode: createPermMode,
-		Model:          createModel,
-		SystemPrompt:   createSystemPrompt,
-		SourceResolver: resolver,
-		Context:        ctx,
-		Output:         cmd.OutOrStdout(),
+		Name:                 instanceName,
+		Workspace:            workspace,
+		NoIsolate:            createNoIsolate,
+		Personality:          personality,
+		Toolchain:            toolchain,
+		Plugins:              plugins,
+		Port:                 createPort,
+		GitAuthorName:        gitName,
+		GitAuthorEmail:       gitEmail,
+		GitCredentialHelper:  createGitCredHelper,
+		GitHTTPSInsteadOfSSH: createGitHTTPSInsteadOf,
+		EnvVars:              envVars,
+		EnvForward:           createEnvForward,
+		SecretEnvVars:        secretEnvVars,
+		SecretFiles:          secretFiles,
+		McpServerRefs:        createMcpServer,
+		PermissionMode:       createPermMode,
+		Model:                createModel,
+		SystemPrompt:         createSystemPrompt,
+		SourceResolver:       resolver,
+		Context:              ctx,
+		Output:               cmd.OutOrStdout(),
 		ResolvePersonality: func(ctx context.Context, ref string, outWriter io.Writer) (*config.ResolvedPersonality, error) {
 			if err := config.EnsureDir(paths.PersonalitiesDir); err != nil {
 				return nil, fmt.Errorf("creating personalities directory: %w", err)
@@ -209,6 +224,25 @@ func runCreate(cmd *cobra.Command, args []string) (retErr error) {
 	}
 
 	return startInstance(cmd, instanceName, "", instancePaths.ConfigFile)
+}
+
+// parseGitAuthor parses a "Name <email>" string into separate name and email.
+// Returns empty strings if the input is empty.
+func parseGitAuthor(s string) (name, email string, err error) {
+	if s == "" {
+		return "", "", nil
+	}
+	lt := strings.Index(s, "<")
+	gt := strings.Index(s, ">")
+	if lt < 0 || gt < 0 || gt < lt {
+		return "", "", fmt.Errorf("invalid --git-author format %q: expected \"Name <email>\"", s)
+	}
+	name = strings.TrimSpace(s[:lt])
+	email = strings.TrimSpace(s[lt+1 : gt])
+	if name == "" || email == "" {
+		return "", "", fmt.Errorf("invalid --git-author format %q: name and email must not be empty", s)
+	}
+	return name, email, nil
 }
 
 // parseEnvFlags parses KEY=VALUE pairs from --env flag values into a map.
