@@ -23,6 +23,7 @@ import (
 	"github.com/giantswarm/klausctl/pkg/orchestrator"
 	"github.com/giantswarm/klausctl/pkg/renderer"
 	"github.com/giantswarm/klausctl/pkg/runtime"
+	"github.com/giantswarm/klausctl/pkg/worktree"
 )
 
 // RegisterTools registers all instance lifecycle tools on the MCP server.
@@ -57,6 +58,7 @@ func registerCreate(s *mcpserver.MCPServer, sc *server.ServerContext) {
 		mcp.WithString("permissionMode", mcp.Description("Claude permission mode (overrides personality default): default, acceptEdits, bypassPermissions, dontAsk, plan, delegate")),
 		mcp.WithString("model", mcp.Description("Claude model (overrides personality default, e.g. sonnet, opus, claude-sonnet-4-20250514)")),
 		mcp.WithString("systemPrompt", mcp.Description("System prompt for the Claude agent (overrides personality default)")),
+		mcp.WithBoolean("noIsolate", mcp.Description("Skip git worktree creation and bind-mount workspace directly (default: false)")),
 	)
 	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		return handleCreate(ctx, req, sc)
@@ -188,6 +190,7 @@ func handleCreate(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 	createOpts := config.CreateOptions{
 		Name:           name,
 		Workspace:      workspace,
+		NoIsolate:      req.GetBool("noIsolate", false),
 		Personality:    personality,
 		Toolchain:      toolchain,
 		Plugins:        pluginArgs,
@@ -339,6 +342,14 @@ func handleDelete(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 			return mcp.NewToolResultError(fmt.Sprintf("instance %q does not exist", name)), nil
 		}
 		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	// Remove git worktree if one was created for this instance.
+	cfg, _ := config.Load(paths.ConfigFile)
+	if cfg != nil && cfg.WorktreePath != "" {
+		if err := worktree.Remove(cfg.Workspace, cfg.WorktreePath); err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("removing git worktree: %v", err)), nil
+		}
 	}
 
 	inst, _ := instance.Load(paths)
@@ -559,6 +570,14 @@ func startExistingInstance(ctx context.Context, name string, sc *server.ServerCo
 		}
 		return nil, fmt.Errorf("checking workspace directory: %w", err)
 	}
+	if cfg.WorktreePath != "" {
+		if _, err := os.Stat(cfg.WorktreePath); err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				return nil, fmt.Errorf("worktree directory does not exist: %s", cfg.WorktreePath)
+			}
+			return nil, fmt.Errorf("checking worktree directory: %w", err)
+		}
+	}
 
 	rt, err := runtime.New(cfg.Runtime)
 	if err != nil {
@@ -635,6 +654,10 @@ func startExistingInstance(ctx context.Context, name string, sc *server.ServerCo
 		return nil, fmt.Errorf("starting container: %w", err)
 	}
 
+	effectiveWorkspace := workspace
+	if cfg.WorktreePath != "" {
+		effectiveWorkspace = cfg.WorktreePath
+	}
 	inst = &instance.Instance{
 		Name:        name,
 		ContainerID: containerID,
@@ -642,7 +665,7 @@ func startExistingInstance(ctx context.Context, name string, sc *server.ServerCo
 		Personality: cfg.Personality,
 		Image:       image,
 		Port:        cfg.Port,
-		Workspace:   workspace,
+		Workspace:   effectiveWorkspace,
 		StartedAt:   time.Now(),
 	}
 	if err := inst.Save(paths); err != nil {

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -33,6 +34,11 @@ type Config struct {
 
 	// Workspace is the host directory to mount into the container at /workspace.
 	Workspace string `yaml:"workspace"`
+
+	// WorktreePath is the path to the git worktree created for this instance.
+	// When set, this path is bind-mounted instead of Workspace, and Workspace
+	// stores the original repository path for worktree lifecycle management.
+	WorktreePath string `yaml:"worktreePath,omitempty"`
 
 	// Port is the host port mapped to the container's MCP endpoint (8080).
 	Port int `yaml:"port"`
@@ -282,6 +288,10 @@ func (c *Config) applyDefaults() {
 func (c *Config) Validate() error {
 	if c.Workspace == "" {
 		return fmt.Errorf("workspace is required")
+	}
+
+	if c.WorktreePath != "" && !filepath.IsAbs(c.WorktreePath) {
+		return fmt.Errorf("worktreePath must be an absolute path, got %q", c.WorktreePath)
 	}
 
 	if c.Port < 1 || c.Port > 65535 {

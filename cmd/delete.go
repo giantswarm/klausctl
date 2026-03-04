@@ -14,6 +14,7 @@ import (
 	"github.com/giantswarm/klausctl/pkg/config"
 	"github.com/giantswarm/klausctl/pkg/instance"
 	"github.com/giantswarm/klausctl/pkg/runtime"
+	"github.com/giantswarm/klausctl/pkg/worktree"
 )
 
 var deleteYes bool
@@ -58,6 +59,14 @@ func runDelete(cmd *cobra.Command, args []string) error {
 	if !deleteYes {
 		if err := confirmDelete(cmd, name); err != nil {
 			return err
+		}
+	}
+
+	// Load instance config to check for worktree before removing anything.
+	cfg, _ := config.Load(paths.ConfigFile)
+	if cfg != nil && cfg.WorktreePath != "" {
+		if err := worktree.Remove(cfg.Workspace, cfg.WorktreePath); err != nil {
+			fmt.Fprintf(cmd.ErrOrStderr(), "Warning: failed to remove git worktree: %v\n", err)
 		}
 	}
 
