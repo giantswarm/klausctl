@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	mcpserver "github.com/mark3labs/mcp-go/server"
+	"gopkg.in/yaml.v3"
 
 	"github.com/giantswarm/klausctl/internal/server"
 	"github.com/giantswarm/klausctl/pkg/config"
@@ -123,6 +125,121 @@ func TestHandleDeleteMissingInstance(t *testing.T) {
 	}
 
 	assertIsError(t, result)
+}
+
+func TestHandleCreatePortConflict(t *testing.T) {
+	sc := testServerContext(t)
+
+	workspace := filepath.Join(t.TempDir(), "ws")
+	if err := os.MkdirAll(workspace, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Seed an existing instance with port 9090.
+	conflictDir := filepath.Join(sc.Paths.InstancesDir, "other")
+	if err := os.MkdirAll(conflictDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(conflictDir, "config.yaml"), []byte("workspace: /tmp\nport: 9090\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	req := callToolRequest(map[string]any{
+		"name":      "porttest",
+		"workspace": workspace,
+		"port":      float64(9090),
+	})
+	result, err := handleCreate(context.Background(), req, sc)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	assertIsError(t, result)
+	text := extractResultText(t, result)
+	if !strings.Contains(text, "already used") {
+		t.Fatalf("expected port conflict error, got: %s", text)
+	}
+}
+
+func TestHandleCreateCustomPort(t *testing.T) {
+	sc := testServerContext(t)
+
+	workspace := filepath.Join(t.TempDir(), "ws")
+	if err := os.MkdirAll(workspace, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	req := callToolRequest(map[string]any{
+		"name":      "portcustom",
+		"workspace": workspace,
+		"port":      float64(9999),
+	})
+	result, err := handleCreate(context.Background(), req, sc)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// The create will fail because there's no container runtime in test, but
+	// the config file should be written before that stage. Verify port was
+	// correctly wired through.
+	configPath := filepath.Join(sc.Paths.InstancesDir, "portcustom", "config.yaml")
+	data, readErr := os.ReadFile(configPath)
+	if readErr != nil {
+		// Config was not written; verify at minimum that the error is not a port error.
+		if result.IsError {
+			text := extractResultText(t, result)
+			if strings.Contains(text, "already used") || strings.Contains(text, "port must be") {
+				t.Fatalf("unexpected port error: %s", text)
+			}
+		}
+		return
+	}
+
+	var cfgMap map[string]any
+	if err := yaml.Unmarshal(data, &cfgMap); err != nil {
+		t.Fatalf("failed to parse config: %v", err)
+	}
+	if port, ok := cfgMap["port"]; !ok {
+		t.Fatal("port not found in config")
+	} else if portInt, ok := port.(int); !ok || portInt != 9999 {
+		t.Fatalf("expected port 9999 in config, got %v", port)
+	}
+}
+
+func TestHandleCreatePortOutOfRange(t *testing.T) {
+	sc := testServerContext(t)
+
+	workspace := filepath.Join(t.TempDir(), "ws")
+	if err := os.MkdirAll(workspace, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name string
+		port float64
+	}{
+		{"negative", -1},
+		{"too large", 70000},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := callToolRequest(map[string]any{
+				"name":      "rangetest",
+				"workspace": workspace,
+				"port":      tt.port,
+			})
+			result, err := handleCreate(context.Background(), req, sc)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			assertIsError(t, result)
+			text := extractResultText(t, result)
+			if !strings.Contains(text, "port must be") {
+				t.Fatalf("expected port range error, got: %s", text)
+			}
+		})
+	}
 }
 
 func TestHandleCreateInvalidName(t *testing.T) {
