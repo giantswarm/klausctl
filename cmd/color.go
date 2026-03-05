@@ -45,8 +45,10 @@ func bold(s string) string {
 
 func colorStatus(status string) string {
 	switch status {
-	case "started", "completed":
+	case "started", "completed", "idle":
 		return green(status)
+	case "busy":
+		return yellow(status)
 	case "error", "failed":
 		return yellow(status)
 	default:
