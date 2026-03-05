@@ -402,9 +402,9 @@ func TestHandleCreateGitHttpsInsteadOfSsh(t *testing.T) {
 	}
 
 	req := callToolRequest(map[string]any{
-		"name":                  "githttps",
-		"workspace":             workspace,
-		"gitHttpsInsteadOfSsh":  true,
+		"name":                 "githttps",
+		"workspace":            workspace,
+		"gitHttpsInsteadOfSsh": true,
 	})
 	result, err := handleCreate(context.Background(), req, sc)
 	if err != nil {
@@ -445,11 +445,11 @@ func TestHandleCreateAllGitParams(t *testing.T) {
 	}
 
 	req := callToolRequest(map[string]any{
-		"name":                  "gitall",
-		"workspace":             workspace,
-		"gitAuthor":             "Dev User <dev@example.com>",
-		"gitCredentialHelper":   "gh",
-		"gitHttpsInsteadOfSsh":  true,
+		"name":                 "gitall",
+		"workspace":            workspace,
+		"gitAuthor":            "Dev User <dev@example.com>",
+		"gitCredentialHelper":  "gh",
+		"gitHttpsInsteadOfSsh": true,
 	})
 	result, err := handleCreate(context.Background(), req, sc)
 	if err != nil {
