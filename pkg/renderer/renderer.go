@@ -33,6 +33,11 @@ func (r *Renderer) Render(cfg *config.Config) error {
 		return fmt.Errorf("creating rendered directory: %w", err)
 	}
 
+	// Render container config YAML (replaces most env vars).
+	if err := r.renderContainerConfig(cfg); err != nil {
+		return fmt.Errorf("rendering container config: %w", err)
+	}
+
 	// Render skills.
 	if len(cfg.Skills) > 0 {
 		if err := r.renderSkills(cfg.Skills); err != nil {

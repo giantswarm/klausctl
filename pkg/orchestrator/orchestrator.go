@@ -46,7 +46,9 @@ func BuildRunOptions(cfg *config.Config, paths *config.Paths, containerName, ima
 }
 
 // BuildEnvVars constructs all container environment variables from config.
-// These mirror the Helm deployment.yaml env section.
+// Claude, Git, and Agent settings are now rendered into the container config
+// YAML file (see renderer.BuildContainerConfig). This function only sets
+// env vars for secrets, forwarded vars, and the config file path.
 func BuildEnvVars(cfg *config.Config, paths *config.Paths) (map[string]string, error) {
 	env := make(map[string]string)
 
@@ -83,6 +85,9 @@ func BuildEnvVars(cfg *config.Config, paths *config.Paths) (map[string]string, e
 		}
 	}
 
+	// Git and Claude settings are now in the container config YAML.
+	// Keep env vars as fallback for backward compatibility with older
+	// container images that don't yet read the config file.
 	setGitEnvVars(env, &cfg.Git)
 	setClaudeEnvVars(env, &cfg.Claude)
 
@@ -160,6 +165,16 @@ func BuildVolumes(cfg *config.Config, paths *config.Paths, env map[string]string
 		ContainerPath: "/workspace",
 	})
 	env["CLAUDE_WORKSPACE"] = "/workspace"
+
+	// Mount the rendered container config YAML. The container reads this
+	// instead of relying on 30+ individual environment variables.
+	configPath := filepath.Join(paths.RenderedDir, "config.yaml")
+	vols = append(vols, runtime.Volume{
+		HostPath:      configPath,
+		ContainerPath: "/etc/klaus/config.yaml",
+		ReadOnly:      true,
+	})
+	env["KLAUS_CONFIG_FILE"] = "/etc/klaus/config.yaml"
 
 	if len(cfg.McpServers) > 0 {
 		mcpConfigPath := filepath.Join(paths.RenderedDir, "mcp-config.json")
