@@ -124,9 +124,11 @@ func Create(repoDir, worktreePath string) error {
 	return nil
 }
 
-// Remove removes a git worktree. It runs `git worktree remove --force` from
-// the parent repository. The repoDir is the original repository (not the
-// worktree itself).
+// Remove removes a git worktree with a resilient fallback chain. It first
+// tries `git worktree remove`, then `git worktree remove --force`, and
+// finally falls back to manual directory removal with `git worktree prune`.
+//
+// The repoDir is the original repository (not the worktree itself).
 //
 // An exclusive filesystem lock is held for the duration of the operation to
 // prevent concurrent worktree operations from corrupting git references.
@@ -137,12 +139,58 @@ func Remove(repoDir, worktreePath string) error {
 	}
 	defer unlock()
 
-	cmd := exec.Command("git", "worktree", "remove", "--force", worktreePath)
+	// Try normal remove.
+	normalErr := gitWorktreeRemove(repoDir, worktreePath, false)
+	if normalErr == nil {
+		return nil
+	}
+
+	// Fall back to force remove.
+	forceErr := gitWorktreeRemove(repoDir, worktreePath, true)
+	if forceErr == nil {
+		return nil
+	}
+
+	// Last resort: remove directory manually and prune stale worktree entries.
+	if err := removeWorktreeManually(repoDir, worktreePath); err != nil {
+		return fmt.Errorf("all removal strategies failed (normal: %v; force: %v; manual: %w)", normalErr, forceErr, err)
+	}
+	return nil
+}
+
+// gitWorktreeRemove runs `git worktree remove` with an optional --force flag.
+func gitWorktreeRemove(repoDir, worktreePath string, force bool) error {
+	args := []string{"worktree", "remove"}
+	if force {
+		args = append(args, "--force")
+	}
+	args = append(args, "--", worktreePath)
+
+	cmd := exec.Command("git", args...)
 	cmd.Dir = repoDir
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("git worktree remove %s: %s: %w", worktreePath, strings.TrimSpace(stderr.String()), err)
 	}
+	return nil
+}
+
+// removeWorktreeManually deletes the worktree directory and runs
+// `git worktree prune` to clean up stale references. This is the last-resort
+// fallback when git worktree remove commands fail.
+func removeWorktreeManually(repoDir, worktreePath string) error {
+	if err := os.RemoveAll(worktreePath); err != nil {
+		return fmt.Errorf("removing worktree directory %s: %w", worktreePath, err)
+	}
+
+	cmd := exec.Command("git", "worktree", "prune")
+	cmd.Dir = repoDir
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("git worktree prune: %s: %w", strings.TrimSpace(stderr.String()), err)
+	}
+
 	return nil
 }

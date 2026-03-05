@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -352,10 +353,12 @@ func handleDelete(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 	}
 
 	// Remove git worktree if one was created for this instance.
+	// Worktree cleanup is best-effort: log a warning but don't fail the
+	// overall delete operation so instance state is always cleaned up.
 	cfg, _ := config.Load(paths.ConfigFile)
 	if cfg != nil && cfg.WorktreePath != "" {
 		if err := worktree.Remove(cfg.Workspace, cfg.WorktreePath); err != nil {
-			return mcp.NewToolResultError(fmt.Sprintf("removing git worktree: %v", err)), nil
+			log.Printf("Warning: failed to remove git worktree: %v", err)
 		}
 	}
 

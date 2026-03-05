@@ -211,6 +211,107 @@ func TestConcurrentCreate(t *testing.T) {
 	}
 }
 
+func TestRemoveFallsBackToForce(t *testing.T) {
+	bare := initBareRepo(t)
+	clone := cloneRepo(t, bare)
+
+	wtPath := filepath.Join(t.TempDir(), "worktree")
+
+	if err := Create(clone, wtPath); err != nil {
+		t.Fatalf("Create() error: %v", err)
+	}
+
+	// Modify a tracked file so `git worktree remove` (without --force) fails
+	// due to uncommitted changes.
+	if err := os.WriteFile(filepath.Join(wtPath, "README.md"), []byte("modified"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Remove should succeed via the --force fallback.
+	if err := Remove(clone, wtPath); err != nil {
+		t.Fatalf("Remove() error: %v", err)
+	}
+
+	if _, err := os.Stat(wtPath); !os.IsNotExist(err) {
+		t.Fatalf("expected worktree directory to be removed, stat err: %v", err)
+	}
+}
+
+func TestRemoveFallsBackToManualCleanup(t *testing.T) {
+	bare := initBareRepo(t)
+	clone := cloneRepo(t, bare)
+
+	wtPath := filepath.Join(t.TempDir(), "worktree")
+
+	if err := Create(clone, wtPath); err != nil {
+		t.Fatalf("Create() error: %v", err)
+	}
+
+	// Corrupt the worktree by replacing the .git file with garbage.
+	// This makes both `git worktree remove` and `git worktree remove --force`
+	// fail because git cannot validate the worktree.
+	gitFile := filepath.Join(wtPath, ".git")
+	if err := os.Remove(gitFile); err != nil {
+		t.Fatalf("removing .git file: %v", err)
+	}
+	if err := os.WriteFile(gitFile, []byte("garbage"), 0o644); err != nil {
+		t.Fatalf("writing corrupt .git file: %v", err)
+	}
+
+	// Remove should succeed via the manual removal + prune fallback.
+	if err := Remove(clone, wtPath); err != nil {
+		t.Fatalf("Remove() error: %v", err)
+	}
+
+	// Verify the worktree directory is gone.
+	if _, err := os.Stat(wtPath); !os.IsNotExist(err) {
+		t.Fatalf("expected worktree directory to be removed, stat err: %v", err)
+	}
+
+	// Verify git no longer lists the worktree.
+	cmd := exec.Command("git", "worktree", "list", "--porcelain")
+	cmd.Dir = clone
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("git worktree list: %v", err)
+	}
+	if strings.Contains(string(out), wtPath) {
+		t.Fatalf("expected worktree to be pruned from git, but still listed:\n%s", out)
+	}
+}
+
+func TestRemoveAlreadyDeletedDirectory(t *testing.T) {
+	bare := initBareRepo(t)
+	clone := cloneRepo(t, bare)
+
+	wtPath := filepath.Join(t.TempDir(), "worktree")
+
+	if err := Create(clone, wtPath); err != nil {
+		t.Fatalf("Create() error: %v", err)
+	}
+
+	// Manually delete the worktree directory to simulate partial cleanup.
+	if err := os.RemoveAll(wtPath); err != nil {
+		t.Fatal(err)
+	}
+
+	// Remove should still succeed (manual fallback prunes the stale reference).
+	if err := Remove(clone, wtPath); err != nil {
+		t.Fatalf("Remove() error: %v", err)
+	}
+
+	// Verify git no longer lists the worktree.
+	cmd := exec.Command("git", "worktree", "list", "--porcelain")
+	cmd.Dir = clone
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("git worktree list: %v", err)
+	}
+	if strings.Contains(string(out), wtPath) {
+		t.Fatalf("expected stale worktree to be pruned, but still listed:\n%s", out)
+	}
+}
+
 func TestLockRepo(t *testing.T) {
 	bare := initBareRepo(t)
 	clone := cloneRepo(t, bare)
