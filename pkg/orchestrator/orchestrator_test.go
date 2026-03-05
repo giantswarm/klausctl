@@ -170,6 +170,37 @@ func TestBuildVolumes_WorkspaceMount(t *testing.T) {
 	}
 }
 
+func TestBuildVolumes_ContainerConfigMount(t *testing.T) {
+	cfg := &config.Config{Workspace: t.TempDir()}
+	paths := testPaths(t)
+	env := make(map[string]string)
+
+	vols, err := BuildVolumes(cfg, paths, env, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	found := false
+	for _, v := range vols {
+		if v.ContainerPath == "/etc/klaus/config.yaml" {
+			found = true
+			if !v.ReadOnly {
+				t.Error("expected config mount to be read-only")
+			}
+			expectedHost := filepath.Join(paths.RenderedDir, "config.yaml")
+			if v.HostPath != expectedHost {
+				t.Errorf("host path = %q, want %q", v.HostPath, expectedHost)
+			}
+		}
+	}
+	if !found {
+		t.Error("expected /etc/klaus/config.yaml volume mount")
+	}
+	if env["KLAUS_CONFIG_FILE"] != "/etc/klaus/config.yaml" {
+		t.Errorf("KLAUS_CONFIG_FILE = %q, want /etc/klaus/config.yaml", env["KLAUS_CONFIG_FILE"])
+	}
+}
+
 func TestBuildVolumes_McpConfigMount(t *testing.T) {
 	cfg := &config.Config{
 		Workspace:  t.TempDir(),
