@@ -151,6 +151,36 @@ func TestValidateInstanceName(t *testing.T) {
 	}
 }
 
+func TestDefaultPathsRespectsSourcesFileEnv(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("KLAUSCTL_SOURCES_FILE", "/etc/klaus/sources.yaml")
+
+	paths, err := DefaultPaths()
+	if err != nil {
+		t.Fatalf("DefaultPaths() returned error: %v", err)
+	}
+
+	if paths.SourcesFile != "/etc/klaus/sources.yaml" {
+		t.Errorf("SourcesFile = %q, want /etc/klaus/sources.yaml", paths.SourcesFile)
+	}
+}
+
+func TestDefaultPathsSourcesFileDefault(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+	t.Setenv("KLAUSCTL_SOURCES_FILE", "")
+
+	paths, err := DefaultPaths()
+	if err != nil {
+		t.Fatalf("DefaultPaths() returned error: %v", err)
+	}
+
+	expected := filepath.Join(dir, "klausctl", "sources.yaml")
+	if paths.SourcesFile != expected {
+		t.Errorf("SourcesFile = %q, want %q", paths.SourcesFile, expected)
+	}
+}
+
 func TestResolveRefs(t *testing.T) {
 	r := DefaultSourceResolver()
 
