@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	klausoci "github.com/giantswarm/klaus-oci"
@@ -61,6 +62,9 @@ func registerCreate(s *mcpserver.MCPServer, sc *server.ServerContext) {
 		mcp.WithString("systemPrompt", mcp.Description("System prompt for the Claude agent (overrides personality default)")),
 		mcp.WithBoolean("noIsolate", mcp.Description("Skip git worktree creation and bind-mount workspace directly (default: false)")),
 		mcp.WithNumber("port", mcp.Description("Override auto-selected host port for the instance MCP endpoint (0 or omitted = auto-select starting from 8080)")),
+		mcp.WithString("gitAuthor", mcp.Description("Git author identity as \"Name <email>\"; sets GIT_AUTHOR_NAME/GIT_COMMITTER_NAME and GIT_AUTHOR_EMAIL/GIT_COMMITTER_EMAIL in the container")),
+		mcp.WithString("gitCredentialHelper", mcp.Description("Git credential helper (currently only \"gh\" is supported, which configures git to call \"gh auth git-credential\" for github.com)")),
+		mcp.WithBoolean("gitHttpsInsteadOfSsh", mcp.Description("Rewrite SSH git URLs (git@github.com:...) to HTTPS via container-local gitconfig (default: false)")),
 	)
 	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		return handleCreate(ctx, req, sc)
@@ -194,25 +198,34 @@ func handleCreate(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 		return mcp.NewToolResultError(fmt.Sprintf("port must be between 1 and 65535, got %d", port)), nil
 	}
 
+	gitAuthorName, gitAuthorEmail, err := parseGitAuthor(req.GetString("gitAuthor", ""))
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
 	createOpts := config.CreateOptions{
-		Name:           name,
-		Workspace:      workspace,
-		NoIsolate:      req.GetBool("noIsolate", false),
-		Personality:    personality,
-		Toolchain:      toolchain,
-		Plugins:        pluginArgs,
-		Port:           port,
-		EnvVars:        envVars,
-		EnvForward:     req.GetStringSlice("envForward", nil),
-		McpServers:     mcpServers,
-		SecretEnvVars:  secretEnvVars,
-		SecretFiles:    secretFiles,
-		McpServerRefs:  req.GetStringSlice("mcpServerRefs", nil),
-		PermissionMode: req.GetString("permissionMode", ""),
-		Model:          req.GetString("model", ""),
-		SystemPrompt:   req.GetString("systemPrompt", ""),
-		Context:        ctx,
-		Output:         io.Discard,
+		Name:                 name,
+		Workspace:            workspace,
+		NoIsolate:            req.GetBool("noIsolate", false),
+		Personality:          personality,
+		Toolchain:            toolchain,
+		Plugins:              pluginArgs,
+		Port:                 port,
+		GitAuthorName:        gitAuthorName,
+		GitAuthorEmail:       gitAuthorEmail,
+		GitCredentialHelper:  req.GetString("gitCredentialHelper", ""),
+		GitHTTPSInsteadOfSSH: req.GetBool("gitHttpsInsteadOfSsh", false),
+		EnvVars:              envVars,
+		EnvForward:           req.GetStringSlice("envForward", nil),
+		McpServers:           mcpServers,
+		SecretEnvVars:        secretEnvVars,
+		SecretFiles:          secretFiles,
+		McpServerRefs:        req.GetStringSlice("mcpServerRefs", nil),
+		PermissionMode:       req.GetString("permissionMode", ""),
+		Model:                req.GetString("model", ""),
+		SystemPrompt:         req.GetString("systemPrompt", ""),
+		Context:              ctx,
+		Output:               io.Discard,
 		ResolvePersonality: func(ctx context.Context, ref string, w io.Writer) (*config.ResolvedPersonality, error) {
 			if err := config.EnsureDir(sc.Paths.PersonalitiesDir); err != nil {
 				return nil, fmt.Errorf("creating personalities directory: %w", err)
@@ -815,6 +828,31 @@ func uniqueRuntimes(inst *instance.Instance) []string {
 		}
 	}
 	return result
+}
+
+// parseGitAuthor parses a "Name <email>" string into separate name and email.
+// Returns empty strings if the input is empty.
+func parseGitAuthor(s string) (name, email string, err error) {
+	if s == "" {
+		return "", "", nil
+	}
+	lt := strings.Index(s, "<")
+	gt := strings.Index(s, ">")
+	if lt < 0 || gt < 0 || gt < lt {
+		return "", "", fmt.Errorf("invalid gitAuthor format %q: expected \"Name <email>\"", s)
+	}
+	if strings.TrimSpace(s[gt+1:]) != "" {
+		return "", "", fmt.Errorf("invalid gitAuthor format %q: unexpected content after '>'", s)
+	}
+	name = strings.TrimSpace(s[:lt])
+	email = strings.TrimSpace(s[lt+1 : gt])
+	if name == "" || email == "" {
+		return "", "", fmt.Errorf("invalid gitAuthor format %q: name and email must not be empty", s)
+	}
+	if strings.ContainsAny(name, "\n\r\t\x00") || strings.ContainsAny(email, "\n\r\t\x00") {
+		return "", "", fmt.Errorf("invalid gitAuthor format %q: name and email must not contain control characters", s)
+	}
+	return name, email, nil
 }
 
 func formatDuration(d time.Duration) string {

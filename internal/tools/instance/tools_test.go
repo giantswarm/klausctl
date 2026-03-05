@@ -279,6 +279,253 @@ func TestHandleCreateDuplicateInstance(t *testing.T) {
 	assertIsError(t, result)
 }
 
+func TestHandleCreateGitAuthor(t *testing.T) {
+	sc := testServerContext(t)
+
+	workspace := filepath.Join(t.TempDir(), "ws")
+	if err := os.MkdirAll(workspace, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	req := callToolRequest(map[string]any{
+		"name":      "gitauthor",
+		"workspace": workspace,
+		"gitAuthor": "Test User <test@example.com>",
+	})
+	result, err := handleCreate(context.Background(), req, sc)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	configPath := filepath.Join(sc.Paths.InstancesDir, "gitauthor", "config.yaml")
+	data, readErr := os.ReadFile(configPath)
+	if readErr != nil {
+		if result.IsError {
+			text := extractResultText(t, result)
+			if strings.Contains(text, "gitAuthor") {
+				t.Fatalf("unexpected git author error: %s", text)
+			}
+		}
+		return
+	}
+
+	var cfgMap map[string]any
+	if err := yaml.Unmarshal(data, &cfgMap); err != nil {
+		t.Fatalf("failed to parse config: %v", err)
+	}
+	git, ok := cfgMap["git"].(map[string]any)
+	if !ok {
+		t.Fatal("git section not found in config")
+	}
+	if git["authorName"] != "Test User" {
+		t.Errorf("expected authorName 'Test User', got %v", git["authorName"])
+	}
+	if git["authorEmail"] != "test@example.com" {
+		t.Errorf("expected authorEmail 'test@example.com', got %v", git["authorEmail"])
+	}
+}
+
+func TestHandleCreateGitAuthorInvalidFormat(t *testing.T) {
+	sc := testServerContext(t)
+
+	workspace := filepath.Join(t.TempDir(), "ws")
+	if err := os.MkdirAll(workspace, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	req := callToolRequest(map[string]any{
+		"name":      "gitbad",
+		"workspace": workspace,
+		"gitAuthor": "no angle brackets",
+	})
+	result, err := handleCreate(context.Background(), req, sc)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	assertIsError(t, result)
+	text := extractResultText(t, result)
+	if !strings.Contains(text, "gitAuthor") {
+		t.Fatalf("expected gitAuthor format error, got: %s", text)
+	}
+}
+
+func TestHandleCreateGitCredentialHelper(t *testing.T) {
+	sc := testServerContext(t)
+
+	workspace := filepath.Join(t.TempDir(), "ws")
+	if err := os.MkdirAll(workspace, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	req := callToolRequest(map[string]any{
+		"name":                "gitcred",
+		"workspace":           workspace,
+		"gitCredentialHelper": "gh",
+	})
+	result, err := handleCreate(context.Background(), req, sc)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	configPath := filepath.Join(sc.Paths.InstancesDir, "gitcred", "config.yaml")
+	data, readErr := os.ReadFile(configPath)
+	if readErr != nil {
+		if result.IsError {
+			text := extractResultText(t, result)
+			if strings.Contains(text, "credential") {
+				t.Fatalf("unexpected credential helper error: %s", text)
+			}
+		}
+		return
+	}
+
+	var cfgMap map[string]any
+	if err := yaml.Unmarshal(data, &cfgMap); err != nil {
+		t.Fatalf("failed to parse config: %v", err)
+	}
+	git, ok := cfgMap["git"].(map[string]any)
+	if !ok {
+		t.Fatal("git section not found in config")
+	}
+	if git["credentialHelper"] != "gh" {
+		t.Errorf("expected credentialHelper 'gh', got %v", git["credentialHelper"])
+	}
+}
+
+func TestHandleCreateGitHttpsInsteadOfSsh(t *testing.T) {
+	sc := testServerContext(t)
+
+	workspace := filepath.Join(t.TempDir(), "ws")
+	if err := os.MkdirAll(workspace, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	req := callToolRequest(map[string]any{
+		"name":                 "githttps",
+		"workspace":            workspace,
+		"gitHttpsInsteadOfSsh": true,
+	})
+	result, err := handleCreate(context.Background(), req, sc)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	configPath := filepath.Join(sc.Paths.InstancesDir, "githttps", "config.yaml")
+	data, readErr := os.ReadFile(configPath)
+	if readErr != nil {
+		if result.IsError {
+			text := extractResultText(t, result)
+			if strings.Contains(text, "https") || strings.Contains(text, "SSH") {
+				t.Fatalf("unexpected git HTTPS error: %s", text)
+			}
+		}
+		return
+	}
+
+	var cfgMap map[string]any
+	if err := yaml.Unmarshal(data, &cfgMap); err != nil {
+		t.Fatalf("failed to parse config: %v", err)
+	}
+	git, ok := cfgMap["git"].(map[string]any)
+	if !ok {
+		t.Fatal("git section not found in config")
+	}
+	if git["httpsInsteadOfSsh"] != true {
+		t.Errorf("expected httpsInsteadOfSsh true, got %v", git["httpsInsteadOfSsh"])
+	}
+}
+
+func TestHandleCreateAllGitParams(t *testing.T) {
+	sc := testServerContext(t)
+
+	workspace := filepath.Join(t.TempDir(), "ws")
+	if err := os.MkdirAll(workspace, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	req := callToolRequest(map[string]any{
+		"name":                 "gitall",
+		"workspace":            workspace,
+		"gitAuthor":            "Dev User <dev@example.com>",
+		"gitCredentialHelper":  "gh",
+		"gitHttpsInsteadOfSsh": true,
+	})
+	result, err := handleCreate(context.Background(), req, sc)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	configPath := filepath.Join(sc.Paths.InstancesDir, "gitall", "config.yaml")
+	data, readErr := os.ReadFile(configPath)
+	if readErr != nil {
+		if result.IsError {
+			text := extractResultText(t, result)
+			if strings.Contains(text, "gitAuthor") || strings.Contains(text, "credential") {
+				t.Fatalf("unexpected git config error: %s", text)
+			}
+		}
+		return
+	}
+
+	var cfgMap map[string]any
+	if err := yaml.Unmarshal(data, &cfgMap); err != nil {
+		t.Fatalf("failed to parse config: %v", err)
+	}
+	git, ok := cfgMap["git"].(map[string]any)
+	if !ok {
+		t.Fatal("git section not found in config")
+	}
+	if git["authorName"] != "Dev User" {
+		t.Errorf("expected authorName 'Dev User', got %v", git["authorName"])
+	}
+	if git["authorEmail"] != "dev@example.com" {
+		t.Errorf("expected authorEmail 'dev@example.com', got %v", git["authorEmail"])
+	}
+	if git["credentialHelper"] != "gh" {
+		t.Errorf("expected credentialHelper 'gh', got %v", git["credentialHelper"])
+	}
+	if git["httpsInsteadOfSsh"] != true {
+		t.Errorf("expected httpsInsteadOfSsh true, got %v", git["httpsInsteadOfSsh"])
+	}
+}
+
+func TestParseGitAuthor(t *testing.T) {
+	tests := []struct {
+		name      string
+		input     string
+		wantName  string
+		wantEmail string
+		wantErr   bool
+	}{
+		{"empty", "", "", "", false},
+		{"valid", "Jane Doe <jane@example.com>", "Jane Doe", "jane@example.com", false},
+		{"no angle brackets", "just a name", "", "", true},
+		{"empty name", " <email@example.com>", "", "", true},
+		{"empty email", "Name <>", "", "", true},
+		{"reversed brackets", "Name >email<", "", "", true},
+		{"trailing content", "Name <a@b.com> extra", "", "", true},
+		{"newline in name", "Evil\nName <a@b.com>", "", "", true},
+		{"newline in email", "Name <a@b.com\nfoo>", "", "", true},
+		{"null byte in name", "Name\x00 <a@b.com>", "", "", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			name, email, err := parseGitAuthor(tt.input)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("parseGitAuthor(%q) error = %v, wantErr %v", tt.input, err, tt.wantErr)
+				return
+			}
+			if name != tt.wantName {
+				t.Errorf("parseGitAuthor(%q) name = %q, want %q", tt.input, name, tt.wantName)
+			}
+			if email != tt.wantEmail {
+				t.Errorf("parseGitAuthor(%q) email = %q, want %q", tt.input, email, tt.wantEmail)
+			}
+		})
+	}
+}
+
 func TestHandleStopRequiresNameOrAll(t *testing.T) {
 	sc := testServerContext(t)
 
