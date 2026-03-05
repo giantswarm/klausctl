@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"time"
 
 	"github.com/spf13/cobra"
 
+	"github.com/giantswarm/klausctl/pkg/agentclient"
 	"github.com/giantswarm/klausctl/pkg/config"
 	"github.com/giantswarm/klausctl/pkg/instance"
 	"github.com/giantswarm/klausctl/pkg/runtime"
@@ -36,16 +38,23 @@ func init() {
 
 // statusInfo holds all status fields for both text and JSON rendering.
 type statusInfo struct {
-	Instance    string `json:"instance"`
-	Status      string `json:"status"`
-	Personality string `json:"personality,omitempty"`
-	Container   string `json:"container"`
-	Runtime     string `json:"runtime"`
-	Image       string `json:"image"`
-	Workspace   string `json:"workspace"`
-	MCP         string `json:"mcp,omitempty"`
-	Uptime      string `json:"uptime,omitempty"`
+	Instance     string `json:"instance"`
+	Status       string `json:"status"`
+	Personality  string `json:"personality,omitempty"`
+	Container    string `json:"container"`
+	Runtime      string `json:"runtime"`
+	Image        string `json:"image"`
+	Workspace    string `json:"workspace"`
+	MCP          string `json:"mcp,omitempty"`
+	Uptime       string `json:"uptime,omitempty"`
+	Agent        string `json:"agent,omitempty"`
+	Session      string `json:"session,omitempty"`
+	MessageCount int    `json:"message_count,omitempty"`
 }
+
+// agentStatusHTTPClient is the HTTP client used for agent status queries.
+// Overridden in tests.
+var agentStatusHTTPClient *http.Client
 
 func runStatus(cmd *cobra.Command, args []string) error {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
@@ -110,6 +119,24 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		case !inst.StartedAt.IsZero():
 			info.Uptime = formatDuration(time.Since(inst.StartedAt))
 		}
+
+		// Query agent-level status from the HTTP /status endpoint.
+		agentCtx, agentCancel := context.WithTimeout(ctx, 3*time.Second)
+		defer agentCancel()
+
+		httpClient := agentStatusHTTPClient
+		if httpClient == nil {
+			httpClient = &http.Client{Timeout: 3 * time.Second}
+		}
+
+		agentResp, agentErr := agentclient.FetchStatus(agentCtx, httpClient, info.MCP)
+		if agentErr != nil {
+			fmt.Fprintf(cmd.ErrOrStderr(), "%s could not query agent status: %v\n", yellow("Warning:"), agentErr)
+		} else {
+			info.Agent = agentResp.Agent.Status
+			info.MessageCount = agentResp.Agent.MessageCount
+			info.Session = agentResp.Agent.SessionID
+		}
 	}
 
 	if statusOutput == "json" {
@@ -140,6 +167,16 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		fmt.Fprintf(out, "MCP:         %s\n", info.MCP)
 		if info.Uptime != "" {
 			fmt.Fprintf(out, "Uptime:      %s\n", info.Uptime)
+		}
+		if info.Agent != "" {
+			agentLine := info.Agent
+			if info.MessageCount > 0 {
+				agentLine = fmt.Sprintf("%s (%d messages)", info.Agent, info.MessageCount)
+			}
+			fmt.Fprintf(out, "Agent:       %s\n", agentLine)
+		}
+		if info.Session != "" {
+			fmt.Fprintf(out, "Session:     %s\n", info.Session)
 		}
 	}
 
