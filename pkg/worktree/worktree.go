@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 )
 
 // IsGitRepo reports whether the given directory is a git repository root
@@ -61,10 +62,41 @@ func DefaultBranch(repoDir string) (string, error) {
 	return "main", nil
 }
 
+// lockRepo acquires an exclusive filesystem lock on the source repository's
+// .git directory. This serializes worktree operations to prevent concurrent
+// git commands from corrupting worktree references.
+// The caller must call the returned unlock function when done.
+func lockRepo(repoDir string) (unlock func(), err error) {
+	lockPath := filepath.Join(repoDir, ".git", "klausctl.lock")
+	f, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0o600)
+	if err != nil {
+		return nil, fmt.Errorf("opening lock file %s: %w", lockPath, err)
+	}
+
+	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX); err != nil {
+		f.Close()
+		return nil, fmt.Errorf("acquiring lock on %s: %w", lockPath, err)
+	}
+
+	return func() {
+		_ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+		_ = f.Close()
+	}, nil
+}
+
 // Create creates a git worktree at worktreePath from the given repository
 // directory. It fetches origin, determines the default branch, and creates
 // a detached worktree at origin/<default-branch>.
+//
+// An exclusive filesystem lock is held for the duration of the operation to
+// prevent concurrent worktree creation from corrupting git references.
 func Create(repoDir, worktreePath string) error {
+	unlock, err := lockRepo(repoDir)
+	if err != nil {
+		return fmt.Errorf("locking repo: %w", err)
+	}
+	defer unlock()
+
 	// Fetch latest from origin.
 	fetchCmd := exec.Command("git", "fetch", "origin")
 	fetchCmd.Dir = repoDir
@@ -95,7 +127,16 @@ func Create(repoDir, worktreePath string) error {
 // Remove removes a git worktree. It runs `git worktree remove --force` from
 // the parent repository. The repoDir is the original repository (not the
 // worktree itself).
+//
+// An exclusive filesystem lock is held for the duration of the operation to
+// prevent concurrent worktree operations from corrupting git references.
 func Remove(repoDir, worktreePath string) error {
+	unlock, err := lockRepo(repoDir)
+	if err != nil {
+		return fmt.Errorf("locking repo: %w", err)
+	}
+	defer unlock()
+
 	cmd := exec.Command("git", "worktree", "remove", "--force", worktreePath)
 	cmd.Dir = repoDir
 	var stderr bytes.Buffer

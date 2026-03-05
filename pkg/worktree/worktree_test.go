@@ -1,10 +1,12 @@
 package worktree
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -148,4 +150,90 @@ func TestCreateMultipleWorktrees(t *testing.T) {
 	if err := Remove(clone, wt2); err != nil {
 		t.Fatalf("Remove(wt2) error: %v", err)
 	}
+}
+
+func TestConcurrentCreate(t *testing.T) {
+	bare := initBareRepo(t)
+	clone := cloneRepo(t, bare)
+
+	const n = 5
+	wtPaths := make([]string, n)
+	for i := range wtPaths {
+		wtPaths[i] = filepath.Join(t.TempDir(), fmt.Sprintf("wt%d", i))
+	}
+
+	// Create all worktrees concurrently.
+	var wg sync.WaitGroup
+	errs := make([]error, n)
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			errs[idx] = Create(clone, wtPaths[idx])
+		}(i)
+	}
+	wg.Wait()
+
+	// All creations must succeed.
+	for i, err := range errs {
+		if err != nil {
+			t.Fatalf("Create(wt%d) error: %v", i, err)
+		}
+	}
+
+	// Every worktree must have the README and a valid git remote.
+	for i, wt := range wtPaths {
+		data, err := os.ReadFile(filepath.Join(wt, "README.md"))
+		if err != nil {
+			t.Fatalf("wt%d: missing README: %v", i, err)
+		}
+		if string(data) != "hello" {
+			t.Fatalf("wt%d: unexpected README content: %q", i, data)
+		}
+
+		// Verify git remote is intact.
+		cmd := exec.Command("git", "remote", "-v")
+		cmd.Dir = wt
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("wt%d: git remote -v failed: %v\n%s", i, err, out)
+		}
+		if !strings.Contains(string(out), "origin") {
+			t.Fatalf("wt%d: missing origin remote: %s", i, out)
+		}
+	}
+
+	// Clean up all worktrees.
+	for i, wt := range wtPaths {
+		if err := Remove(clone, wt); err != nil {
+			t.Errorf("Remove(wt%d) error: %v", i, err)
+		}
+	}
+}
+
+func TestLockRepo(t *testing.T) {
+	bare := initBareRepo(t)
+	clone := cloneRepo(t, bare)
+
+	// Acquire lock.
+	unlock, err := lockRepo(clone)
+	if err != nil {
+		t.Fatalf("lockRepo() error: %v", err)
+	}
+
+	// Verify lock file was created.
+	lockPath := filepath.Join(clone, ".git", "klausctl.lock")
+	if _, err := os.Stat(lockPath); err != nil {
+		t.Fatalf("lock file not created: %v", err)
+	}
+
+	// Release lock.
+	unlock()
+
+	// Lock can be acquired again after release.
+	unlock2, err := lockRepo(clone)
+	if err != nil {
+		t.Fatalf("lockRepo() after release error: %v", err)
+	}
+	unlock2()
 }
