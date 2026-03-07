@@ -52,7 +52,10 @@ func runStart(cmd *cobra.Command, args []string) error {
 	return startInstance(cmd, instanceName, startWorkspace, configPathOverride)
 }
 
-func startInstance(cmd *cobra.Command, instanceName, workspaceOverride, configPathOverride string) error {
+// newRuntime creates a container runtime. Tests override this to inject a fake.
+var newRuntime = runtime.New
+
+func startInstance(cmd *cobra.Command, instanceName, workspaceOverride, configPathOverride string) (retErr error) {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
@@ -98,7 +101,7 @@ func startInstance(cmd *cobra.Command, instanceName, workspaceOverride, configPa
 	}
 
 	// Detect or validate container runtime.
-	rt, err := runtime.New(cfg.Runtime)
+	rt, err := newRuntime(cfg.Runtime)
 	if err != nil {
 		return err
 	}
@@ -207,8 +210,21 @@ func startInstance(cmd *cobra.Command, instanceName, workspaceOverride, configPa
 	fmt.Fprintln(out, "Starting klaus container...")
 	containerID, err := rt.Run(ctx, runOpts)
 	if err != nil {
+		// The container may exist in "created" state even though Run returned
+		// an error (e.g. port conflict detected after container creation).
+		// Attempt cleanup to avoid orphaned containers. Use a fresh context
+		// because the signal-notified ctx may already be cancelled.
+		_ = rt.Remove(context.Background(), containerName)
 		return fmt.Errorf("starting container: %w", err)
 	}
+
+	// Roll back the container if any subsequent step fails. Use a fresh
+	// context so cleanup succeeds even if the user pressed Ctrl+C.
+	defer func() {
+		if retErr != nil {
+			_ = rt.Remove(context.Background(), containerName)
+		}
+	}()
 
 	// Save instance state. Use the worktree path as the effective workspace
 	// when available so that status and list commands show the mounted path.
