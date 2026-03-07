@@ -39,6 +39,7 @@ func RegisterTools(s *mcpserver.MCPServer, sc *server.ServerContext) {
 	registerList(s, sc)
 	registerPrompt(s, sc)
 	registerResult(s, sc)
+	registerRun(s, sc)
 }
 
 func registerCreate(s *mcpserver.MCPServer, sc *server.ServerContext) {
