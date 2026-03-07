@@ -2,9 +2,12 @@ package config
 
 import (
 	"context"
+	"fmt"
 	"io"
+	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -42,8 +45,8 @@ func TestGenerateInstanceConfig(t *testing.T) {
 	if cfg.Toolchain != "gsoci.azurecr.io/giantswarm/klaus-toolchains/go" {
 		t.Fatalf("unexpected toolchain: %s", cfg.Toolchain)
 	}
-	if cfg.Port != 8080 {
-		t.Fatalf("unexpected port: %d", cfg.Port)
+	if cfg.Port < 8080 {
+		t.Fatalf("expected auto-selected port >= 8080, got %d", cfg.Port)
 	}
 	if len(cfg.Plugins) != 1 {
 		t.Fatalf("unexpected plugins count: %+v", cfg.Plugins)
@@ -441,6 +444,97 @@ func TestGenerateInstanceConfig_GitOverrides(t *testing.T) {
 	}
 	if !cfg.Git.HTTPSInsteadOfSSH {
 		t.Error("Git.HTTPSInsteadOfSSH = false, want true")
+	}
+}
+
+func TestIsPortAvailable_FreePort(t *testing.T) {
+	// Port 0 lets the OS pick a free port; use it to find one that is free.
+	ln, err := net.Listen("tcp", ":0")
+	if err != nil {
+		t.Fatalf("failed to listen on ephemeral port: %v", err)
+	}
+	port := ln.Addr().(*net.TCPAddr).Port
+	ln.Close()
+
+	if !IsPortAvailable(port) {
+		t.Errorf("IsPortAvailable(%d) = false, want true for a free port", port)
+	}
+}
+
+func TestIsPortAvailable_OccupiedPort(t *testing.T) {
+	ln, err := net.Listen("tcp", ":0")
+	if err != nil {
+		t.Fatalf("failed to listen on ephemeral port: %v", err)
+	}
+	defer ln.Close()
+	port := ln.Addr().(*net.TCPAddr).Port
+
+	if IsPortAvailable(port) {
+		t.Errorf("IsPortAvailable(%d) = true, want false for an occupied port", port)
+	}
+}
+
+func TestNextAvailablePort_SkipsHostOccupied(t *testing.T) {
+	// Occupy a port on the host.
+	ln, err := net.Listen("tcp", ":0")
+	if err != nil {
+		t.Fatalf("failed to listen: %v", err)
+	}
+	defer ln.Close()
+	occupied := ln.Addr().(*net.TCPAddr).Port
+
+	base := t.TempDir()
+	paths := &Paths{
+		ConfigDir:        base,
+		InstancesDir:     filepath.Join(base, "instances"),
+		PluginsDir:       filepath.Join(base, "plugins"),
+		PersonalitiesDir: filepath.Join(base, "personalities"),
+	}
+
+	port, err := NextAvailablePort(paths, occupied)
+	if err != nil {
+		t.Fatalf("NextAvailablePort() error: %v", err)
+	}
+	if port == occupied {
+		t.Errorf("NextAvailablePort() returned occupied port %d", occupied)
+	}
+	if port < occupied {
+		t.Errorf("NextAvailablePort() = %d, want >= %d", port, occupied)
+	}
+}
+
+func TestGenerateInstanceConfig_ExplicitPortHostOccupied(t *testing.T) {
+	// Occupy a port on the host.
+	ln, err := net.Listen("tcp", ":0")
+	if err != nil {
+		t.Fatalf("failed to listen: %v", err)
+	}
+	defer ln.Close()
+	occupied := ln.Addr().(*net.TCPAddr).Port
+
+	base := t.TempDir()
+	workspace := filepath.Join(base, "workspace")
+	if err := os.MkdirAll(workspace, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	paths := &Paths{
+		ConfigDir:        base,
+		InstancesDir:     filepath.Join(base, "instances"),
+		PluginsDir:       filepath.Join(base, "plugins"),
+		PersonalitiesDir: filepath.Join(base, "personalities"),
+	}
+
+	_, err = GenerateInstanceConfig(paths, CreateOptions{
+		Name:      "dev",
+		Workspace: workspace,
+		Port:      occupied,
+	})
+	if err == nil {
+		t.Fatal("expected error for host-occupied explicit port")
+	}
+	if !strings.Contains(err.Error(), fmt.Sprintf("port %d is already in use on the host", occupied)) {
+		t.Errorf("unexpected error message: %v", err)
 	}
 }
 
