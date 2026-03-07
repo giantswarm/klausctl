@@ -266,10 +266,14 @@ func TestHandleCreateDuplicateInstance(t *testing.T) {
 	if err := os.MkdirAll(instanceDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.WriteFile(filepath.Join(instanceDir, "config.yaml"), []byte("workspace: /tmp\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	req := callToolRequest(map[string]any{
-		"name":      "existing",
-		"workspace": workspace,
+		"name":           "existing",
+		"workspace":      workspace,
+		"generateSuffix": false,
 	})
 	result, err := handleCreate(context.Background(), req, sc)
 	if err != nil {
@@ -277,6 +281,124 @@ func TestHandleCreateDuplicateInstance(t *testing.T) {
 	}
 
 	assertIsError(t, result)
+	text := extractResultText(t, result)
+	if !strings.Contains(text, "already exists") {
+		t.Fatalf("expected collision error, got: %s", text)
+	}
+}
+
+func TestHandleCreateMCPCollisionStoppedWithoutConfirm(t *testing.T) {
+	sc := testServerContext(t)
+
+	workspace := filepath.Join(t.TempDir(), "ws")
+	if err := os.MkdirAll(workspace, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	instanceDir := filepath.Join(sc.Paths.InstancesDir, "stopped")
+	if err := os.MkdirAll(instanceDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(instanceDir, "config.yaml"), []byte("workspace: /tmp\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	req := callToolRequest(map[string]any{
+		"name":           "stopped",
+		"workspace":      workspace,
+		"generateSuffix": false,
+	})
+	result, err := handleCreate(context.Background(), req, sc)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	assertIsError(t, result)
+	text := extractResultText(t, result)
+	if !strings.Contains(text, "confirm: true") {
+		t.Fatalf("expected error mentioning confirm: true, got: %s", text)
+	}
+}
+
+func TestHandleCreateMCPCollisionStoppedWithConfirm(t *testing.T) {
+	sc := testServerContext(t)
+
+	workspace := filepath.Join(t.TempDir(), "ws")
+	if err := os.MkdirAll(workspace, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	instanceDir := filepath.Join(sc.Paths.InstancesDir, "stopped")
+	if err := os.MkdirAll(instanceDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	markerFile := filepath.Join(instanceDir, "old-marker.txt")
+	if err := os.WriteFile(markerFile, []byte("old"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(instanceDir, "config.yaml"), []byte("workspace: /tmp\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	req := callToolRequest(map[string]any{
+		"name":           "stopped",
+		"workspace":      workspace,
+		"generateSuffix": false,
+		"confirm":        true,
+	})
+	result, err := handleCreate(context.Background(), req, sc)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// The old directory should have been cleaned up. Create will fail at
+	// startExistingInstance (no runtime), but old state should be gone.
+	if _, err := os.Stat(markerFile); !os.IsNotExist(err) {
+		t.Fatal("expected old marker file to be removed by collision cleanup")
+	}
+
+	// Should still get an error (from no runtime), but not a collision error.
+	assertIsError(t, result)
+	text := extractResultText(t, result)
+	if strings.Contains(text, "already exists") {
+		t.Fatalf("should not get collision error after confirm, got: %s", text)
+	}
+}
+
+func TestHandleCreateMCPCollisionSuffixAvoidsCollision(t *testing.T) {
+	sc := testServerContext(t)
+
+	workspace := filepath.Join(t.TempDir(), "ws")
+	if err := os.MkdirAll(workspace, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create "myinst" directory — with suffix generation enabled, the
+	// generated name "myinst-XXXX" won't collide.
+	instanceDir := filepath.Join(sc.Paths.InstancesDir, "myinst")
+	if err := os.MkdirAll(instanceDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(instanceDir, "config.yaml"), []byte("workspace: /tmp\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	req := callToolRequest(map[string]any{
+		"name":           "myinst",
+		"workspace":      workspace,
+		"generateSuffix": true,
+	})
+	result, err := handleCreate(context.Background(), req, sc)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Should fail at runtime (no Docker), not at collision.
+	assertIsError(t, result)
+	text := extractResultText(t, result)
+	if strings.Contains(text, "already exists") || strings.Contains(text, "confirm") {
+		t.Fatalf("expected runtime error not collision error, got: %s", text)
+	}
 }
 
 func TestHandleCreateGitAuthor(t *testing.T) {

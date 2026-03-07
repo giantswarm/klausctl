@@ -66,6 +66,9 @@ func registerCreate(s *mcpserver.MCPServer, sc *server.ServerContext) {
 		mcp.WithString("gitAuthor", mcp.Description("Git author identity as \"Name <email>\"; sets GIT_AUTHOR_NAME/GIT_COMMITTER_NAME and GIT_AUTHOR_EMAIL/GIT_COMMITTER_EMAIL in the container")),
 		mcp.WithString("gitCredentialHelper", mcp.Description("Git credential helper (currently only \"gh\" is supported, which configures git to call \"gh auth git-credential\" for github.com)")),
 		mcp.WithBoolean("gitHttpsInsteadOfSsh", mcp.Description("Rewrite SSH git URLs (git@github.com:...) to HTTPS via container-local gitconfig (default: false)")),
+		mcp.WithBoolean("generateSuffix", mcp.Description("Append a random 4-character suffix to the instance name to avoid collisions (default: true)")),
+		mcp.WithBoolean("force", mcp.Description("Allow replacing a running instance; requires confirm: true as well")),
+		mcp.WithBoolean("confirm", mcp.Description("Confirm replacement of an existing instance; required when a name collision is detected")),
 	)
 	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		return handleCreate(ctx, req, sc)
@@ -136,10 +139,27 @@ func registerList(s *mcpserver.MCPServer, sc *server.ServerContext) {
 // --- Handlers ---
 
 func handleCreate(ctx context.Context, req mcp.CallToolRequest, sc *server.ServerContext) (*mcp.CallToolResult, error) {
-	name, err := req.RequireString("name")
+	baseName, err := req.RequireString("name")
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
+	if err := config.ValidateInstanceName(baseName); err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	generateSuffix := req.GetBool("generateSuffix", true)
+	force := req.GetBool("force", false)
+	confirm := req.GetBool("confirm", false)
+
+	name := baseName
+	if generateSuffix {
+		suffixed, err := instance.AppendSuffix(baseName)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("generating name suffix: %v", err)), nil
+		}
+		name = suffixed
+	}
+
 	if err := config.ValidateInstanceName(name); err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
@@ -190,8 +210,15 @@ func handleCreate(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 	}
 
 	instancePaths := sc.InstancePaths(name)
-	if _, err := os.Stat(instancePaths.InstanceDir); err == nil {
-		return mcp.NewToolResultError(fmt.Sprintf("instance %q already exists", name)), nil
+
+	// Check for name collision with an existing instance.
+	collision, err := instance.CheckCollision(ctx, instancePaths)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("checking for existing instance: %v", err)), nil
+	}
+
+	if err := handleMCPCollision(ctx, name, collision, force, confirm, instancePaths, sc); err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
 	}
 
 	port := int(req.GetFloat("port", 0))
@@ -278,10 +305,62 @@ func handleCreate(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 
 	result, err := startExistingInstance(ctx, name, sc)
 	if err != nil {
+		if cfg.WorktreePath != "" {
+			_ = worktree.Remove(cfg.Workspace, cfg.WorktreePath)
+		}
 		_ = os.RemoveAll(instancePaths.InstanceDir)
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 	return server.JSONResult(result)
+}
+
+// handleMCPCollision handles name collision for the MCP create tool.
+// MCP requires explicit confirm: true (and force: true for running instances).
+func handleMCPCollision(ctx context.Context, name string, collision instance.CollisionState, force, confirm bool, paths *config.Paths, sc *server.ServerContext) error {
+	switch collision {
+	case instance.NoCollision:
+		return nil
+
+	case instance.CollisionStopped:
+		if !confirm {
+			return fmt.Errorf("instance %q already exists (stopped); set confirm: true to replace it", name)
+		}
+		return mcpCleanupExistingInstance(ctx, name, paths)
+
+	case instance.CollisionRunning:
+		if !force {
+			return fmt.Errorf("instance %q is still running; set force: true and confirm: true to replace it", name)
+		}
+		if !confirm {
+			return fmt.Errorf("instance %q is still running; set confirm: true to confirm replacement", name)
+		}
+		return mcpCleanupExistingInstance(ctx, name, paths)
+	}
+
+	return nil
+}
+
+// mcpCleanupExistingInstance fully removes an existing instance in the MCP
+// context: stops the container if running, removes it, cleans up the worktree,
+// and deletes the instance directory.
+func mcpCleanupExistingInstance(ctx context.Context, name string, paths *config.Paths) error {
+	cfg, _ := config.Load(paths.ConfigFile)
+	if cfg != nil && cfg.WorktreePath != "" {
+		if err := worktree.Remove(cfg.Workspace, cfg.WorktreePath); err != nil {
+			log.Printf("Warning: failed to remove git worktree: %v", err)
+		}
+	}
+
+	inst, _ := instance.Load(paths)
+	if err := cleanupContainer(ctx, name, inst); err != nil {
+		return fmt.Errorf("cleaning up existing instance: %v", err)
+	}
+
+	if err := os.RemoveAll(paths.InstanceDir); err != nil {
+		return fmt.Errorf("removing existing instance directory: %v", err)
+	}
+
+	return nil
 }
 
 // extractStringMap extracts a map[string]string from MCP request arguments.
