@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"path/filepath"
 	"slices"
@@ -127,6 +128,9 @@ func GenerateInstanceConfig(paths *Paths, opts CreateOptions) (*Config, error) {
 		if used[opts.Port] {
 			return nil, fmt.Errorf("port %d is already used by another instance; choose a different --port or omit --port for auto-selection", opts.Port)
 		}
+		if !IsPortAvailable(opts.Port) {
+			return nil, fmt.Errorf("port %d is already in use on the host; choose a different --port or omit --port for auto-selection", opts.Port)
+		}
 		cfg.Port = opts.Port
 	} else {
 		port, err := NextAvailablePort(paths, 8080)
@@ -228,14 +232,29 @@ func applyCreateOverrides(cfg *Config, opts CreateOptions) {
 	}
 }
 
-// NextAvailablePort returns the lowest free port >= start.
+// IsPortAvailable probes whether a TCP port appears to be free on the host at
+// the moment of the call by attempting a brief bind on all interfaces. Because
+// the socket is closed before returning, the result is a best-effort snapshot:
+// the port may be claimed by another process between this check and the actual
+// daemon bind. Works on Linux and macOS without relying on external tools.
+func IsPortAvailable(port int) bool {
+	ln, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+	if err != nil {
+		return false
+	}
+	ln.Close()
+	return true
+}
+
+// NextAvailablePort returns the lowest free port >= start that is not used by
+// another klausctl instance and is also available on the host.
 func NextAvailablePort(paths *Paths, start int) (int, error) {
 	used, err := UsedPorts(paths)
 	if err != nil {
 		return 0, err
 	}
 	for p := start; p <= 65535; p++ {
-		if !used[p] {
+		if !used[p] && IsPortAvailable(p) {
 			return p, nil
 		}
 	}
