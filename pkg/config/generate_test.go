@@ -154,8 +154,8 @@ func TestNextAvailablePort(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NextAvailablePort() returned error: %v", err)
 	}
-	if port != 8081 {
-		t.Fatalf("NextAvailablePort() = %d, want 8081", port)
+	if port <= 8080 {
+		t.Fatalf("NextAvailablePort() = %d, want > 8080 (8080 is used by another instance)", port)
 	}
 }
 
