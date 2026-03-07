@@ -4,16 +4,13 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	"io"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
 
 	"github.com/giantswarm/klausctl/pkg/config"
 	"github.com/giantswarm/klausctl/pkg/instance"
-	"github.com/giantswarm/klausctl/pkg/orchestrator"
 	"github.com/giantswarm/klausctl/pkg/worktree"
 )
 
@@ -90,187 +87,41 @@ func init() {
 	rootCmd.AddCommand(createCmd)
 }
 
-func runCreate(cmd *cobra.Command, args []string) (retErr error) {
-	baseName := args[0]
-	if err := config.ValidateInstanceName(baseName); err != nil {
-		return err
-	}
-
-	instanceName := baseName
-	if createGenerateSuffix {
-		suffixed, err := instance.AppendSuffix(baseName)
-		if err != nil {
-			return fmt.Errorf("generating name suffix: %w", err)
-		}
-		instanceName = suffixed
-	}
-
-	if err := config.ValidateInstanceName(instanceName); err != nil {
-		return err
-	}
-
+func runCreate(cmd *cobra.Command, args []string) error {
 	workspace := ""
 	if len(args) > 1 {
 		workspace = args[1]
-	} else {
-		cwd, err := os.Getwd()
-		if err != nil {
-			return fmt.Errorf("determining current directory: %w", err)
-		}
-		workspace = cwd
 	}
 
-	ctx := context.Background()
+	params := CLICreateParams{
+		BaseName:        args[0],
+		Workspace:       workspace,
+		Personality:     createPersonality,
+		Toolchain:       createToolchain,
+		Plugins:         createPlugins,
+		Port:            createPort,
+		Env:             createEnv,
+		EnvForward:      createEnvForward,
+		SecretEnv:       createSecretEnv,
+		SecretFile:      createSecretFile,
+		McpServer:       createMcpServer,
+		PermMode:        createPermMode,
+		Model:           createModel,
+		SystemPrompt:    createSystemPrompt,
+		MaxBudget:       createMaxBudget,
+		MaxBudgetSet:    cmd.Flags().Changed("max-budget"),
+		Source:          createSource,
+		NoIsolate:       createNoIsolate,
+		GitAuthor:       createGitAuthor,
+		GitCredHelper:   createGitCredHelper,
+		GitHTTPSInstead: createGitHTTPSInsteadOf,
+		Yes:             createYes,
+		Force:           createForce,
+		GenerateSuffix:  createGenerateSuffix,
+	}
 
-	paths, err := config.DefaultPaths()
+	instanceName, err := cliCreateInstance(context.Background(), cmd, params)
 	if err != nil {
-		return err
-	}
-	if err := config.MigrateLayout(paths); err != nil {
-		return fmt.Errorf("migrating config layout: %w", err)
-	}
-
-	instancePaths := paths.ForInstance(instanceName)
-
-	// Check for name collision with an existing instance.
-	collision, err := instance.CheckCollision(ctx, instancePaths)
-	if err != nil {
-		return fmt.Errorf("checking for existing instance: %w", err)
-	}
-
-	if err := handleCLICollision(cmd, instanceName, collision, ctx, instancePaths); err != nil {
-		return err
-	}
-
-	resolver, err := buildSourceResolver(createSource)
-	if err != nil {
-		return err
-	}
-
-	if createSource != "" {
-		fmt.Fprintf(cmd.OutOrStdout(), "Using source %q for artifact resolution\n", createSource)
-	}
-
-	personality, toolchain, plugins, err := orchestrator.ResolveCreateRefs(ctx, resolver, createPersonality, createToolchain, createPlugins)
-	if err != nil {
-		return err
-	}
-
-	envVars, err := parseEnvFlags(createEnv)
-	if err != nil {
-		return err
-	}
-
-	secretEnvVars, err := parseEnvFlags(createSecretEnv)
-	if err != nil {
-		return fmt.Errorf("parsing --secret-env: %w", err)
-	}
-
-	secretFiles, err := parseEnvFlags(createSecretFile)
-	if err != nil {
-		return fmt.Errorf("parsing --secret-file: %w", err)
-	}
-
-	gitName, gitEmail, err := parseGitAuthor(createGitAuthor)
-	if err != nil {
-		return err
-	}
-
-	opts := config.CreateOptions{
-		Name:                 instanceName,
-		Workspace:            workspace,
-		NoIsolate:            createNoIsolate,
-		Personality:          personality,
-		Toolchain:            toolchain,
-		Plugins:              plugins,
-		Port:                 createPort,
-		GitAuthorName:        gitName,
-		GitAuthorEmail:       gitEmail,
-		GitCredentialHelper:  createGitCredHelper,
-		GitHTTPSInsteadOfSSH: createGitHTTPSInsteadOf,
-		EnvVars:              envVars,
-		EnvForward:           createEnvForward,
-		SecretEnvVars:        secretEnvVars,
-		SecretFiles:          secretFiles,
-		McpServerRefs:        createMcpServer,
-		PermissionMode:       createPermMode,
-		Model:                createModel,
-		SystemPrompt:         createSystemPrompt,
-		SourceResolver:       resolver,
-		Context:              ctx,
-		Output:               cmd.OutOrStdout(),
-		ResolvePersonality: func(ctx context.Context, ref string, outWriter io.Writer) (*config.ResolvedPersonality, error) {
-			if err := config.EnsureDir(paths.PersonalitiesDir); err != nil {
-				return nil, fmt.Errorf("creating personalities directory: %w", err)
-			}
-			client := orchestrator.NewDefaultClient()
-			pr, err := orchestrator.ResolvePersonality(ctx, client, ref, paths.PersonalitiesDir, outWriter)
-			if err != nil {
-				return nil, err
-			}
-
-			plugins, err := orchestrator.ResolvePluginRefs(ctx, client, pr.Spec.Plugins)
-			if err != nil {
-				return nil, fmt.Errorf("resolving personality plugins: %w", err)
-			}
-
-			image, err := client.ResolveToolchainRef(ctx, pr.Spec.Toolchain.Ref())
-			if err != nil {
-				return nil, fmt.Errorf("resolving personality image: %w", err)
-			}
-
-			return &config.ResolvedPersonality{
-				Plugins: plugins,
-				Image:   image,
-			}, nil
-		},
-	}
-	if cmd.Flags().Changed("max-budget") {
-		opts.MaxBudgetUSD = &createMaxBudget
-	}
-
-	cfg, err := config.GenerateInstanceConfig(paths, opts)
-	if err != nil {
-		return err
-	}
-
-	if err := config.EnsureDir(instancePaths.InstanceDir); err != nil {
-		return fmt.Errorf("creating instance directory: %w", err)
-	}
-
-	// Clean up the instance directory if any subsequent step fails. This
-	// prevents leftover config/state that would block a retry of create.
-	defer func() {
-		if retErr != nil {
-			_ = os.RemoveAll(instancePaths.InstanceDir)
-		}
-	}()
-
-	// Clean up the worktree if any subsequent step fails. Registered after
-	// the instance dir defer so it runs first (LIFO), ensuring git worktree
-	// metadata is cleaned up before the directory is removed.
-	if cfg.WorktreePath != "" {
-		defer func() {
-			if retErr != nil {
-				_ = worktree.Remove(cfg.Workspace, cfg.WorktreePath)
-			}
-		}()
-	}
-
-	data, err := cfg.Marshal()
-	if err != nil {
-		return fmt.Errorf("serializing config: %w", err)
-	}
-	if err := os.WriteFile(instancePaths.ConfigFile, data, 0o644); err != nil {
-		return fmt.Errorf("writing instance config: %w", err)
-	}
-
-	// Ensure rendered output stays under the instance directory.
-	if err := config.EnsureDir(filepath.Dir(instancePaths.RenderedDir)); err != nil {
-		return fmt.Errorf("creating rendered directory parent: %w", err)
-	}
-
-	if err := startInstance(cmd, instanceName, "", instancePaths.ConfigFile); err != nil {
 		return err
 	}
 
@@ -284,13 +135,13 @@ func runCreate(cmd *cobra.Command, args []string) (retErr error) {
 // handleCLICollision handles name collision for the CLI create command.
 // It prompts or errors based on the collision state, --force, and -y flags.
 // On confirmation, it fully cleans up the old instance before returning nil.
-func handleCLICollision(cmd *cobra.Command, name string, collision instance.CollisionState, ctx context.Context, paths *config.Paths) error {
+func handleCLICollision(cmd *cobra.Command, name string, collision instance.CollisionState, force, yes bool, ctx context.Context, paths *config.Paths) error {
 	switch collision {
 	case instance.NoCollision:
 		return nil
 
 	case instance.CollisionStopped:
-		if !createYes {
+		if !yes {
 			fmt.Fprintf(cmd.OutOrStdout(), "Instance %q already exists (stopped). Replace it? [y/N]: ", name)
 			reader := bufio.NewReader(cmd.InOrStdin())
 			answer, err := reader.ReadString('\n')
@@ -305,10 +156,10 @@ func handleCLICollision(cmd *cobra.Command, name string, collision instance.Coll
 		return cleanupExistingInstance(ctx, name, paths)
 
 	case instance.CollisionRunning:
-		if !createForce {
+		if !force {
 			return fmt.Errorf("instance %q is still running; use --force to replace it", name)
 		}
-		if !createYes {
+		if !yes {
 			fmt.Fprintf(cmd.OutOrStdout(), "Instance %q is still running. Stop and replace it? [y/N]: ", name)
 			reader := bufio.NewReader(cmd.InOrStdin())
 			answer, err := reader.ReadString('\n')

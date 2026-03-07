@@ -28,6 +28,9 @@ func TestRunCommandHasAllCreateFlags(t *testing.T) {
 		"git-author",
 		"git-credential-helper",
 		"git-https-instead-of-ssh",
+		"yes",
+		"force",
+		"generate-suffix",
 	}
 
 	for _, flag := range createFlags {

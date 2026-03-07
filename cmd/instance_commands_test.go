@@ -500,10 +500,7 @@ func TestHandleCLICollisionRunningWithoutForce(t *testing.T) {
 	cmd.SetOut(io.Discard)
 	cmd.SetErr(io.Discard)
 
-	createForce = false
-	createYes = false
-
-	err := handleCLICollision(cmd, "running-inst", instance.CollisionRunning, context.Background(), &config.Paths{})
+	err := handleCLICollision(cmd, "running-inst", instance.CollisionRunning, false, false, context.Background(), &config.Paths{})
 	if err == nil {
 		t.Fatal("expected error for running collision without --force")
 	}
