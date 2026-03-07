@@ -10,7 +10,6 @@ import (
 	"io"
 	"log"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -139,176 +138,13 @@ func registerList(s *mcpserver.MCPServer, sc *server.ServerContext) {
 // --- Handlers ---
 
 func handleCreate(ctx context.Context, req mcp.CallToolRequest, sc *server.ServerContext) (*mcp.CallToolResult, error) {
-	baseName, err := req.RequireString("name")
-	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
-	}
-	if err := config.ValidateInstanceName(baseName); err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
-	}
-
-	generateSuffix := req.GetBool("generateSuffix", true)
-	force := req.GetBool("force", false)
-	confirm := req.GetBool("confirm", false)
-
-	name := baseName
-	if generateSuffix {
-		suffixed, err := instance.AppendSuffix(baseName)
-		if err != nil {
-			return mcp.NewToolResultError(fmt.Sprintf("generating name suffix: %v", err)), nil
-		}
-		name = suffixed
-	}
-
-	if err := config.ValidateInstanceName(name); err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
-	}
-
-	workspace := req.GetString("workspace", "")
-	if workspace == "" {
-		cwd, err := os.Getwd()
-		if err != nil {
-			return mcp.NewToolResultError(fmt.Sprintf("determining current directory: %v", err)), nil
-		}
-		workspace = cwd
-	}
-
-	personality := req.GetString("personality", "")
-	toolchain := req.GetString("toolchain", "")
-	pluginArgs := req.GetStringSlice("plugin", nil)
-
-	resolver := sc.SourceResolver()
-	sourceFilter := req.GetString("source", "")
-	if sourceFilter != "" {
-		resolver, err = resolver.ForSource(sourceFilter)
-		if err != nil {
-			return mcp.NewToolResultError(err.Error()), nil
-		}
-	}
-
-	personality, toolchain, pluginArgs, err = orchestrator.ResolveCreateRefs(ctx, resolver, personality, toolchain, pluginArgs)
-	if err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("resolving refs: %v", err)), nil
-	}
-
-	args := req.GetArguments()
-	envVars, err := extractStringMap(args, "envVars")
-	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
-	}
-	mcpServers, err := extractObjectMap(args, "mcpServers")
-	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
-	}
-	secretEnvVars, err := extractStringMap(args, "secretEnvVars")
-	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
-	}
-	secretFiles, err := extractStringMap(args, "secretFiles")
+	params, err := parseMCPCreateParams(req)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	instancePaths := sc.InstancePaths(name)
-
-	// Check for name collision with an existing instance.
-	collision, err := instance.CheckCollision(ctx, instancePaths)
+	result, err := mcpCreateInstance(ctx, params, sc)
 	if err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("checking for existing instance: %v", err)), nil
-	}
-
-	if err := handleMCPCollision(ctx, name, collision, force, confirm, instancePaths, sc); err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
-	}
-
-	port := int(req.GetFloat("port", 0))
-	if port < 0 || port > 65535 {
-		return mcp.NewToolResultError(fmt.Sprintf("port must be between 1 and 65535, got %d", port)), nil
-	}
-
-	gitAuthorName, gitAuthorEmail, err := parseGitAuthor(req.GetString("gitAuthor", ""))
-	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
-	}
-
-	createOpts := config.CreateOptions{
-		Name:                 name,
-		Workspace:            workspace,
-		NoIsolate:            req.GetBool("noIsolate", false),
-		Personality:          personality,
-		Toolchain:            toolchain,
-		Plugins:              pluginArgs,
-		Port:                 port,
-		GitAuthorName:        gitAuthorName,
-		GitAuthorEmail:       gitAuthorEmail,
-		GitCredentialHelper:  req.GetString("gitCredentialHelper", ""),
-		GitHTTPSInsteadOfSSH: req.GetBool("gitHttpsInsteadOfSsh", false),
-		EnvVars:              envVars,
-		EnvForward:           req.GetStringSlice("envForward", nil),
-		McpServers:           mcpServers,
-		SecretEnvVars:        secretEnvVars,
-		SecretFiles:          secretFiles,
-		McpServerRefs:        req.GetStringSlice("mcpServerRefs", nil),
-		PermissionMode:       req.GetString("permissionMode", ""),
-		Model:                req.GetString("model", ""),
-		SystemPrompt:         req.GetString("systemPrompt", ""),
-		Context:              ctx,
-		Output:               io.Discard,
-		ResolvePersonality: func(ctx context.Context, ref string, w io.Writer) (*config.ResolvedPersonality, error) {
-			if err := config.EnsureDir(sc.Paths.PersonalitiesDir); err != nil {
-				return nil, fmt.Errorf("creating personalities directory: %w", err)
-			}
-			client := orchestrator.NewDefaultClient()
-			pr, err := orchestrator.ResolvePersonality(ctx, client, ref, sc.Paths.PersonalitiesDir, io.Discard)
-			if err != nil {
-				return nil, err
-			}
-			plugins, err := orchestrator.ResolvePluginRefs(ctx, client, pr.Spec.Plugins)
-			if err != nil {
-				return nil, fmt.Errorf("resolving personality plugins: %w", err)
-			}
-			image, err := client.ResolveToolchainRef(ctx, pr.Spec.Toolchain.Ref())
-			if err != nil {
-				return nil, fmt.Errorf("resolving personality image: %w", err)
-			}
-
-			return &config.ResolvedPersonality{
-				Plugins: plugins,
-				Image:   image,
-			}, nil
-		},
-	}
-	if _, ok := args["maxBudgetUsd"]; ok {
-		b := req.GetFloat("maxBudgetUsd", 0)
-		createOpts.MaxBudgetUSD = &b
-	}
-
-	cfg, err := config.GenerateInstanceConfig(sc.Paths, createOpts)
-	if err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("generating config: %v", err)), nil
-	}
-
-	if err := config.EnsureDir(instancePaths.InstanceDir); err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("creating instance directory: %v", err)), nil
-	}
-	data, err := cfg.Marshal()
-	if err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("serializing config: %v", err)), nil
-	}
-	if err := os.WriteFile(instancePaths.ConfigFile, data, 0o644); err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("writing instance config: %v", err)), nil
-	}
-
-	if err := config.EnsureDir(filepath.Dir(instancePaths.RenderedDir)); err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("creating rendered directory parent: %v", err)), nil
-	}
-
-	result, err := startExistingInstance(ctx, name, sc)
-	if err != nil {
-		if cfg.WorktreePath != "" {
-			_ = worktree.Remove(cfg.Workspace, cfg.WorktreePath)
-		}
-		_ = os.RemoveAll(instancePaths.InstanceDir)
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 	return server.JSONResult(result)

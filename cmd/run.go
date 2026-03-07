@@ -7,7 +7,6 @@ import (
 	"io"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -15,8 +14,6 @@ import (
 	"github.com/giantswarm/klausctl/pkg/config"
 	"github.com/giantswarm/klausctl/pkg/instance"
 	"github.com/giantswarm/klausctl/pkg/mcpclient"
-	"github.com/giantswarm/klausctl/pkg/orchestrator"
-	"github.com/giantswarm/klausctl/pkg/worktree"
 )
 
 var (
@@ -38,6 +35,9 @@ var (
 	runGitAuthor         string
 	runGitCredHelper     string
 	runGitHTTPSInsteadOf bool
+	runYes               bool
+	runForce             bool
+	runGenerateSuffix    bool
 
 	runMessage  string
 	runBlocking bool
@@ -85,6 +85,9 @@ func init() {
 	runCmd.Flags().StringVar(&runGitAuthor, "git-author", "", `git author identity "Name <email>"`)
 	runCmd.Flags().StringVar(&runGitCredHelper, "git-credential-helper", "", "git credential helper (currently only 'gh')")
 	runCmd.Flags().BoolVar(&runGitHTTPSInsteadOf, "git-https-instead-of-ssh", false, "rewrite SSH git URLs to HTTPS via container-local gitconfig")
+	runCmd.Flags().BoolVarP(&runYes, "yes", "y", false, "auto-confirm replacement of existing instances")
+	runCmd.Flags().BoolVar(&runForce, "force", false, "allow replacing a running instance (prompts for confirmation unless -y is also set)")
+	runCmd.Flags().BoolVar(&runGenerateSuffix, "generate-suffix", true, "append a random 4-character suffix to the instance name (use --no-generate-suffix to disable)")
 
 	runCmd.Flags().StringVarP(&runMessage, "message", "m", "", "prompt message to send to the agent (required)")
 	runCmd.Flags().BoolVar(&runBlocking, "blocking", false, "wait for the agent to complete and return the result")
@@ -93,25 +96,46 @@ func init() {
 	rootCmd.AddCommand(runCmd)
 }
 
-func runRun(cmd *cobra.Command, args []string) (retErr error) {
-	instanceName := args[0]
-	if err := config.ValidateInstanceName(instanceName); err != nil {
-		return err
-	}
+func runRun(cmd *cobra.Command, args []string) error {
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer cancel()
 
 	workspace := ""
 	if len(args) > 1 {
 		workspace = args[1]
-	} else {
-		cwd, err := os.Getwd()
-		if err != nil {
-			return fmt.Errorf("determining current directory: %w", err)
-		}
-		workspace = cwd
 	}
 
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
-	defer cancel()
+	params := CLICreateParams{
+		BaseName:        args[0],
+		Workspace:       workspace,
+		Personality:     runPersonality,
+		Toolchain:       runToolchain,
+		Plugins:         runPlugins,
+		Port:            runPort,
+		Env:             runEnv,
+		EnvForward:      runEnvForward,
+		SecretEnv:       runSecretEnv,
+		SecretFile:      runSecretFile,
+		McpServer:       runMcpServer,
+		PermMode:        runPermMode,
+		Model:           runModel,
+		SystemPrompt:    runSystemPrompt,
+		MaxBudget:       runMaxBudget,
+		MaxBudgetSet:    cmd.Flags().Changed("max-budget"),
+		Source:          runSource,
+		NoIsolate:       runNoIsolate,
+		GitAuthor:       runGitAuthor,
+		GitCredHelper:   runGitCredHelper,
+		GitHTTPSInstead: runGitHTTPSInsteadOf,
+		Yes:             runYes,
+		Force:           runForce,
+		GenerateSuffix:  runGenerateSuffix,
+	}
+
+	instanceName, err := cliCreateInstance(ctx, cmd, params)
+	if err != nil {
+		return err
+	}
 
 	out := cmd.OutOrStdout()
 
@@ -119,144 +143,7 @@ func runRun(cmd *cobra.Command, args []string) (retErr error) {
 	if err != nil {
 		return err
 	}
-	if err := config.MigrateLayout(paths); err != nil {
-		return fmt.Errorf("migrating config layout: %w", err)
-	}
-
 	instancePaths := paths.ForInstance(instanceName)
-	if _, err := os.Stat(instancePaths.InstanceDir); err == nil {
-		return fmt.Errorf("instance %q already exists", instanceName)
-	}
-
-	resolver, err := buildSourceResolver(runSource)
-	if err != nil {
-		return err
-	}
-
-	if runSource != "" {
-		fmt.Fprintf(out, "Using source %q for artifact resolution\n", runSource)
-	}
-
-	personality, toolchain, plugins, err := orchestrator.ResolveCreateRefs(ctx, resolver, runPersonality, runToolchain, runPlugins)
-	if err != nil {
-		return err
-	}
-
-	envVars, err := parseEnvFlags(runEnv)
-	if err != nil {
-		return err
-	}
-
-	secretEnvVars, err := parseEnvFlags(runSecretEnv)
-	if err != nil {
-		return fmt.Errorf("parsing --secret-env: %w", err)
-	}
-
-	secretFiles, err := parseEnvFlags(runSecretFile)
-	if err != nil {
-		return fmt.Errorf("parsing --secret-file: %w", err)
-	}
-
-	if runPort < 0 || runPort > 65535 {
-		return fmt.Errorf("port must be between 0 and 65535, got %d", runPort)
-	}
-
-	gitName, gitEmail, err := parseGitAuthor(runGitAuthor)
-	if err != nil {
-		return err
-	}
-
-	opts := config.CreateOptions{
-		Name:                 instanceName,
-		Workspace:            workspace,
-		NoIsolate:            runNoIsolate,
-		Personality:          personality,
-		Toolchain:            toolchain,
-		Plugins:              plugins,
-		Port:                 runPort,
-		GitAuthorName:        gitName,
-		GitAuthorEmail:       gitEmail,
-		GitCredentialHelper:  runGitCredHelper,
-		GitHTTPSInsteadOfSSH: runGitHTTPSInsteadOf,
-		EnvVars:              envVars,
-		EnvForward:           runEnvForward,
-		SecretEnvVars:        secretEnvVars,
-		SecretFiles:          secretFiles,
-		McpServerRefs:        runMcpServer,
-		PermissionMode:       runPermMode,
-		Model:                runModel,
-		SystemPrompt:         runSystemPrompt,
-		SourceResolver:       resolver,
-		Context:              ctx,
-		Output:               out,
-		ResolvePersonality: func(ctx context.Context, ref string, outWriter io.Writer) (*config.ResolvedPersonality, error) {
-			if err := config.EnsureDir(paths.PersonalitiesDir); err != nil {
-				return nil, fmt.Errorf("creating personalities directory: %w", err)
-			}
-			client := orchestrator.NewDefaultClient()
-			pr, err := orchestrator.ResolvePersonality(ctx, client, ref, paths.PersonalitiesDir, outWriter)
-			if err != nil {
-				return nil, err
-			}
-
-			plugins, err := orchestrator.ResolvePluginRefs(ctx, client, pr.Spec.Plugins)
-			if err != nil {
-				return nil, fmt.Errorf("resolving personality plugins: %w", err)
-			}
-
-			image, err := client.ResolveToolchainRef(ctx, pr.Spec.Toolchain.Ref())
-			if err != nil {
-				return nil, fmt.Errorf("resolving personality image: %w", err)
-			}
-
-			return &config.ResolvedPersonality{
-				Plugins: plugins,
-				Image:   image,
-			}, nil
-		},
-	}
-	if cmd.Flags().Changed("max-budget") {
-		opts.MaxBudgetUSD = &runMaxBudget
-	}
-
-	cfg, err := config.GenerateInstanceConfig(paths, opts)
-	if err != nil {
-		return err
-	}
-
-	if err := config.EnsureDir(instancePaths.InstanceDir); err != nil {
-		return fmt.Errorf("creating instance directory: %w", err)
-	}
-
-	defer func() {
-		if retErr != nil {
-			_ = os.RemoveAll(instancePaths.InstanceDir)
-		}
-	}()
-
-	if cfg.WorktreePath != "" {
-		defer func() {
-			if retErr != nil {
-				_ = worktree.Remove(cfg.Workspace, cfg.WorktreePath)
-			}
-		}()
-	}
-
-	data, err := cfg.Marshal()
-	if err != nil {
-		return fmt.Errorf("serializing config: %w", err)
-	}
-	if err := os.WriteFile(instancePaths.ConfigFile, data, 0o644); err != nil {
-		return fmt.Errorf("writing instance config: %w", err)
-	}
-
-	if err := config.EnsureDir(filepath.Dir(instancePaths.RenderedDir)); err != nil {
-		return fmt.Errorf("creating rendered directory parent: %w", err)
-	}
-
-	if err := startInstance(cmd, instanceName, "", instancePaths.ConfigFile); err != nil {
-		return err
-	}
 
 	// Load instance state to get the port for MCP communication.
 	inst, err := instance.Load(instancePaths)

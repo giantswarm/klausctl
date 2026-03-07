@@ -3,17 +3,13 @@ package instance
 import (
 	"context"
 	"fmt"
-	"io"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	mcpserver "github.com/mark3labs/mcp-go/server"
 
 	"github.com/giantswarm/klausctl/internal/server"
-	"github.com/giantswarm/klausctl/pkg/config"
-	"github.com/giantswarm/klausctl/pkg/orchestrator"
 )
 
 func registerRun(s *mcpserver.MCPServer, sc *server.ServerContext) {
@@ -41,6 +37,9 @@ func registerRun(s *mcpserver.MCPServer, sc *server.ServerContext) {
 		mcp.WithString("gitAuthor", mcp.Description("Git author identity as \"Name <email>\"; sets GIT_AUTHOR_NAME/GIT_COMMITTER_NAME and GIT_AUTHOR_EMAIL/GIT_COMMITTER_EMAIL in the container")),
 		mcp.WithString("gitCredentialHelper", mcp.Description("Git credential helper (currently only \"gh\" is supported, which configures git to call \"gh auth git-credential\" for github.com)")),
 		mcp.WithBoolean("gitHttpsInsteadOfSsh", mcp.Description("Rewrite SSH git URLs (git@github.com:...) to HTTPS via container-local gitconfig (default: false)")),
+		mcp.WithBoolean("generateSuffix", mcp.Description("Append a random 4-character suffix to the instance name to avoid collisions (default: true)")),
+		mcp.WithBoolean("force", mcp.Description("Allow replacing a running instance; requires confirm: true as well")),
+		mcp.WithBoolean("confirm", mcp.Description("Confirm replacement of an existing instance; required when a name collision is detected")),
 		mcp.WithBoolean("blocking", mcp.Description("Wait for the agent to complete and return the result (default: false)")),
 	)
 	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -60,14 +59,6 @@ type runResult struct {
 }
 
 func handleRun(ctx context.Context, req mcp.CallToolRequest, sc *server.ServerContext) (*mcp.CallToolResult, error) {
-	name, err := req.RequireString("name")
-	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
-	}
-	if err := config.ValidateInstanceName(name); err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
-	}
-
 	message, err := req.RequireString("message")
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
@@ -75,145 +66,19 @@ func handleRun(ctx context.Context, req mcp.CallToolRequest, sc *server.ServerCo
 
 	blocking := req.GetBool("blocking", false)
 
-	// --- Create the instance (mirrors handleCreate logic) ---
-
-	workspace := req.GetString("workspace", "")
-	if workspace == "" {
-		cwd, err := os.Getwd()
-		if err != nil {
-			return mcp.NewToolResultError(fmt.Sprintf("determining current directory: %v", err)), nil
-		}
-		workspace = cwd
-	}
-
-	personality := req.GetString("personality", "")
-	toolchain := req.GetString("toolchain", "")
-	pluginArgs := req.GetStringSlice("plugin", nil)
-
-	resolver := sc.SourceResolver()
-	sourceFilter := req.GetString("source", "")
-	if sourceFilter != "" {
-		resolver, err = resolver.ForSource(sourceFilter)
-		if err != nil {
-			return mcp.NewToolResultError(err.Error()), nil
-		}
-	}
-
-	personality, toolchain, pluginArgs, err = orchestrator.ResolveCreateRefs(ctx, resolver, personality, toolchain, pluginArgs)
-	if err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("resolving refs: %v", err)), nil
-	}
-
-	args := req.GetArguments()
-	envVars, err := extractStringMap(args, "envVars")
-	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
-	}
-	mcpServers, err := extractObjectMap(args, "mcpServers")
-	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
-	}
-	secretEnvVars, err := extractStringMap(args, "secretEnvVars")
-	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
-	}
-	secretFiles, err := extractStringMap(args, "secretFiles")
+	// Create the instance using the shared create logic.
+	params, err := parseMCPCreateParams(req)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
+	createRes, err := mcpCreateInstance(ctx, params, sc)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	name := createRes.Instance
 	instancePaths := sc.InstancePaths(name)
-	if _, err := os.Stat(instancePaths.InstanceDir); err == nil {
-		return mcp.NewToolResultError(fmt.Sprintf("instance %q already exists", name)), nil
-	}
-
-	port := int(req.GetFloat("port", 0))
-	if port < 0 || port > 65535 {
-		return mcp.NewToolResultError(fmt.Sprintf("port must be between 1 and 65535, got %d", port)), nil
-	}
-
-	gitAuthorName, gitAuthorEmail, err := parseGitAuthor(req.GetString("gitAuthor", ""))
-	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
-	}
-
-	createOpts := config.CreateOptions{
-		Name:                 name,
-		Workspace:            workspace,
-		NoIsolate:            req.GetBool("noIsolate", false),
-		Personality:          personality,
-		Toolchain:            toolchain,
-		Plugins:              pluginArgs,
-		Port:                 port,
-		GitAuthorName:        gitAuthorName,
-		GitAuthorEmail:       gitAuthorEmail,
-		GitCredentialHelper:  req.GetString("gitCredentialHelper", ""),
-		GitHTTPSInsteadOfSSH: req.GetBool("gitHttpsInsteadOfSsh", false),
-		EnvVars:              envVars,
-		EnvForward:           req.GetStringSlice("envForward", nil),
-		McpServers:           mcpServers,
-		SecretEnvVars:        secretEnvVars,
-		SecretFiles:          secretFiles,
-		McpServerRefs:        req.GetStringSlice("mcpServerRefs", nil),
-		PermissionMode:       req.GetString("permissionMode", ""),
-		Model:                req.GetString("model", ""),
-		SystemPrompt:         req.GetString("systemPrompt", ""),
-		Context:              ctx,
-		Output:               io.Discard,
-		ResolvePersonality: func(ctx context.Context, ref string, w io.Writer) (*config.ResolvedPersonality, error) {
-			if err := config.EnsureDir(sc.Paths.PersonalitiesDir); err != nil {
-				return nil, fmt.Errorf("creating personalities directory: %w", err)
-			}
-			client := orchestrator.NewDefaultClient()
-			pr, err := orchestrator.ResolvePersonality(ctx, client, ref, sc.Paths.PersonalitiesDir, io.Discard)
-			if err != nil {
-				return nil, err
-			}
-			plugins, err := orchestrator.ResolvePluginRefs(ctx, client, pr.Spec.Plugins)
-			if err != nil {
-				return nil, fmt.Errorf("resolving personality plugins: %w", err)
-			}
-			image, err := client.ResolveToolchainRef(ctx, pr.Spec.Toolchain.Ref())
-			if err != nil {
-				return nil, fmt.Errorf("resolving personality image: %w", err)
-			}
-
-			return &config.ResolvedPersonality{
-				Plugins: plugins,
-				Image:   image,
-			}, nil
-		},
-	}
-	if _, ok := args["maxBudgetUsd"]; ok {
-		b := req.GetFloat("maxBudgetUsd", 0)
-		createOpts.MaxBudgetUSD = &b
-	}
-
-	cfg, err := config.GenerateInstanceConfig(sc.Paths, createOpts)
-	if err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("generating config: %v", err)), nil
-	}
-
-	if err := config.EnsureDir(instancePaths.InstanceDir); err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("creating instance directory: %v", err)), nil
-	}
-	data, err := cfg.Marshal()
-	if err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("serializing config: %v", err)), nil
-	}
-	if err := os.WriteFile(instancePaths.ConfigFile, data, 0o644); err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("writing instance config: %v", err)), nil
-	}
-
-	if err := config.EnsureDir(filepath.Dir(instancePaths.RenderedDir)); err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("creating rendered directory parent: %v", err)), nil
-	}
-
-	createRes, err := startExistingInstance(ctx, name, sc)
-	if err != nil {
-		_ = os.RemoveAll(instancePaths.InstanceDir)
-		return mcp.NewToolResultError(err.Error()), nil
-	}
 
 	// cleanupOnError stops the container and removes instance state if a
 	// post-start step (MCP readiness, prompt) fails.
