@@ -1,0 +1,356 @@
+package cmd
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"os"
+	"os/signal"
+	"path/filepath"
+	"time"
+
+	"github.com/spf13/cobra"
+
+	"github.com/giantswarm/klausctl/pkg/config"
+	"github.com/giantswarm/klausctl/pkg/instance"
+	"github.com/giantswarm/klausctl/pkg/mcpclient"
+	"github.com/giantswarm/klausctl/pkg/orchestrator"
+	"github.com/giantswarm/klausctl/pkg/worktree"
+)
+
+var (
+	runPersonality       string
+	runToolchain         string
+	runPlugins           []string
+	runPort              int
+	runEnv               []string
+	runEnvForward        []string
+	runSecretEnv         []string
+	runSecretFile        []string
+	runMcpServer         []string
+	runPermMode          string
+	runModel             string
+	runSystemPrompt      string
+	runMaxBudget         float64
+	runSource            string
+	runNoIsolate         bool
+	runGitAuthor         string
+	runGitCredHelper     string
+	runGitHTTPSInsteadOf bool
+
+	runMessage  string
+	runBlocking bool
+	runOutput   string
+)
+
+var runCmd = &cobra.Command{
+	Use:   "run <name> [workspace]",
+	Short: "Create an instance and send a prompt in one step",
+	Long: `Create a new klaus instance, wait for it to become ready, and send a
+prompt — all in a single command.
+
+This combines 'klausctl create' and 'klausctl prompt' into one operation,
+reducing boilerplate in agent workflows. All flags from 'create' are
+supported, plus -m/--message to supply the prompt.
+
+By default the command returns once the prompt is accepted. Use --blocking
+to wait for the agent to finish and print the result.
+
+Examples:
+
+  klausctl run dev ~/myproject -m "Fix the failing tests"
+  klausctl run dev ~/myproject --personality go -m "List all TODO comments" --blocking
+  klausctl run dev -m "Refactor the handler" --blocking -o json`,
+	Args: cobra.RangeArgs(1, 2),
+	RunE: runRun,
+}
+
+func init() {
+	runCmd.Flags().StringVar(&runPersonality, "personality", "", "personality short name or OCI reference")
+	runCmd.Flags().StringVar(&runToolchain, "toolchain", "", "toolchain short name or OCI reference")
+	runCmd.Flags().StringSliceVar(&runPlugins, "plugin", nil, "additional plugin short name or OCI reference (repeatable)")
+	runCmd.Flags().IntVar(&runPort, "port", 0, "override auto-selected port")
+	runCmd.Flags().StringArrayVar(&runEnv, "env", nil, "environment variable KEY=VALUE (repeatable)")
+	runCmd.Flags().StringArrayVar(&runEnvForward, "env-forward", nil, "host environment variable name to forward (repeatable)")
+	runCmd.Flags().StringVar(&runPermMode, "permission-mode", "", "Claude permission mode: default, acceptEdits, bypassPermissions, dontAsk, plan, delegate")
+	runCmd.Flags().StringVar(&runModel, "model", "", "Claude model (e.g. sonnet, opus)")
+	runCmd.Flags().StringVar(&runSystemPrompt, "system-prompt", "", "system prompt override for the Claude agent")
+	runCmd.Flags().Float64Var(&runMaxBudget, "max-budget", 0, "maximum dollar budget per invocation (0 = no limit)")
+	runCmd.Flags().StringArrayVar(&runSecretEnv, "secret-env", nil, "secret env var ENV_NAME=secret-name (repeatable)")
+	runCmd.Flags().StringArrayVar(&runSecretFile, "secret-file", nil, "secret file /container/path=secret-name (repeatable)")
+	runCmd.Flags().StringArrayVar(&runMcpServer, "mcpserver", nil, "managed MCP server name (repeatable)")
+	runCmd.Flags().StringVar(&runSource, "source", "", "resolve artifact short names against a specific source")
+	runCmd.Flags().BoolVar(&runNoIsolate, "no-isolate", false, "skip git worktree creation and bind-mount workspace directly")
+	runCmd.Flags().StringVar(&runGitAuthor, "git-author", "", `git author identity "Name <email>"`)
+	runCmd.Flags().StringVar(&runGitCredHelper, "git-credential-helper", "", "git credential helper (currently only 'gh')")
+	runCmd.Flags().BoolVar(&runGitHTTPSInsteadOf, "git-https-instead-of-ssh", false, "rewrite SSH git URLs to HTTPS via container-local gitconfig")
+
+	runCmd.Flags().StringVarP(&runMessage, "message", "m", "", "prompt message to send to the agent (required)")
+	runCmd.Flags().BoolVar(&runBlocking, "blocking", false, "wait for the agent to complete and return the result")
+	runCmd.Flags().StringVarP(&runOutput, "output", "o", "text", "output format: text, json")
+	_ = runCmd.MarkFlagRequired("message")
+	rootCmd.AddCommand(runCmd)
+}
+
+func runRun(cmd *cobra.Command, args []string) (retErr error) {
+	instanceName := args[0]
+	if err := config.ValidateInstanceName(instanceName); err != nil {
+		return err
+	}
+
+	workspace := ""
+	if len(args) > 1 {
+		workspace = args[1]
+	} else {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return fmt.Errorf("determining current directory: %w", err)
+		}
+		workspace = cwd
+	}
+
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer cancel()
+
+	out := cmd.OutOrStdout()
+
+	paths, err := config.DefaultPaths()
+	if err != nil {
+		return err
+	}
+	if err := config.MigrateLayout(paths); err != nil {
+		return fmt.Errorf("migrating config layout: %w", err)
+	}
+
+	instancePaths := paths.ForInstance(instanceName)
+	if _, err := os.Stat(instancePaths.InstanceDir); err == nil {
+		return fmt.Errorf("instance %q already exists", instanceName)
+	}
+
+	resolver, err := buildSourceResolver(runSource)
+	if err != nil {
+		return err
+	}
+
+	if runSource != "" {
+		fmt.Fprintf(out, "Using source %q for artifact resolution\n", runSource)
+	}
+
+	personality, toolchain, plugins, err := orchestrator.ResolveCreateRefs(ctx, resolver, runPersonality, runToolchain, runPlugins)
+	if err != nil {
+		return err
+	}
+
+	envVars, err := parseEnvFlags(runEnv)
+	if err != nil {
+		return err
+	}
+
+	secretEnvVars, err := parseEnvFlags(runSecretEnv)
+	if err != nil {
+		return fmt.Errorf("parsing --secret-env: %w", err)
+	}
+
+	secretFiles, err := parseEnvFlags(runSecretFile)
+	if err != nil {
+		return fmt.Errorf("parsing --secret-file: %w", err)
+	}
+
+	if runPort < 0 || runPort > 65535 {
+		return fmt.Errorf("port must be between 0 and 65535, got %d", runPort)
+	}
+
+	gitName, gitEmail, err := parseGitAuthor(runGitAuthor)
+	if err != nil {
+		return err
+	}
+
+	opts := config.CreateOptions{
+		Name:                 instanceName,
+		Workspace:            workspace,
+		NoIsolate:            runNoIsolate,
+		Personality:          personality,
+		Toolchain:            toolchain,
+		Plugins:              plugins,
+		Port:                 runPort,
+		GitAuthorName:        gitName,
+		GitAuthorEmail:       gitEmail,
+		GitCredentialHelper:  runGitCredHelper,
+		GitHTTPSInsteadOfSSH: runGitHTTPSInsteadOf,
+		EnvVars:              envVars,
+		EnvForward:           runEnvForward,
+		SecretEnvVars:        secretEnvVars,
+		SecretFiles:          secretFiles,
+		McpServerRefs:        runMcpServer,
+		PermissionMode:       runPermMode,
+		Model:                runModel,
+		SystemPrompt:         runSystemPrompt,
+		SourceResolver:       resolver,
+		Context:              ctx,
+		Output:               out,
+		ResolvePersonality: func(ctx context.Context, ref string, outWriter io.Writer) (*config.ResolvedPersonality, error) {
+			if err := config.EnsureDir(paths.PersonalitiesDir); err != nil {
+				return nil, fmt.Errorf("creating personalities directory: %w", err)
+			}
+			client := orchestrator.NewDefaultClient()
+			pr, err := orchestrator.ResolvePersonality(ctx, client, ref, paths.PersonalitiesDir, outWriter)
+			if err != nil {
+				return nil, err
+			}
+
+			plugins, err := orchestrator.ResolvePluginRefs(ctx, client, pr.Spec.Plugins)
+			if err != nil {
+				return nil, fmt.Errorf("resolving personality plugins: %w", err)
+			}
+
+			image, err := client.ResolveToolchainRef(ctx, pr.Spec.Toolchain.Ref())
+			if err != nil {
+				return nil, fmt.Errorf("resolving personality image: %w", err)
+			}
+
+			return &config.ResolvedPersonality{
+				Plugins: plugins,
+				Image:   image,
+			}, nil
+		},
+	}
+	if cmd.Flags().Changed("max-budget") {
+		opts.MaxBudgetUSD = &runMaxBudget
+	}
+
+	cfg, err := config.GenerateInstanceConfig(paths, opts)
+	if err != nil {
+		return err
+	}
+
+	if err := config.EnsureDir(instancePaths.InstanceDir); err != nil {
+		return fmt.Errorf("creating instance directory: %w", err)
+	}
+
+	defer func() {
+		if retErr != nil {
+			_ = os.RemoveAll(instancePaths.InstanceDir)
+		}
+	}()
+
+	if cfg.WorktreePath != "" {
+		defer func() {
+			if retErr != nil {
+				_ = worktree.Remove(cfg.Workspace, cfg.WorktreePath)
+			}
+		}()
+	}
+
+	data, err := cfg.Marshal()
+	if err != nil {
+		return fmt.Errorf("serializing config: %w", err)
+	}
+	if err := os.WriteFile(instancePaths.ConfigFile, data, 0o644); err != nil {
+		return fmt.Errorf("writing instance config: %w", err)
+	}
+
+	if err := config.EnsureDir(filepath.Dir(instancePaths.RenderedDir)); err != nil {
+		return fmt.Errorf("creating rendered directory parent: %w", err)
+	}
+
+	if err := startInstance(cmd, instanceName, "", instancePaths.ConfigFile); err != nil {
+		return err
+	}
+
+	// Load instance state to get the port for MCP communication.
+	inst, err := instance.Load(instancePaths)
+	if err != nil {
+		return fmt.Errorf("loading instance state after create: %w", err)
+	}
+
+	baseURL := fmt.Sprintf("http://localhost:%d/mcp", inst.Port)
+
+	client := mcpclient.New(buildVersion)
+	defer client.Close()
+
+	// Wait for the MCP endpoint inside the container to become ready.
+	if err := waitForMCPReady(ctx, instanceName, baseURL, client); err != nil {
+		return fmt.Errorf("waiting for instance %q to become ready: %w", instanceName, err)
+	}
+
+	fmt.Fprintf(out, "\nSending prompt to %s...\n", instanceName)
+
+	toolResult, err := client.Prompt(ctx, instanceName, baseURL, runMessage)
+	if err != nil {
+		return fmt.Errorf("sending prompt to %q: %w", instanceName, err)
+	}
+
+	if !runBlocking {
+		result := promptCLIResult{
+			Instance:  instanceName,
+			Status:    "started",
+			SessionID: client.SessionID(instanceName),
+			Result:    extractMCPText(toolResult),
+		}
+		return renderRunResult(out, result)
+	}
+
+	agentResult, err := waitForAgentResult(ctx, instanceName, baseURL, client)
+	if err != nil {
+		return fmt.Errorf("waiting for result from %q: %w", instanceName, err)
+	}
+
+	result := promptCLIResult{
+		Instance:  instanceName,
+		Status:    "completed",
+		SessionID: client.SessionID(instanceName),
+		Result:    agentResult,
+	}
+	return renderRunResult(out, result)
+}
+
+func renderRunResult(out io.Writer, result promptCLIResult) error {
+	if runOutput == "json" {
+		enc := json.NewEncoder(out)
+		enc.SetIndent("", "  ")
+		return enc.Encode(result)
+	}
+
+	fmt.Fprintf(out, "Instance: %s\n", result.Instance)
+	fmt.Fprintf(out, "Status:   %s\n", colorStatus(result.Status))
+	if result.SessionID != "" {
+		fmt.Fprintf(out, "Session:  %s\n", result.SessionID)
+	}
+	if result.Result != "" {
+		fmt.Fprintf(out, "\n%s\n", result.Result)
+	}
+	return nil
+}
+
+// waitForMCPReady polls the agent's MCP endpoint until it responds
+// successfully or the context is cancelled. This handles the delay between
+// container start and the MCP server being fully initialized.
+func waitForMCPReady(ctx context.Context, instanceName, baseURL string, client *mcpclient.Client) error {
+	poll := 2 * time.Second
+	const maxPoll = 10 * time.Second
+	const maxWait = 2 * time.Minute
+
+	deadline := time.Now().Add(maxWait)
+
+	for {
+		if time.Now().After(deadline) {
+			return fmt.Errorf("timed out after %s waiting for MCP endpoint", maxWait)
+		}
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(poll):
+		}
+
+		_, err := client.Status(ctx, instanceName, baseURL)
+		if err == nil {
+			return nil
+		}
+
+		if poll < maxPoll {
+			poll = min(poll*2, maxPoll)
+		}
+	}
+}
