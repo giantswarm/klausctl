@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"io"
@@ -11,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/giantswarm/klausctl/pkg/config"
+	"github.com/giantswarm/klausctl/pkg/instance"
 	"github.com/giantswarm/klausctl/pkg/orchestrator"
 	"github.com/giantswarm/klausctl/pkg/worktree"
 )
@@ -34,6 +36,9 @@ var (
 	createGitAuthor         string
 	createGitCredHelper     string
 	createGitHTTPSInsteadOf bool
+	createYes               bool
+	createForce             bool
+	createGenerateSuffix    bool
 )
 
 var createCmd = &cobra.Command{
@@ -45,6 +50,14 @@ Override flags (--env, --env-forward, --permission-mode, --model, etc.) are
 applied on top of any values defined by the resolved personality. Map-like
 fields (envVars, envForward) are merged; scalar fields (model, permissionMode,
 systemPrompt, maxBudget) replace the personality default.
+
+By default, a random 4-character suffix is appended to the instance name to
+avoid collisions (e.g. "myproject" becomes "myproject-a3f7"). Use
+--no-generate-suffix to preserve the exact name.
+
+If a name collision occurs with a stopped instance, you will be prompted to
+replace it (use -y to auto-confirm). If the collision is with a running
+instance, the command aborts unless --force is used.
 
 MCP server configurations can be supplied via the MCP tool interface
 (mcpServers parameter) or by editing the instance config file directly.`,
@@ -71,11 +84,27 @@ func init() {
 	createCmd.Flags().StringVar(&createGitAuthor, "git-author", "", `git author identity "Name <email>"`)
 	createCmd.Flags().StringVar(&createGitCredHelper, "git-credential-helper", "", "git credential helper (currently only 'gh')")
 	createCmd.Flags().BoolVar(&createGitHTTPSInsteadOf, "git-https-instead-of-ssh", false, "rewrite SSH git URLs to HTTPS via container-local gitconfig")
+	createCmd.Flags().BoolVarP(&createYes, "yes", "y", false, "auto-confirm replacement of existing instances")
+	createCmd.Flags().BoolVar(&createForce, "force", false, "allow replacing a running instance (prompts for confirmation unless -y is also set)")
+	createCmd.Flags().BoolVar(&createGenerateSuffix, "generate-suffix", true, "append a random 4-character suffix to the instance name (use --no-generate-suffix to disable)")
 	rootCmd.AddCommand(createCmd)
 }
 
 func runCreate(cmd *cobra.Command, args []string) (retErr error) {
-	instanceName := args[0]
+	baseName := args[0]
+	if err := config.ValidateInstanceName(baseName); err != nil {
+		return err
+	}
+
+	instanceName := baseName
+	if createGenerateSuffix {
+		suffixed, err := instance.AppendSuffix(baseName)
+		if err != nil {
+			return fmt.Errorf("generating name suffix: %w", err)
+		}
+		instanceName = suffixed
+	}
+
 	if err := config.ValidateInstanceName(instanceName); err != nil {
 		return err
 	}
@@ -102,8 +131,15 @@ func runCreate(cmd *cobra.Command, args []string) (retErr error) {
 	}
 
 	instancePaths := paths.ForInstance(instanceName)
-	if _, err := os.Stat(instancePaths.InstanceDir); err == nil {
-		return fmt.Errorf("instance %q already exists", instanceName)
+
+	// Check for name collision with an existing instance.
+	collision, err := instance.CheckCollision(ctx, instancePaths)
+	if err != nil {
+		return fmt.Errorf("checking for existing instance: %w", err)
+	}
+
+	if err := handleCLICollision(cmd, instanceName, collision, ctx, instancePaths); err != nil {
+		return err
 	}
 
 	resolver, err := buildSourceResolver(createSource)
@@ -234,7 +270,81 @@ func runCreate(cmd *cobra.Command, args []string) (retErr error) {
 		return fmt.Errorf("creating rendered directory parent: %w", err)
 	}
 
-	return startInstance(cmd, instanceName, "", instancePaths.ConfigFile)
+	if err := startInstance(cmd, instanceName, "", instancePaths.ConfigFile); err != nil {
+		return err
+	}
+
+	// Print the resolved instance name so callers can reference it.
+	// Printed after successful start to avoid advertising a name that
+	// was rolled back on failure.
+	fmt.Fprintln(cmd.OutOrStdout(), instanceName)
+	return nil
+}
+
+// handleCLICollision handles name collision for the CLI create command.
+// It prompts or errors based on the collision state, --force, and -y flags.
+// On confirmation, it fully cleans up the old instance before returning nil.
+func handleCLICollision(cmd *cobra.Command, name string, collision instance.CollisionState, ctx context.Context, paths *config.Paths) error {
+	switch collision {
+	case instance.NoCollision:
+		return nil
+
+	case instance.CollisionStopped:
+		if !createYes {
+			fmt.Fprintf(cmd.OutOrStdout(), "Instance %q already exists (stopped). Replace it? [y/N]: ", name)
+			reader := bufio.NewReader(cmd.InOrStdin())
+			answer, err := reader.ReadString('\n')
+			if err != nil {
+				return err
+			}
+			answer = strings.ToLower(strings.TrimSpace(answer))
+			if answer != "y" && answer != "yes" {
+				return fmt.Errorf("create cancelled")
+			}
+		}
+		return cleanupExistingInstance(ctx, name, paths)
+
+	case instance.CollisionRunning:
+		if !createForce {
+			return fmt.Errorf("instance %q is still running; use --force to replace it", name)
+		}
+		if !createYes {
+			fmt.Fprintf(cmd.OutOrStdout(), "Instance %q is still running. Stop and replace it? [y/N]: ", name)
+			reader := bufio.NewReader(cmd.InOrStdin())
+			answer, err := reader.ReadString('\n')
+			if err != nil {
+				return err
+			}
+			answer = strings.ToLower(strings.TrimSpace(answer))
+			if answer != "y" && answer != "yes" {
+				return fmt.Errorf("create cancelled")
+			}
+		}
+		return cleanupExistingInstance(ctx, name, paths)
+	}
+
+	return nil
+}
+
+// cleanupExistingInstance fully removes an existing instance: stops the
+// container if running, removes the container, cleans up the worktree,
+// and deletes the instance directory.
+func cleanupExistingInstance(ctx context.Context, name string, paths *config.Paths) error {
+	cfg, _ := config.Load(paths.ConfigFile)
+	if cfg != nil && cfg.WorktreePath != "" {
+		_ = worktree.Remove(cfg.Workspace, cfg.WorktreePath)
+	}
+
+	inst, _ := instance.Load(paths)
+	if err := cleanupInstanceContainer(ctx, name, inst); err != nil {
+		return fmt.Errorf("cleaning up existing instance: %w", err)
+	}
+
+	if err := os.RemoveAll(paths.InstanceDir); err != nil {
+		return fmt.Errorf("removing existing instance directory: %w", err)
+	}
+
+	return nil
 }
 
 // parseGitAuthor parses a "Name <email>" string into separate name and email.
