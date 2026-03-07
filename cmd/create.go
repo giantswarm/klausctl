@@ -198,7 +198,21 @@ func runCreate(cmd *cobra.Command, args []string) (retErr error) {
 		return err
 	}
 
-	// Clean up the worktree if any subsequent step fails.
+	if err := config.EnsureDir(instancePaths.InstanceDir); err != nil {
+		return fmt.Errorf("creating instance directory: %w", err)
+	}
+
+	// Clean up the instance directory if any subsequent step fails. This
+	// prevents leftover config/state that would block a retry of create.
+	defer func() {
+		if retErr != nil {
+			_ = os.RemoveAll(instancePaths.InstanceDir)
+		}
+	}()
+
+	// Clean up the worktree if any subsequent step fails. Registered after
+	// the instance dir defer so it runs first (LIFO), ensuring git worktree
+	// metadata is cleaned up before the directory is removed.
 	if cfg.WorktreePath != "" {
 		defer func() {
 			if retErr != nil {
@@ -207,9 +221,6 @@ func runCreate(cmd *cobra.Command, args []string) (retErr error) {
 		}()
 	}
 
-	if err := config.EnsureDir(instancePaths.InstanceDir); err != nil {
-		return fmt.Errorf("creating instance directory: %w", err)
-	}
 	data, err := cfg.Marshal()
 	if err != nil {
 		return fmt.Errorf("serializing config: %w", err)
