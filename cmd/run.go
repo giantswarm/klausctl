@@ -32,6 +32,7 @@ var (
 	runMaxBudget         float64
 	runSource            string
 	runNoIsolate         bool
+	runNoFetch           bool
 	runGitAuthor         string
 	runGitCredHelper     string
 	runGitHTTPSInsteadOf bool
@@ -82,6 +83,7 @@ func init() {
 	runCmd.Flags().StringArrayVar(&runMcpServer, "mcpserver", nil, "managed MCP server name (repeatable)")
 	runCmd.Flags().StringVar(&runSource, "source", "", "resolve artifact short names against a specific source")
 	runCmd.Flags().BoolVar(&runNoIsolate, "no-isolate", false, "skip git worktree creation and bind-mount workspace directly")
+	runCmd.Flags().BoolVar(&runNoFetch, "no-fetch", false, "skip git fetch origin before cloning the workspace")
 	runCmd.Flags().StringVar(&runGitAuthor, "git-author", "", `git author identity "Name <email>"`)
 	runCmd.Flags().StringVar(&runGitCredHelper, "git-credential-helper", "", "git credential helper (currently only 'gh')")
 	runCmd.Flags().BoolVar(&runGitHTTPSInsteadOf, "git-https-instead-of-ssh", false, "rewrite SSH git URLs to HTTPS via container-local gitconfig")
@@ -124,6 +126,7 @@ func runRun(cmd *cobra.Command, args []string) error {
 		MaxBudgetSet:    cmd.Flags().Changed("max-budget"),
 		Source:          runSource,
 		NoIsolate:       runNoIsolate,
+		NoFetch:         runNoFetch,
 		GitAuthor:       runGitAuthor,
 		GitCredHelper:   runGitCredHelper,
 		GitHTTPSInstead: runGitHTTPSInsteadOf,

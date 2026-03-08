@@ -36,6 +36,7 @@ type CLICreateParams struct {
 	MaxBudgetSet    bool
 	Source          string
 	NoIsolate       bool
+	NoFetch         bool
 	GitAuthor       string
 	GitCredHelper   string
 	GitHTTPSInstead bool
@@ -138,6 +139,7 @@ func cliCreateInstance(ctx context.Context, cmd *cobra.Command, params CLICreate
 		Name:                 instanceName,
 		Workspace:            workspace,
 		NoIsolate:            params.NoIsolate,
+		NoFetch:              params.NoFetch,
 		Personality:          personality,
 		Toolchain:            toolchain,
 		Plugins:              plugins,

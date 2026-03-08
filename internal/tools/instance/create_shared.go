@@ -39,6 +39,7 @@ type mcpCreateParams struct {
 	gitCredHelper  string
 	gitHTTPS       bool
 	noIsolate      bool
+	noFetch        bool
 	permissionMode string
 	model          string
 	systemPrompt   string
@@ -114,6 +115,7 @@ func parseMCPCreateParams(req mcp.CallToolRequest) (*mcpCreateParams, error) {
 		gitCredHelper:  req.GetString("gitCredentialHelper", ""),
 		gitHTTPS:       req.GetBool("gitHttpsInsteadOfSsh", false),
 		noIsolate:      req.GetBool("noIsolate", false),
+		noFetch:        req.GetBool("noFetch", false),
 		permissionMode: req.GetString("permissionMode", ""),
 		model:          req.GetString("model", ""),
 		systemPrompt:   req.GetString("systemPrompt", ""),
@@ -173,6 +175,7 @@ func mcpCreateInstance(ctx context.Context, params *mcpCreateParams, sc *server.
 		Name:                 name,
 		Workspace:            params.workspace,
 		NoIsolate:            params.noIsolate,
+		NoFetch:              params.noFetch,
 		Personality:          personality,
 		Toolchain:            toolchain,
 		Plugins:              pluginArgs,
