@@ -53,7 +53,7 @@ func TestHandleArchiveListWithEntries(t *testing.T) {
 	}
 
 	text := extractResultText(t, result)
-	var list []archiveListEntry
+	var list []archive.ListSummary
 	if err := json.Unmarshal([]byte(text), &list); err != nil {
 		t.Fatalf("expected JSON array, got: %s", text)
 	}
@@ -98,6 +98,69 @@ func TestHandleArchiveShowByUUID(t *testing.T) {
 	}
 	if loaded.ResultText != "All done." {
 		t.Errorf("ResultText = %q, want %q", loaded.ResultText, "All done.")
+	}
+}
+
+func TestHandleArchiveShowOmitsMessagesByDefault(t *testing.T) {
+	sc := testServerContext(t)
+
+	entry := &archive.Entry{
+		UUID:         "msg-uuid",
+		Name:         "test",
+		Status:       "completed",
+		MessageCount: 5,
+		Messages:     json.RawMessage(`[{"role":"user","content":"hello"}]`),
+		StoppedAt:    time.Now(),
+	}
+	if err := archive.Save(sc.Paths.ArchivesDir, entry); err != nil {
+		t.Fatalf("saving entry: %v", err)
+	}
+
+	// Without full=true, messages should be omitted.
+	req := callToolRequest(map[string]any{"uuid": "msg-uuid"})
+	result, err := handleArchiveShow(context.Background(), req, sc)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	text := extractResultText(t, result)
+	var loaded map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(text), &loaded); err != nil {
+		t.Fatalf("expected JSON object, got: %s", text)
+	}
+	if _, ok := loaded["messages"]; ok {
+		t.Error("messages should be omitted when full is not set")
+	}
+}
+
+func TestHandleArchiveShowIncludesMessagesWhenFull(t *testing.T) {
+	sc := testServerContext(t)
+
+	entry := &archive.Entry{
+		UUID:         "full-uuid",
+		Name:         "test",
+		Status:       "completed",
+		MessageCount: 5,
+		Messages:     json.RawMessage(`[{"role":"user","content":"hello"}]`),
+		StoppedAt:    time.Now(),
+	}
+	if err := archive.Save(sc.Paths.ArchivesDir, entry); err != nil {
+		t.Fatalf("saving entry: %v", err)
+	}
+
+	req := callToolRequest(map[string]any{"uuid": "full-uuid", "full": true})
+	result, err := handleArchiveShow(context.Background(), req, sc)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	text := extractResultText(t, result)
+	var loaded map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(text), &loaded); err != nil {
+		t.Fatalf("expected JSON object, got: %s", text)
+	}
+	if _, ok := loaded["messages"]; !ok {
+		t.Error("messages should be included when full=true")
 	}
 }
 
