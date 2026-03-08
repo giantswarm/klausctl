@@ -4,14 +4,17 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"os/signal"
 	"sort"
 
 	"github.com/spf13/cobra"
 
+	"github.com/giantswarm/klausctl/pkg/archive"
 	"github.com/giantswarm/klausctl/pkg/config"
 	"github.com/giantswarm/klausctl/pkg/instance"
+	"github.com/giantswarm/klausctl/pkg/mcpclient"
 	"github.com/giantswarm/klausctl/pkg/runtime"
 )
 
@@ -23,10 +26,14 @@ var stopCmd = &cobra.Command{
 	RunE:  runStop,
 }
 
-var stopAll bool
+var (
+	stopAll       bool
+	stopNoArchive bool
+)
 
 func init() {
 	stopCmd.Flags().BoolVar(&stopAll, "all", false, "stop all instances")
+	stopCmd.Flags().BoolVar(&stopNoArchive, "no-archive", false, "skip archiving the agent transcript before stopping")
 	rootCmd.AddCommand(stopCmd)
 }
 
@@ -81,6 +88,11 @@ func runStop(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
+	// Archive transcript before stopping.
+	if status == "running" && !stopNoArchive {
+		archiveBeforeStop(ctx, inst, paths)
+	}
+
 	// Stop the container if running.
 	if status == "running" {
 		fmt.Fprintf(out, "Stopping %s...\n", containerName)
@@ -129,6 +141,10 @@ func stopAllInstances(ctx context.Context, out io.Writer, paths *config.Paths) e
 			_ = instance.Clear(paths.ForInstance(inst.Name))
 			continue
 		}
+		// Archive before stopping.
+		if status == "running" && !stopNoArchive {
+			archiveBeforeStop(ctx, inst, paths)
+		}
 		if status == "running" {
 			fmt.Fprintf(out, "Stopping %s...\n", name)
 			if err := rt.Stop(ctx, name); err != nil {
@@ -146,4 +162,15 @@ func stopAllInstances(ctx context.Context, out io.Writer, paths *config.Paths) e
 
 	fmt.Fprintln(out, green("All klaus instances stopped."))
 	return nil
+}
+
+// archiveBeforeStop captures the agent transcript. Best-effort: logs and
+// continues on failure so the stop operation is never blocked.
+func archiveBeforeStop(ctx context.Context, inst *instance.Instance, paths *config.Paths) {
+	client := mcpclient.New(buildVersion)
+	defer client.Close()
+
+	if err := archive.Capture(ctx, client, inst, paths.ArchivesDir); err != nil {
+		log.Printf("Warning: failed to archive %q: %v", inst.Name, err)
+	}
 }

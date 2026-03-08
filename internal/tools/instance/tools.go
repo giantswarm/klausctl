@@ -19,6 +19,7 @@ import (
 	mcpserver "github.com/mark3labs/mcp-go/server"
 
 	"github.com/giantswarm/klausctl/internal/server"
+	"github.com/giantswarm/klausctl/pkg/archive"
 	"github.com/giantswarm/klausctl/pkg/config"
 	"github.com/giantswarm/klausctl/pkg/instance"
 	"github.com/giantswarm/klausctl/pkg/orchestrator"
@@ -39,6 +40,8 @@ func RegisterTools(s *mcpserver.MCPServer, sc *server.ServerContext) {
 	registerPrompt(s, sc)
 	registerResult(s, sc)
 	registerRun(s, sc)
+	registerArchiveList(s, sc)
+	registerArchiveShow(s, sc)
 }
 
 func registerCreate(s *mcpserver.MCPServer, sc *server.ServerContext) {
@@ -61,7 +64,6 @@ func registerCreate(s *mcpserver.MCPServer, sc *server.ServerContext) {
 		mcp.WithString("model", mcp.Description("Claude model (overrides personality default, e.g. sonnet, opus, claude-sonnet-4-20250514)")),
 		mcp.WithString("systemPrompt", mcp.Description("System prompt for the Claude agent (overrides personality default)")),
 		mcp.WithBoolean("noIsolate", mcp.Description("Skip git worktree creation and bind-mount workspace directly (default: false)")),
-		mcp.WithBoolean("noFetch", mcp.Description("Skip git fetch origin before cloning the workspace (default: false)")),
 		mcp.WithNumber("port", mcp.Description("Override auto-selected host port for the instance MCP endpoint (0 or omitted = auto-select starting from 8080)")),
 		mcp.WithString("gitAuthor", mcp.Description("Git author identity as \"Name <email>\"; sets GIT_AUTHOR_NAME/GIT_COMMITTER_NAME and GIT_AUTHOR_EMAIL/GIT_COMMITTER_EMAIL in the container")),
 		mcp.WithString("gitCredentialHelper", mcp.Description("Git credential helper (currently only \"gh\" is supported, which configures git to call \"gh auth git-credential\" for github.com)")),
@@ -90,6 +92,7 @@ func registerStop(s *mcpserver.MCPServer, sc *server.ServerContext) {
 		mcp.WithDescription("Stop a running klaus instance"),
 		mcp.WithString("name", mcp.Description("Instance name (required unless all=true)")),
 		mcp.WithBoolean("all", mcp.Description("Stop all instances")),
+		mcp.WithBoolean("noArchive", mcp.Description("Skip archiving the agent transcript before stopping (default: false)")),
 	)
 	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		return handleStop(ctx, req, sc)
@@ -100,6 +103,7 @@ func registerDelete(s *mcpserver.MCPServer, sc *server.ServerContext) {
 	tool := mcp.NewTool("klaus_delete",
 		mcp.WithDescription("Stop and remove a klaus instance entirely (config, state, rendered files)"),
 		mcp.WithString("name", mcp.Required(), mcp.Description("Instance name")),
+		mcp.WithBoolean("noArchive", mcp.Description("Skip archiving the agent transcript before deleting (default: false)")),
 	)
 	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		return handleDelete(ctx, req, sc)
@@ -250,6 +254,7 @@ func handleStart(ctx context.Context, req mcp.CallToolRequest, sc *server.Server
 func handleStop(ctx context.Context, req mcp.CallToolRequest, sc *server.ServerContext) (*mcp.CallToolResult, error) {
 	name := req.GetString("name", "")
 	all := req.GetBool("all", false)
+	noArchive := req.GetBool("noArchive", false)
 
 	if name == "" && !all {
 		return mcp.NewToolResultError("either name or all=true is required"), nil
@@ -259,10 +264,10 @@ func handleStop(ctx context.Context, req mcp.CallToolRequest, sc *server.ServerC
 	}
 
 	if all {
-		return stopAll(ctx, sc)
+		return stopAll(ctx, sc, noArchive)
 	}
 
-	return stopOne(ctx, name, sc)
+	return stopOne(ctx, name, sc, noArchive)
 }
 
 func handleDelete(ctx context.Context, req mcp.CallToolRequest, sc *server.ServerContext) (*mcp.CallToolResult, error) {
@@ -270,6 +275,8 @@ func handleDelete(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
+	noArchive := req.GetBool("noArchive", false)
+
 	if err := config.ValidateInstanceName(name); err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
@@ -282,6 +289,12 @@ func handleDelete(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
+	// Archive transcript before deleting if the container is running.
+	inst, _ := instance.Load(paths)
+	if inst != nil && !noArchive && !archive.Exists(sc.Paths.ArchivesDir, inst.UUID) {
+		mcpArchiveBeforeCleanup(ctx, inst, sc)
+	}
+
 	// Remove git worktree if one was created for this instance.
 	// Worktree cleanup is best-effort: log a warning but don't fail the
 	// overall delete operation so instance state is always cleaned up.
@@ -292,7 +305,6 @@ func handleDelete(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 		}
 	}
 
-	inst, _ := instance.Load(paths)
 	if err := cleanupContainer(ctx, name, inst); err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("cleaning up container: %v", err)), nil
 	}
@@ -599,6 +611,7 @@ func startExistingInstance(ctx context.Context, name string, sc *server.ServerCo
 		effectiveWorkspace = cfg.WorktreePath
 	}
 	inst = &instance.Instance{
+		UUID:        instance.NewUUID(),
 		Name:        name,
 		ContainerID: containerID,
 		Runtime:     rt.Name(),
@@ -623,7 +636,7 @@ func startExistingInstance(ctx context.Context, name string, sc *server.ServerCo
 	}, nil
 }
 
-func stopOne(ctx context.Context, name string, sc *server.ServerContext) (*mcp.CallToolResult, error) {
+func stopOne(ctx context.Context, name string, sc *server.ServerContext, noArchive bool) (*mcp.CallToolResult, error) {
 	paths := sc.InstancePaths(name)
 	inst, err := instance.Load(paths)
 	if err != nil {
@@ -648,6 +661,11 @@ func stopOne(ctx context.Context, name string, sc *server.ServerContext) (*mcp.C
 		})
 	}
 
+	// Archive before stopping.
+	if status == "running" && !noArchive {
+		mcpArchiveBeforeCleanup(ctx, inst, sc)
+	}
+
 	if status == "running" {
 		if err := rt.Stop(ctx, containerName); err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("stopping container: %v", err)), nil
@@ -666,7 +684,7 @@ func stopOne(ctx context.Context, name string, sc *server.ServerContext) (*mcp.C
 	})
 }
 
-func stopAll(ctx context.Context, sc *server.ServerContext) (*mcp.CallToolResult, error) {
+func stopAll(ctx context.Context, sc *server.ServerContext, noArchive bool) (*mcp.CallToolResult, error) {
 	instances, err := instance.LoadAll(sc.Paths)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("loading instances: %v", err)), nil
@@ -683,6 +701,10 @@ func stopAll(ctx context.Context, sc *server.ServerContext) (*mcp.CallToolResult
 		if err != nil || status == "" {
 			_ = instance.Clear(sc.InstancePaths(inst.Name))
 			continue
+		}
+		// Archive before stopping.
+		if status == "running" && !noArchive {
+			mcpArchiveBeforeCleanup(ctx, inst, sc)
 		}
 		if status == "running" {
 			if err := rt.Stop(ctx, containerName); err != nil {
@@ -770,6 +792,14 @@ func parseGitAuthor(s string) (name, email string, err error) {
 		return "", "", fmt.Errorf("invalid gitAuthor format %q: name and email must not contain control characters", s)
 	}
 	return name, email, nil
+}
+
+// mcpArchiveBeforeCleanup captures the agent transcript before stopping or
+// deleting an instance in the MCP context. Best-effort: logs and continues.
+func mcpArchiveBeforeCleanup(ctx context.Context, inst *instance.Instance, sc *server.ServerContext) {
+	if err := archive.Capture(ctx, sc.MCPClient, inst, sc.Paths.ArchivesDir); err != nil {
+		log.Printf("Warning: failed to archive %q: %v", inst.Name, err)
+	}
 }
 
 func formatDuration(d time.Duration) string {

@@ -233,6 +233,7 @@ func startInstance(cmd *cobra.Command, instanceName, workspaceOverride, configPa
 		effectiveWorkspace = cfg.WorktreePath
 	}
 	inst = &instance.Instance{
+		UUID:        instance.NewUUID(),
 		Name:        instanceName,
 		ContainerID: containerID,
 		Runtime:     rt.Name(),

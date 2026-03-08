@@ -174,7 +174,7 @@ func waitForAgentResult(ctx context.Context, name, baseURL string, client *mcpcl
 		}
 	}
 
-	resultResp, err := client.Result(ctx, name, baseURL)
+	resultResp, err := client.Result(ctx, name, baseURL, false)
 	if err != nil {
 		return "", fmt.Errorf("fetching result: %w", err)
 	}
