@@ -113,11 +113,34 @@ func Create(repoDir, worktreePath string) error {
 
 	// Create the worktree in detached HEAD mode pointing at origin/<branch>.
 	ref := "origin/" + branch
-	wtCmd := exec.Command("git", "worktree", "add", "--detach", worktreePath, ref)
+	wtCmd := exec.Command("git", "worktree", "add", "--detach", "--", worktreePath, ref)
 	wtCmd.Dir = repoDir
+	wtCmd.Env = append(os.Environ(), "LC_ALL=C")
 	var wtErr bytes.Buffer
 	wtCmd.Stderr = &wtErr
 	if err := wtCmd.Run(); err != nil {
+		// If the failure is due to a stale worktree registration (directory
+		// gone but .git/worktrees entry still present), prune and retry once.
+		// LC_ALL=C ensures the error message is in English regardless of locale.
+		if strings.Contains(wtErr.String(), "already registered worktree") {
+			pruneCmd := exec.Command("git", "worktree", "prune", "--expire=now")
+			pruneCmd.Dir = repoDir
+			var pruneErr bytes.Buffer
+			pruneCmd.Stderr = &pruneErr
+			if pErr := pruneCmd.Run(); pErr != nil {
+				return fmt.Errorf("git worktree prune after stale registration (original: %s): %s: %w",
+					strings.TrimSpace(wtErr.String()), strings.TrimSpace(pruneErr.String()), pErr)
+			}
+
+			retryCmd := exec.Command("git", "worktree", "add", "--detach", "--", worktreePath, ref)
+			retryCmd.Dir = repoDir
+			var retryErr bytes.Buffer
+			retryCmd.Stderr = &retryErr
+			if rErr := retryCmd.Run(); rErr != nil {
+				return fmt.Errorf("git worktree add %s (retry after prune): %s: %w", worktreePath, strings.TrimSpace(retryErr.String()), rErr)
+			}
+			return nil
+		}
 		return fmt.Errorf("git worktree add %s: %s: %w", worktreePath, strings.TrimSpace(wtErr.String()), err)
 	}
 

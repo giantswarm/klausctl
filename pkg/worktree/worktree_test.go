@@ -312,6 +312,126 @@ func TestRemoveAlreadyDeletedDirectory(t *testing.T) {
 	}
 }
 
+func TestCreateAutoRecoveryFromStaleRegistration(t *testing.T) {
+	bare := initBareRepo(t)
+	clone := cloneRepo(t, bare)
+
+	wtPath := filepath.Join(t.TempDir(), "worktree")
+
+	// Create a worktree normally.
+	if err := Create(clone, wtPath); err != nil {
+		t.Fatalf("Create() error: %v", err)
+	}
+
+	// Simulate a stale registration: delete the worktree directory but leave
+	// the .git/worktrees entry intact (as happens on SIGKILL or power loss).
+	if err := os.RemoveAll(wtPath); err != nil {
+		t.Fatalf("removing worktree dir: %v", err)
+	}
+	// Verify the stale registration exists.
+	cmd := exec.Command("git", "worktree", "list", "--porcelain")
+	cmd.Dir = clone
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("git worktree list: %v", err)
+	}
+	if !strings.Contains(string(out), wtPath) {
+		t.Fatal("expected stale worktree registration to still exist")
+	}
+
+	// Create again at the same path — should auto-recover via prune + retry.
+	if err := Create(clone, wtPath); err != nil {
+		t.Fatalf("Create() with stale registration error: %v", err)
+	}
+
+	// Verify the new worktree is functional.
+	data, err := os.ReadFile(filepath.Join(wtPath, "README.md"))
+	if err != nil {
+		t.Fatalf("reading README in recovered worktree: %v", err)
+	}
+	if string(data) != "hello" {
+		t.Fatalf("unexpected README content: %q", data)
+	}
+
+	// Clean up.
+	if err := Remove(clone, wtPath); err != nil {
+		t.Fatalf("Remove() error: %v", err)
+	}
+}
+
+func TestCreateDeleteCreateCycle(t *testing.T) {
+	bare := initBareRepo(t)
+	clone := cloneRepo(t, bare)
+
+	wtPath := filepath.Join(t.TempDir(), "worktree")
+
+	// Run three full create-delete cycles on the same path to verify no
+	// stale registrations accumulate.
+	for i := 0; i < 3; i++ {
+		if err := Create(clone, wtPath); err != nil {
+			t.Fatalf("cycle %d: Create() error: %v", i, err)
+		}
+
+		data, err := os.ReadFile(filepath.Join(wtPath, "README.md"))
+		if err != nil {
+			t.Fatalf("cycle %d: reading README: %v", i, err)
+		}
+		if string(data) != "hello" {
+			t.Fatalf("cycle %d: unexpected README content: %q", i, data)
+		}
+
+		if err := Remove(clone, wtPath); err != nil {
+			t.Fatalf("cycle %d: Remove() error: %v", i, err)
+		}
+	}
+}
+
+func TestCreateNonStaleErrorFailsImmediately(t *testing.T) {
+	bare := initBareRepo(t)
+	clone := cloneRepo(t, bare)
+
+	wtPath := filepath.Join(t.TempDir(), "worktree")
+
+	// Create a live worktree at this path.
+	if err := Create(clone, wtPath); err != nil {
+		t.Fatalf("initial Create() error: %v", err)
+	}
+
+	// Attempt to create again at the same path while the worktree is still
+	// live. Git produces "already exists" rather than "already registered
+	// worktree", so the prune+retry recovery must NOT be triggered.
+	wtPath2 := filepath.Join(t.TempDir(), "worktree2")
+	err := Create(clone, wtPath2)
+	// This should succeed (different path). Now test the actual guard: try
+	// creating at wtPath again while it is live.
+	if err != nil {
+		t.Fatalf("Create(wtPath2) error: %v", err)
+	}
+	_ = Remove(clone, wtPath2)
+
+	// The real test: create at the same path as a live worktree. The error
+	// from git will NOT contain "already registered worktree" so prune+retry
+	// must not trigger.
+	err = Create(clone, wtPath)
+	if err == nil {
+		// Some git versions may succeed by creating at an occupied path;
+		// in that case the guard is moot. Clean up and skip.
+		_ = Remove(clone, wtPath)
+		t.Skip("git worktree add succeeded on occupied path; cannot test guard")
+	}
+	if strings.Contains(err.Error(), "retry after prune") {
+		t.Fatalf("non-stale error incorrectly triggered prune+retry: %v", err)
+	}
+	if !strings.Contains(err.Error(), "git worktree add") {
+		t.Fatalf("unexpected error format: %v", err)
+	}
+
+	// Clean up.
+	if err := Remove(clone, wtPath); err != nil {
+		t.Fatalf("Remove() error: %v", err)
+	}
+}
+
 func TestLockRepo(t *testing.T) {
 	bare := initBareRepo(t)
 	clone := cloneRepo(t, bare)
