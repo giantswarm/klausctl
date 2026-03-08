@@ -94,9 +94,9 @@ func startInstance(cmd *cobra.Command, instanceName, workspaceOverride, configPa
 	if cfg.WorktreePath != "" {
 		if _, err := os.Stat(cfg.WorktreePath); err != nil {
 			if os.IsNotExist(err) {
-				return fmt.Errorf("worktree directory does not exist: %s", cfg.WorktreePath)
+				return fmt.Errorf("workspace clone directory does not exist: %s", cfg.WorktreePath)
 			}
-			return fmt.Errorf("checking worktree directory: %w", err)
+			return fmt.Errorf("checking workspace clone directory: %w", err)
 		}
 	}
 

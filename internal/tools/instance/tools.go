@@ -183,7 +183,7 @@ func mcpCleanupExistingInstance(ctx context.Context, name string, paths *config.
 	cfg, _ := config.Load(paths.ConfigFile)
 	if cfg != nil && cfg.WorktreePath != "" {
 		if err := worktree.Remove(cfg.Workspace, cfg.WorktreePath); err != nil {
-			log.Printf("Warning: failed to remove git worktree: %v", err)
+			log.Printf("Warning: failed to remove workspace clone: %v", err)
 		}
 	}
 
@@ -287,7 +287,7 @@ func handleDelete(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 	cfg, _ := config.Load(paths.ConfigFile)
 	if cfg != nil && cfg.WorktreePath != "" {
 		if err := worktree.Remove(cfg.Workspace, cfg.WorktreePath); err != nil {
-			log.Printf("Warning: failed to remove git worktree: %v", err)
+			log.Printf("Warning: failed to remove workspace clone: %v", err)
 		}
 	}
 
@@ -512,9 +512,9 @@ func startExistingInstance(ctx context.Context, name string, sc *server.ServerCo
 	if cfg.WorktreePath != "" {
 		if _, err := os.Stat(cfg.WorktreePath); err != nil {
 			if errors.Is(err, os.ErrNotExist) {
-				return nil, fmt.Errorf("worktree directory does not exist: %s", cfg.WorktreePath)
+				return nil, fmt.Errorf("workspace clone directory does not exist: %s", cfg.WorktreePath)
 			}
-			return nil, fmt.Errorf("checking worktree directory: %w", err)
+			return nil, fmt.Errorf("checking workspace clone directory: %w", err)
 		}
 	}
 

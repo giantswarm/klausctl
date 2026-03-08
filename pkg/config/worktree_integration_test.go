@@ -83,8 +83,19 @@ func TestGenerateInstanceConfig_CreatesWorktreeForGitRepo(t *testing.T) {
 		t.Fatalf("expected Workspace=%q (original repo), got %q", clone, cfg.Workspace)
 	}
 
-	// Clean up the worktree to avoid git warnings.
-	gitRun(t, clone, "worktree", "remove", "--force", cfg.WorktreePath)
+	// Verify the clone has a self-contained .git directory (not a file).
+	info, err := os.Stat(filepath.Join(cfg.WorktreePath, ".git"))
+	if err != nil {
+		t.Fatalf("stat .git in clone: %v", err)
+	}
+	if !info.IsDir() {
+		t.Fatal("expected .git to be a directory in clone, not a file")
+	}
+
+	// Clean up the clone.
+	if err := os.RemoveAll(cfg.WorktreePath); err != nil {
+		t.Fatalf("removing clone: %v", err)
+	}
 }
 
 func TestGenerateInstanceConfig_NoIsolateSkipsWorktree(t *testing.T) {

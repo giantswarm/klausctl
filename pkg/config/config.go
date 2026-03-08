@@ -35,9 +35,9 @@ type Config struct {
 	// Workspace is the host directory to mount into the container at /workspace.
 	Workspace string `yaml:"workspace"`
 
-	// WorktreePath is the path to the git worktree created for this instance.
+	// WorktreePath is the path to the local git clone created for this instance.
 	// When set, this path is bind-mounted instead of Workspace, and Workspace
-	// stores the original repository path for worktree lifecycle management.
+	// stores the original repository path for clone lifecycle management.
 	WorktreePath string `yaml:"worktreePath,omitempty"`
 
 	// Port is the host port mapped to the container's MCP endpoint (8080).
