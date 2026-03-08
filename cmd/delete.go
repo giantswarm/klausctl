@@ -62,11 +62,11 @@ func runDelete(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Load instance config to check for worktree before removing anything.
+	// Load instance config to check for workspace clone before removing anything.
 	cfg, _ := config.Load(paths.ConfigFile)
 	if cfg != nil && cfg.WorktreePath != "" {
 		if err := worktree.Remove(cfg.Workspace, cfg.WorktreePath); err != nil {
-			fmt.Fprintf(cmd.ErrOrStderr(), "Warning: failed to remove git worktree: %v\n", err)
+			fmt.Fprintf(cmd.ErrOrStderr(), "Warning: failed to remove workspace clone: %v\n", err)
 		}
 	}
 

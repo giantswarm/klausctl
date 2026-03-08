@@ -86,69 +86,109 @@ func TestCreateAndRemove(t *testing.T) {
 	bare := initBareRepo(t)
 	clone := cloneRepo(t, bare)
 
-	wtPath := filepath.Join(t.TempDir(), "worktree")
+	clonedPath := filepath.Join(t.TempDir(), "instance-workspace")
 
-	if err := Create(clone, wtPath); err != nil {
+	if err := Create(clone, clonedPath); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
-	// Verify the worktree directory exists and has the README.
-	readme := filepath.Join(wtPath, "README.md")
+	// Verify the clone directory exists and has the README.
+	readme := filepath.Join(clonedPath, "README.md")
 	data, err := os.ReadFile(readme)
 	if err != nil {
-		t.Fatalf("reading README in worktree: %v", err)
+		t.Fatalf("reading README in clone: %v", err)
 	}
 	if string(data) != "hello" {
 		t.Fatalf("unexpected README content: %q", data)
 	}
 
-	// Verify it's a git worktree (has .git file, not directory).
-	gitPath := filepath.Join(wtPath, ".git")
+	// Verify it's a full clone (has .git directory, not a file).
+	gitPath := filepath.Join(clonedPath, ".git")
 	info, err := os.Stat(gitPath)
 	if err != nil {
-		t.Fatalf("stat .git in worktree: %v", err)
+		t.Fatalf("stat .git in clone: %v", err)
 	}
-	if info.IsDir() {
-		t.Fatal("expected .git to be a file in worktree, not a directory")
+	if !info.IsDir() {
+		t.Fatal("expected .git to be a directory in clone, not a file")
 	}
 
-	// Remove the worktree.
-	if err := Remove(clone, wtPath); err != nil {
+	// Verify the origin remote points to the upstream (bare repo), not the local clone.
+	cmd := exec.Command("git", "remote", "get-url", "origin")
+	cmd.Dir = clonedPath
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("git remote get-url origin: %v", err)
+	}
+	originURL := strings.TrimSpace(string(out))
+	if originURL != bare {
+		t.Fatalf("expected origin URL %q, got %q", bare, originURL)
+	}
+
+	// Remove the clone.
+	if err := Remove(clone, clonedPath); err != nil {
 		t.Fatalf("Remove() error: %v", err)
 	}
 
-	if _, err := os.Stat(wtPath); !os.IsNotExist(err) {
-		t.Fatalf("expected worktree directory to be removed, stat err: %v", err)
+	if _, err := os.Stat(clonedPath); !os.IsNotExist(err) {
+		t.Fatalf("expected clone directory to be removed, stat err: %v", err)
 	}
 }
 
-func TestCreateMultipleWorktrees(t *testing.T) {
+func TestCreateProducesSelfContainedGitDir(t *testing.T) {
 	bare := initBareRepo(t)
 	clone := cloneRepo(t, bare)
 
-	wt1 := filepath.Join(t.TempDir(), "wt1")
-	wt2 := filepath.Join(t.TempDir(), "wt2")
+	clonedPath := filepath.Join(t.TempDir(), "instance-workspace")
 
-	if err := Create(clone, wt1); err != nil {
-		t.Fatalf("Create(wt1) error: %v", err)
+	if err := Create(clone, clonedPath); err != nil {
+		t.Fatalf("Create() error: %v", err)
 	}
-	if err := Create(clone, wt2); err != nil {
-		t.Fatalf("Create(wt2) error: %v", err)
+
+	// The key invariant: git operations work in the clone without access to
+	// the source repo. Simulate container isolation by verifying git commands
+	// succeed using only the clone's .git directory.
+	for _, args := range [][]string{
+		{"rev-parse", "--is-inside-work-tree"},
+		{"log", "--oneline", "-1"},
+		{"remote", "-v"},
+		{"status"},
+	} {
+		cmd := exec.Command("git", args...)
+		cmd.Dir = clonedPath
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %s failed in clone: %v\n%s", strings.Join(args, " "), err, out)
+		}
+	}
+}
+
+func TestCreateMultipleClones(t *testing.T) {
+	bare := initBareRepo(t)
+	clone := cloneRepo(t, bare)
+
+	c1 := filepath.Join(t.TempDir(), "c1")
+	c2 := filepath.Join(t.TempDir(), "c2")
+
+	if err := Create(clone, c1); err != nil {
+		t.Fatalf("Create(c1) error: %v", err)
+	}
+	if err := Create(clone, c2); err != nil {
+		t.Fatalf("Create(c2) error: %v", err)
 	}
 
 	// Both should have the README.
-	for _, wt := range []string{wt1, wt2} {
-		if _, err := os.ReadFile(filepath.Join(wt, "README.md")); err != nil {
-			t.Fatalf("missing README in %s: %v", wt, err)
+	for _, c := range []string{c1, c2} {
+		if _, err := os.ReadFile(filepath.Join(c, "README.md")); err != nil {
+			t.Fatalf("missing README in %s: %v", c, err)
 		}
 	}
 
 	// Clean up both.
-	if err := Remove(clone, wt1); err != nil {
-		t.Fatalf("Remove(wt1) error: %v", err)
+	if err := Remove(clone, c1); err != nil {
+		t.Fatalf("Remove(c1) error: %v", err)
 	}
-	if err := Remove(clone, wt2); err != nil {
-		t.Fatalf("Remove(wt2) error: %v", err)
+	if err := Remove(clone, c2); err != nil {
+		t.Fatalf("Remove(c2) error: %v", err)
 	}
 }
 
@@ -157,19 +197,19 @@ func TestConcurrentCreate(t *testing.T) {
 	clone := cloneRepo(t, bare)
 
 	const n = 5
-	wtPaths := make([]string, n)
-	for i := range wtPaths {
-		wtPaths[i] = filepath.Join(t.TempDir(), fmt.Sprintf("wt%d", i))
+	clonePaths := make([]string, n)
+	for i := range clonePaths {
+		clonePaths[i] = filepath.Join(t.TempDir(), fmt.Sprintf("c%d", i))
 	}
 
-	// Create all worktrees concurrently.
+	// Create all clones concurrently.
 	var wg sync.WaitGroup
 	errs := make([]error, n)
 	for i := 0; i < n; i++ {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
-			errs[idx] = Create(clone, wtPaths[idx])
+			errs[idx] = Create(clone, clonePaths[idx])
 		}(i)
 	}
 	wg.Wait()
@@ -177,185 +217,38 @@ func TestConcurrentCreate(t *testing.T) {
 	// All creations must succeed.
 	for i, err := range errs {
 		if err != nil {
-			t.Fatalf("Create(wt%d) error: %v", i, err)
+			t.Fatalf("Create(c%d) error: %v", i, err)
 		}
 	}
 
-	// Every worktree must have the README and a valid git remote.
-	for i, wt := range wtPaths {
-		data, err := os.ReadFile(filepath.Join(wt, "README.md"))
+	// Every clone must have the README and a valid git remote pointing upstream.
+	for i, c := range clonePaths {
+		data, err := os.ReadFile(filepath.Join(c, "README.md"))
 		if err != nil {
-			t.Fatalf("wt%d: missing README: %v", i, err)
+			t.Fatalf("c%d: missing README: %v", i, err)
 		}
 		if string(data) != "hello" {
-			t.Fatalf("wt%d: unexpected README content: %q", i, data)
+			t.Fatalf("c%d: unexpected README content: %q", i, data)
 		}
 
-		// Verify git remote is intact.
-		cmd := exec.Command("git", "remote", "-v")
-		cmd.Dir = wt
+		// Verify git remote points to upstream.
+		cmd := exec.Command("git", "remote", "get-url", "origin")
+		cmd.Dir = c
 		out, err := cmd.CombinedOutput()
 		if err != nil {
-			t.Fatalf("wt%d: git remote -v failed: %v\n%s", i, err, out)
+			t.Fatalf("c%d: git remote get-url failed: %v\n%s", i, err, out)
 		}
-		if !strings.Contains(string(out), "origin") {
-			t.Fatalf("wt%d: missing origin remote: %s", i, out)
-		}
-	}
-
-	// Clean up all worktrees.
-	for i, wt := range wtPaths {
-		if err := Remove(clone, wt); err != nil {
-			t.Errorf("Remove(wt%d) error: %v", i, err)
+		url := strings.TrimSpace(string(out))
+		if url != bare {
+			t.Fatalf("c%d: expected origin URL %q, got %q", i, bare, url)
 		}
 	}
-}
 
-func TestRemoveFallsBackToForce(t *testing.T) {
-	bare := initBareRepo(t)
-	clone := cloneRepo(t, bare)
-
-	wtPath := filepath.Join(t.TempDir(), "worktree")
-
-	if err := Create(clone, wtPath); err != nil {
-		t.Fatalf("Create() error: %v", err)
-	}
-
-	// Modify a tracked file so `git worktree remove` (without --force) fails
-	// due to uncommitted changes.
-	if err := os.WriteFile(filepath.Join(wtPath, "README.md"), []byte("modified"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	// Remove should succeed via the --force fallback.
-	if err := Remove(clone, wtPath); err != nil {
-		t.Fatalf("Remove() error: %v", err)
-	}
-
-	if _, err := os.Stat(wtPath); !os.IsNotExist(err) {
-		t.Fatalf("expected worktree directory to be removed, stat err: %v", err)
-	}
-}
-
-func TestRemoveFallsBackToManualCleanup(t *testing.T) {
-	bare := initBareRepo(t)
-	clone := cloneRepo(t, bare)
-
-	wtPath := filepath.Join(t.TempDir(), "worktree")
-
-	if err := Create(clone, wtPath); err != nil {
-		t.Fatalf("Create() error: %v", err)
-	}
-
-	// Corrupt the worktree by replacing the .git file with garbage.
-	// This makes both `git worktree remove` and `git worktree remove --force`
-	// fail because git cannot validate the worktree.
-	gitFile := filepath.Join(wtPath, ".git")
-	if err := os.Remove(gitFile); err != nil {
-		t.Fatalf("removing .git file: %v", err)
-	}
-	if err := os.WriteFile(gitFile, []byte("garbage"), 0o644); err != nil {
-		t.Fatalf("writing corrupt .git file: %v", err)
-	}
-
-	// Remove should succeed via the manual removal + prune fallback.
-	if err := Remove(clone, wtPath); err != nil {
-		t.Fatalf("Remove() error: %v", err)
-	}
-
-	// Verify the worktree directory is gone.
-	if _, err := os.Stat(wtPath); !os.IsNotExist(err) {
-		t.Fatalf("expected worktree directory to be removed, stat err: %v", err)
-	}
-
-	// Verify git no longer lists the worktree.
-	cmd := exec.Command("git", "worktree", "list", "--porcelain")
-	cmd.Dir = clone
-	out, err := cmd.Output()
-	if err != nil {
-		t.Fatalf("git worktree list: %v", err)
-	}
-	if strings.Contains(string(out), wtPath) {
-		t.Fatalf("expected worktree to be pruned from git, but still listed:\n%s", out)
-	}
-}
-
-func TestRemoveAlreadyDeletedDirectory(t *testing.T) {
-	bare := initBareRepo(t)
-	clone := cloneRepo(t, bare)
-
-	wtPath := filepath.Join(t.TempDir(), "worktree")
-
-	if err := Create(clone, wtPath); err != nil {
-		t.Fatalf("Create() error: %v", err)
-	}
-
-	// Manually delete the worktree directory to simulate partial cleanup.
-	if err := os.RemoveAll(wtPath); err != nil {
-		t.Fatal(err)
-	}
-
-	// Remove should still succeed (manual fallback prunes the stale reference).
-	if err := Remove(clone, wtPath); err != nil {
-		t.Fatalf("Remove() error: %v", err)
-	}
-
-	// Verify git no longer lists the worktree.
-	cmd := exec.Command("git", "worktree", "list", "--porcelain")
-	cmd.Dir = clone
-	out, err := cmd.Output()
-	if err != nil {
-		t.Fatalf("git worktree list: %v", err)
-	}
-	if strings.Contains(string(out), wtPath) {
-		t.Fatalf("expected stale worktree to be pruned, but still listed:\n%s", out)
-	}
-}
-
-func TestCreateAutoRecoveryFromStaleRegistration(t *testing.T) {
-	bare := initBareRepo(t)
-	clone := cloneRepo(t, bare)
-
-	wtPath := filepath.Join(t.TempDir(), "worktree")
-
-	// Create a worktree normally.
-	if err := Create(clone, wtPath); err != nil {
-		t.Fatalf("Create() error: %v", err)
-	}
-
-	// Simulate a stale registration: delete the worktree directory but leave
-	// the .git/worktrees entry intact (as happens on SIGKILL or power loss).
-	if err := os.RemoveAll(wtPath); err != nil {
-		t.Fatalf("removing worktree dir: %v", err)
-	}
-	// Verify the stale registration exists.
-	cmd := exec.Command("git", "worktree", "list", "--porcelain")
-	cmd.Dir = clone
-	out, err := cmd.Output()
-	if err != nil {
-		t.Fatalf("git worktree list: %v", err)
-	}
-	if !strings.Contains(string(out), wtPath) {
-		t.Fatal("expected stale worktree registration to still exist")
-	}
-
-	// Create again at the same path — should auto-recover via prune + retry.
-	if err := Create(clone, wtPath); err != nil {
-		t.Fatalf("Create() with stale registration error: %v", err)
-	}
-
-	// Verify the new worktree is functional.
-	data, err := os.ReadFile(filepath.Join(wtPath, "README.md"))
-	if err != nil {
-		t.Fatalf("reading README in recovered worktree: %v", err)
-	}
-	if string(data) != "hello" {
-		t.Fatalf("unexpected README content: %q", data)
-	}
-
-	// Clean up.
-	if err := Remove(clone, wtPath); err != nil {
-		t.Fatalf("Remove() error: %v", err)
+	// Clean up all clones.
+	for i, c := range clonePaths {
+		if err := Remove(clone, c); err != nil {
+			t.Errorf("Remove(c%d) error: %v", i, err)
+		}
 	}
 }
 
@@ -363,16 +256,15 @@ func TestCreateDeleteCreateCycle(t *testing.T) {
 	bare := initBareRepo(t)
 	clone := cloneRepo(t, bare)
 
-	wtPath := filepath.Join(t.TempDir(), "worktree")
+	clonedPath := filepath.Join(t.TempDir(), "instance-workspace")
 
-	// Run three full create-delete cycles on the same path to verify no
-	// stale registrations accumulate.
+	// Run three full create-delete cycles on the same path.
 	for i := 0; i < 3; i++ {
-		if err := Create(clone, wtPath); err != nil {
+		if err := Create(clone, clonedPath); err != nil {
 			t.Fatalf("cycle %d: Create() error: %v", i, err)
 		}
 
-		data, err := os.ReadFile(filepath.Join(wtPath, "README.md"))
+		data, err := os.ReadFile(filepath.Join(clonedPath, "README.md"))
 		if err != nil {
 			t.Fatalf("cycle %d: reading README: %v", i, err)
 		}
@@ -380,81 +272,54 @@ func TestCreateDeleteCreateCycle(t *testing.T) {
 			t.Fatalf("cycle %d: unexpected README content: %q", i, data)
 		}
 
-		if err := Remove(clone, wtPath); err != nil {
+		if err := Remove(clone, clonedPath); err != nil {
 			t.Fatalf("cycle %d: Remove() error: %v", i, err)
 		}
 	}
 }
 
-func TestCreateNonStaleErrorFailsImmediately(t *testing.T) {
+func TestRemoveAlreadyDeletedDirectory(t *testing.T) {
 	bare := initBareRepo(t)
 	clone := cloneRepo(t, bare)
 
-	wtPath := filepath.Join(t.TempDir(), "worktree")
+	clonedPath := filepath.Join(t.TempDir(), "instance-workspace")
 
-	// Create a live worktree at this path.
-	if err := Create(clone, wtPath); err != nil {
-		t.Fatalf("initial Create() error: %v", err)
-	}
-
-	// Attempt to create again at the same path while the worktree is still
-	// live. Git produces "already exists" rather than "already registered
-	// worktree", so the prune+retry recovery must NOT be triggered.
-	wtPath2 := filepath.Join(t.TempDir(), "worktree2")
-	err := Create(clone, wtPath2)
-	// This should succeed (different path). Now test the actual guard: try
-	// creating at wtPath again while it is live.
-	if err != nil {
-		t.Fatalf("Create(wtPath2) error: %v", err)
-	}
-	_ = Remove(clone, wtPath2)
-
-	// The real test: create at the same path as a live worktree. The error
-	// from git will NOT contain "already registered worktree" so prune+retry
-	// must not trigger.
-	err = Create(clone, wtPath)
-	if err == nil {
-		// Some git versions may succeed by creating at an occupied path;
-		// in that case the guard is moot. Clean up and skip.
-		_ = Remove(clone, wtPath)
-		t.Skip("git worktree add succeeded on occupied path; cannot test guard")
-	}
-	if strings.Contains(err.Error(), "retry after prune") {
-		t.Fatalf("non-stale error incorrectly triggered prune+retry: %v", err)
-	}
-	if !strings.Contains(err.Error(), "git worktree add") {
-		t.Fatalf("unexpected error format: %v", err)
+	if err := Create(clone, clonedPath); err != nil {
+		t.Fatalf("Create() error: %v", err)
 	}
 
-	// Clean up.
-	if err := Remove(clone, wtPath); err != nil {
+	// Manually delete the directory to simulate partial cleanup.
+	if err := os.RemoveAll(clonedPath); err != nil {
+		t.Fatal(err)
+	}
+
+	// Remove should succeed (os.RemoveAll on non-existent path returns nil).
+	if err := Remove(clone, clonedPath); err != nil {
 		t.Fatalf("Remove() error: %v", err)
 	}
 }
 
-func TestLockRepo(t *testing.T) {
+func TestRemoveWithModifiedFiles(t *testing.T) {
 	bare := initBareRepo(t)
 	clone := cloneRepo(t, bare)
 
-	// Acquire lock.
-	unlock, err := lockRepo(clone)
-	if err != nil {
-		t.Fatalf("lockRepo() error: %v", err)
+	clonedPath := filepath.Join(t.TempDir(), "instance-workspace")
+
+	if err := Create(clone, clonedPath); err != nil {
+		t.Fatalf("Create() error: %v", err)
 	}
 
-	// Verify lock file was created.
-	lockPath := filepath.Join(clone, ".git", "klausctl.lock")
-	if _, err := os.Stat(lockPath); err != nil {
-		t.Fatalf("lock file not created: %v", err)
+	// Modify a tracked file.
+	if err := os.WriteFile(filepath.Join(clonedPath, "README.md"), []byte("modified"), 0o644); err != nil {
+		t.Fatal(err)
 	}
 
-	// Release lock.
-	unlock()
-
-	// Lock can be acquired again after release.
-	unlock2, err := lockRepo(clone)
-	if err != nil {
-		t.Fatalf("lockRepo() after release error: %v", err)
+	// Remove should succeed unconditionally (just deletes the directory).
+	if err := Remove(clone, clonedPath); err != nil {
+		t.Fatalf("Remove() error: %v", err)
 	}
-	unlock2()
+
+	if _, err := os.Stat(clonedPath); !os.IsNotExist(err) {
+		t.Fatalf("expected clone directory to be removed, stat err: %v", err)
+	}
 }

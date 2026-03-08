@@ -85,17 +85,17 @@ func GenerateInstanceConfig(paths *Paths, opts CreateOptions) (*Config, error) {
 	cfg := DefaultConfig()
 	cfg.Workspace = workspace
 
-	// Create a git worktree for isolation when the workspace is a git repo.
+	// Create a local clone for isolation when the workspace is a git repo.
 	if !opts.NoIsolate && worktree.IsGitRepo(workspace) {
 		instanceDir := filepath.Join(paths.InstancesDir, opts.Name)
 		wtPath := filepath.Join(instanceDir, "workspace")
 
 		if err := EnsureDir(instanceDir); err != nil {
-			return nil, fmt.Errorf("creating instance directory for worktree: %w", err)
+			return nil, fmt.Errorf("creating instance directory for workspace clone: %w", err)
 		}
 
 		if err := worktree.Create(workspace, wtPath); err != nil {
-			return nil, fmt.Errorf("creating git worktree: %w", err)
+			return nil, fmt.Errorf("creating workspace clone: %w", err)
 		}
 
 		cfg.WorktreePath = wtPath
