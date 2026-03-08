@@ -60,7 +60,7 @@ func TestResultUnreachable(t *testing.T) {
 	defer c.Close()
 
 	ctx := context.Background()
-	_, err := c.Result(ctx, "test", "http://127.0.0.1:1/mcp")
+	_, err := c.Result(ctx, "test", "http://127.0.0.1:1/mcp", false)
 	if err == nil {
 		t.Fatal("expected error for unreachable host")
 	}

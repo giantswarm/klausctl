@@ -113,9 +113,14 @@ func (c *Client) Status(ctx context.Context, instanceName, baseURL string) (*mcp
 	return c.callTool(ctx, instanceName, baseURL, "status", nil)
 }
 
-// Result retrieves the agent's last result.
-func (c *Client) Result(ctx context.Context, instanceName, baseURL string) (*mcp.CallToolResult, error) {
-	return c.callTool(ctx, instanceName, baseURL, "result", nil)
+// Result retrieves the agent's last result. When full is true, the agent
+// returns extended detail (tool_calls, model_usage, token_usage, etc.).
+func (c *Client) Result(ctx context.Context, instanceName, baseURL string, full bool) (*mcp.CallToolResult, error) {
+	var args map[string]any
+	if full {
+		args = map[string]any{"full": true}
+	}
+	return c.callTool(ctx, instanceName, baseURL, "result", args)
 }
 
 // SessionID returns the MCP session ID for the given instance, if any.
