@@ -9,11 +9,15 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/giantswarm/klausctl/pkg/config"
 )
 
 // Instance holds the state of a running klausctl container.
 type Instance struct {
+	// UUID uniquely identifies this instance run for archiving purposes.
+	UUID string `json:"uuid,omitempty"`
 	// Name is the instance name (default: "default").
 	Name string `json:"name"`
 	// ContainerID is the container ID returned by the runtime.
@@ -30,6 +34,11 @@ type Instance struct {
 	Workspace string `json:"workspace"`
 	// StartedAt is when the container was started.
 	StartedAt time.Time `json:"startedAt"`
+}
+
+// NewUUID returns a new random UUID string for instance identification.
+func NewUUID() string {
+	return uuid.New().String()
 }
 
 // containerPrefix is the prefix used for all klausctl container names.

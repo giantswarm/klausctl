@@ -26,6 +26,7 @@ func TestSaveAndLoad(t *testing.T) {
 
 	now := time.Now()
 	inst := &Instance{
+		UUID:        NewUUID(),
 		Name:        "test",
 		ContainerID: "abc123",
 		Runtime:     "docker",
@@ -45,6 +46,9 @@ func TestSaveAndLoad(t *testing.T) {
 		t.Fatalf("Load() returned error: %v", err)
 	}
 
+	if loaded.UUID != inst.UUID {
+		t.Errorf("UUID = %q, want %q", loaded.UUID, inst.UUID)
+	}
 	if loaded.Name != inst.Name {
 		t.Errorf("Name = %q, want %q", loaded.Name, inst.Name)
 	}
@@ -168,5 +172,24 @@ func TestLoadAll(t *testing.T) {
 	}
 	if len(instances) != 2 {
 		t.Fatalf("LoadAll() returned %d instances, want 2", len(instances))
+	}
+}
+
+func TestNewUUID(t *testing.T) {
+	u1 := NewUUID()
+	u2 := NewUUID()
+
+	if u1 == "" {
+		t.Error("NewUUID() returned empty string")
+	}
+	if u2 == "" {
+		t.Error("NewUUID() returned empty string")
+	}
+	if u1 == u2 {
+		t.Errorf("NewUUID() returned duplicate: %s", u1)
+	}
+	// UUID v4 format: 8-4-4-4-12 hex characters.
+	if len(u1) != 36 {
+		t.Errorf("NewUUID() length = %d, want 36", len(u1))
 	}
 }

@@ -31,6 +31,7 @@ func registerResult(s *mcpserver.MCPServer, sc *server.ServerContext) {
 	tool := mcp.NewTool("klaus_result",
 		mcp.WithDescription("Retrieve the result from the last prompt sent to a klaus instance"),
 		mcp.WithString("name", mcp.Required(), mcp.Description("Instance name")),
+		mcp.WithBoolean("full", mcp.Description("Return full agent detail including tool_calls, model_usage, token_usage, cost, etc.")),
 	)
 	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		return handleResult(ctx, req, sc)
@@ -107,13 +108,14 @@ func handleResult(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
+	full := req.GetBool("full", false)
 
 	baseURL, err := agentBaseURL(ctx, name, sc)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	toolResult, err := sc.MCPClient.Result(ctx, name, baseURL)
+	toolResult, err := sc.MCPClient.Result(ctx, name, baseURL, full)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("fetching result from %q: %v", name, err)), nil
 	}
@@ -124,6 +126,13 @@ func handleResult(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 			Status:   "error",
 			Result:   extractText(toolResult),
 		})
+	}
+
+	// When full is requested, pass the raw agent JSON through without
+	// re-parsing into the reduced agentResult struct.
+	if full {
+		text := extractText(toolResult)
+		return mcp.NewToolResultText(text), nil
 	}
 
 	text := extractText(toolResult)
@@ -201,7 +210,7 @@ func waitForResult(ctx context.Context, name, baseURL string, sc *server.ServerC
 		}
 	}
 
-	resultResp, err := sc.MCPClient.Result(ctx, name, baseURL)
+	resultResp, err := sc.MCPClient.Result(ctx, name, baseURL, false)
 	if err != nil {
 		return "", fmt.Errorf("fetching result: %w", err)
 	}

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"os/signal"
 	"slices"
@@ -11,13 +12,18 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/giantswarm/klausctl/pkg/archive"
 	"github.com/giantswarm/klausctl/pkg/config"
 	"github.com/giantswarm/klausctl/pkg/instance"
+	"github.com/giantswarm/klausctl/pkg/mcpclient"
 	"github.com/giantswarm/klausctl/pkg/runtime"
 	"github.com/giantswarm/klausctl/pkg/worktree"
 )
 
-var deleteYes bool
+var (
+	deleteYes       bool
+	deleteNoArchive bool
+)
 
 var deleteCmd = &cobra.Command{
 	Use:   "delete <name>",
@@ -28,6 +34,7 @@ var deleteCmd = &cobra.Command{
 
 func init() {
 	deleteCmd.Flags().BoolVar(&deleteYes, "yes", false, "skip confirmation prompt")
+	deleteCmd.Flags().BoolVar(&deleteNoArchive, "no-archive", false, "skip archiving the agent transcript before deleting")
 	rootCmd.AddCommand(deleteCmd)
 }
 
@@ -62,6 +69,12 @@ func runDelete(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Archive transcript before deleting if the container is still running.
+	inst, _ := instance.Load(paths)
+	if inst != nil && !deleteNoArchive && !archive.Exists(paths.ArchivesDir, inst.UUID) {
+		archiveBeforeDelete(ctx, inst, paths)
+	}
+
 	// Load instance config to check for workspace clone before removing anything.
 	cfg, _ := config.Load(paths.ConfigFile)
 	if cfg != nil && cfg.WorktreePath != "" {
@@ -70,7 +83,6 @@ func runDelete(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	inst, _ := instance.Load(paths)
 	if err := cleanupInstanceContainer(ctx, name, inst); err != nil {
 		return err
 	}
@@ -95,6 +107,17 @@ func confirmDelete(cmd *cobra.Command, name string) error {
 		return fmt.Errorf("delete cancelled")
 	}
 	return nil
+}
+
+// archiveBeforeDelete captures the agent transcript before deletion.
+// Best-effort: logs and continues on failure.
+func archiveBeforeDelete(ctx context.Context, inst *instance.Instance, paths *config.Paths) {
+	client := mcpclient.New(buildVersion)
+	defer client.Close()
+
+	if err := archive.Capture(ctx, client, inst, paths.ArchivesDir); err != nil {
+		log.Printf("Warning: failed to archive %q before delete: %v", inst.Name, err)
+	}
 }
 
 func cleanupInstanceContainer(ctx context.Context, instanceName string, inst *instance.Instance) error {
