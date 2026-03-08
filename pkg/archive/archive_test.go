@@ -231,6 +231,38 @@ func TestEntryFromResult_InvalidJSON(t *testing.T) {
 	}
 }
 
+func TestToListSummary(t *testing.T) {
+	cost := 1.23
+	entry := &Entry{
+		UUID:         "summary-uuid",
+		Name:         "dev",
+		Status:       "completed",
+		StoppedAt:    time.Date(2025, 6, 15, 10, 30, 0, 0, time.UTC),
+		MessageCount: 42,
+		TotalCostUSD: &cost,
+	}
+
+	s := entry.ToListSummary()
+	if s.UUID != "summary-uuid" {
+		t.Errorf("UUID = %q, want %q", s.UUID, "summary-uuid")
+	}
+	if s.Name != "dev" {
+		t.Errorf("Name = %q, want %q", s.Name, "dev")
+	}
+	if s.Status != "completed" {
+		t.Errorf("Status = %q, want %q", s.Status, "completed")
+	}
+	if s.MessageCount != 42 {
+		t.Errorf("MessageCount = %d, want %d", s.MessageCount, 42)
+	}
+	if s.TotalCostUSD == nil || *s.TotalCostUSD != 1.23 {
+		t.Errorf("TotalCostUSD = %v, want 1.23", s.TotalCostUSD)
+	}
+	if s.StoppedAt != "2025-06-15T10:30:00Z" {
+		t.Errorf("StoppedAt = %q, want %q", s.StoppedAt, "2025-06-15T10:30:00Z")
+	}
+}
+
 func mustMarshal(t *testing.T, v any) string {
 	t.Helper()
 	data, err := json.Marshal(v)

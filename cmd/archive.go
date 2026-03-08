@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"sort"
 
 	"github.com/spf13/cobra"
 
@@ -12,6 +13,7 @@ import (
 )
 
 var archiveOutput string
+var archiveShowFull bool
 
 var archiveCmd = &cobra.Command{
 	Use:   "archive",
@@ -34,19 +36,10 @@ var archiveShowCmd = &cobra.Command{
 
 func init() {
 	archiveCmd.PersistentFlags().StringVarP(&archiveOutput, "output", "o", "text", "output format: text, json")
+	archiveShowCmd.Flags().BoolVar(&archiveShowFull, "full", false, "include the full messages array in the output")
 	archiveCmd.AddCommand(archiveListCmd)
 	archiveCmd.AddCommand(archiveShowCmd)
 	rootCmd.AddCommand(archiveCmd)
-}
-
-// archiveListSummary is the text/json representation for the list command.
-type archiveListSummary struct {
-	UUID         string   `json:"uuid"`
-	Name         string   `json:"name"`
-	Status       string   `json:"status"`
-	StoppedAt    string   `json:"stopped_at"`
-	MessageCount int      `json:"message_count"`
-	TotalCostUSD *float64 `json:"total_cost_usd,omitempty"`
 }
 
 func runArchiveList(cmd *cobra.Command, _ []string) error {
@@ -63,16 +56,9 @@ func runArchiveList(cmd *cobra.Command, _ []string) error {
 	out := cmd.OutOrStdout()
 
 	if archiveOutput == "json" {
-		summaries := make([]archiveListSummary, 0, len(entries))
+		summaries := make([]archive.ListSummary, 0, len(entries))
 		for _, e := range entries {
-			summaries = append(summaries, archiveListSummary{
-				UUID:         e.UUID,
-				Name:         e.Name,
-				Status:       e.Status,
-				StoppedAt:    e.StoppedAt.Format("2006-01-02T15:04:05Z07:00"),
-				MessageCount: e.MessageCount,
-				TotalCostUSD: e.TotalCostUSD,
-			})
+			summaries = append(summaries, e.ToListSummary())
 		}
 		enc := json.NewEncoder(out)
 		enc.SetIndent("", "  ")
@@ -88,11 +74,15 @@ func runArchiveList(cmd *cobra.Command, _ []string) error {
 }
 
 func renderArchiveListText(out io.Writer, entries []*archive.Entry) error {
-	fmt.Fprintf(out, "%-36s  %-20s  %-12s  %5s  %s\n", "UUID", "NAME", "STATUS", "MSGS", "STOPPED")
+	fmt.Fprintf(out, "%-36s  %-20s  %-12s  %5s  %10s  %s\n", "UUID", "NAME", "STATUS", "MSGS", "COST", "STOPPED")
 	for _, e := range entries {
 		stopped := e.StoppedAt.Format("2006-01-02 15:04")
-		fmt.Fprintf(out, "%-36s  %-20s  %-12s  %5d  %s\n",
-			e.UUID, truncate(e.Name, 20), e.Status, e.MessageCount, stopped)
+		cost := "-"
+		if e.TotalCostUSD != nil {
+			cost = fmt.Sprintf("$%.4f", *e.TotalCostUSD)
+		}
+		fmt.Fprintf(out, "%-36s  %-20s  %-12s  %5d  %10s  %s\n",
+			e.UUID, truncate(e.Name, 20), e.Status, e.MessageCount, cost, stopped)
 	}
 	return nil
 }
@@ -108,6 +98,10 @@ func runArchiveShow(cmd *cobra.Command, args []string) error {
 	entry, err := archive.Load(paths.ArchivesDir, uuid)
 	if err != nil {
 		return err
+	}
+
+	if !archiveShowFull {
+		entry.Messages = nil
 	}
 
 	out := cmd.OutOrStdout()
@@ -146,8 +140,62 @@ func renderArchiveShowText(out io.Writer, e *archive.Entry) error {
 			fmt.Fprintf(out, "  - %s\n", url)
 		}
 	}
+	if e.ErrorCount > 0 {
+		fmt.Fprintf(out, "Errors:       %d\n", e.ErrorCount)
+	}
 	if e.ErrorMessage != "" {
 		fmt.Fprintf(out, "Error:        %s\n", e.ErrorMessage)
+	}
+	if len(e.ToolCalls) > 0 {
+		fmt.Fprintf(out, "\nTool Calls:\n")
+		type toolCount struct {
+			Name  string
+			Count int
+		}
+		sorted := make([]toolCount, 0, len(e.ToolCalls))
+		for name, count := range e.ToolCalls {
+			sorted = append(sorted, toolCount{name, count})
+		}
+		sort.Slice(sorted, func(i, j int) bool {
+			return sorted[i].Count > sorted[j].Count
+		})
+		fmt.Fprintf(out, "  %-30s  %s\n", "TOOL", "COUNT")
+		for _, tc := range sorted {
+			fmt.Fprintf(out, "  %-30s  %d\n", tc.Name, tc.Count)
+		}
+	}
+	if len(e.ModelUsage) > 0 {
+		fmt.Fprintf(out, "\nModel Usage:\n")
+		type modelCount struct {
+			Model string
+			Count int
+		}
+		sortedModels := make([]modelCount, 0, len(e.ModelUsage))
+		for model, count := range e.ModelUsage {
+			sortedModels = append(sortedModels, modelCount{model, count})
+		}
+		sort.Slice(sortedModels, func(i, j int) bool {
+			return sortedModels[i].Count > sortedModels[j].Count
+		})
+		fmt.Fprintf(out, "  %-30s  %s\n", "MODEL", "COUNT")
+		for _, mc := range sortedModels {
+			fmt.Fprintf(out, "  %-30s  %d\n", mc.Model, mc.Count)
+		}
+	}
+	if len(e.TokenUsage) > 0 {
+		var tokens struct {
+			Input       int `json:"input"`
+			Output      int `json:"output"`
+			CacheCreate int `json:"cache_create"`
+			CacheRead   int `json:"cache_read"`
+		}
+		if json.Unmarshal(e.TokenUsage, &tokens) == nil && (tokens.Input > 0 || tokens.Output > 0) {
+			fmt.Fprintf(out, "\nToken Usage:\n")
+			fmt.Fprintf(out, "  Input:         %d\n", tokens.Input)
+			fmt.Fprintf(out, "  Output:        %d\n", tokens.Output)
+			fmt.Fprintf(out, "  Cache Create:  %d\n", tokens.CacheCreate)
+			fmt.Fprintf(out, "  Cache Read:    %d\n", tokens.CacheRead)
+		}
 	}
 	if e.ResultText != "" {
 		fmt.Fprintf(out, "\n%s\n", e.ResultText)

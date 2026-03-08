@@ -180,6 +180,29 @@ func EntryFromResult(inst *instance.Instance, resultJSON string) (*Entry, error)
 	return entry, nil
 }
 
+// ListSummary is the shared list-summary type used by both the CLI and MCP
+// tool for archive list responses.
+type ListSummary struct {
+	UUID         string   `json:"uuid"`
+	Name         string   `json:"name"`
+	Status       string   `json:"status"`
+	StoppedAt    string   `json:"stopped_at"`
+	MessageCount int      `json:"message_count"`
+	TotalCostUSD *float64 `json:"total_cost_usd,omitempty"`
+}
+
+// ToListSummary converts an Entry to a ListSummary for list responses.
+func (e *Entry) ToListSummary() ListSummary {
+	return ListSummary{
+		UUID:         e.UUID,
+		Name:         e.Name,
+		Status:       e.Status,
+		StoppedAt:    e.StoppedAt.Format("2006-01-02T15:04:05Z07:00"),
+		MessageCount: e.MessageCount,
+		TotalCostUSD: e.TotalCostUSD,
+	}
+}
+
 // --- JSON decode helpers ---
 
 func decodeString(raw map[string]json.RawMessage, key string, dst *string) {
