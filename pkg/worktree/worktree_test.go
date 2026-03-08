@@ -299,6 +299,93 @@ func TestRemoveAlreadyDeletedDirectory(t *testing.T) {
 	}
 }
 
+func TestCreateNoFetch(t *testing.T) {
+	bare := initBareRepo(t)
+	clone := cloneRepo(t, bare)
+
+	// Push a new commit to origin that the clone doesn't have locally.
+	tmpClone := filepath.Join(t.TempDir(), "pusher")
+	run(t, "", "git", "clone", bare, tmpClone)
+	run(t, tmpClone, "git", "config", "user.email", "test@test.com")
+	run(t, tmpClone, "git", "config", "user.name", "Test")
+	if err := os.WriteFile(filepath.Join(tmpClone, "new.txt"), []byte("new"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	run(t, tmpClone, "git", "add", ".")
+	run(t, tmpClone, "git", "commit", "-m", "new file")
+	run(t, tmpClone, "git", "push", "origin", "main")
+
+	// Create with NoFetch: the new file should NOT appear because we skipped fetch.
+	clonedPath := filepath.Join(t.TempDir(), "instance-workspace")
+	opts := CreateOptions{NoFetch: true}
+	if err := Create(clone, clonedPath, opts); err != nil {
+		t.Fatalf("Create() with NoFetch error: %v", err)
+	}
+
+	if _, err := os.Stat(filepath.Join(clonedPath, "new.txt")); !os.IsNotExist(err) {
+		t.Fatal("expected new.txt to be absent when NoFetch is set")
+	}
+
+	// The original README should still be present.
+	if _, err := os.ReadFile(filepath.Join(clonedPath, "README.md")); err != nil {
+		t.Fatalf("missing README in clone: %v", err)
+	}
+}
+
+func TestCreateFetchUpdatesRemoteRefs(t *testing.T) {
+	bare := initBareRepo(t)
+	clone := cloneRepo(t, bare)
+
+	// Delete the symbolic-ref so DefaultBranch must use ls-remote,
+	// which consults the fetch URL. Verify that Create still works
+	// after fetching (i.e., origin is reachable and refs are current).
+	run(t, clone, "git", "remote", "set-head", "origin", "--delete")
+
+	clonedPath := filepath.Join(t.TempDir(), "instance-workspace")
+	if err := Create(clone, clonedPath); err != nil {
+		t.Fatalf("Create() error: %v", err)
+	}
+
+	// Verify the README is present and git operations work.
+	if _, err := os.ReadFile(filepath.Join(clonedPath, "README.md")); err != nil {
+		t.Fatalf("missing README in clone: %v", err)
+	}
+
+	cmd := exec.Command("git", "log", "--oneline", "-1")
+	cmd.Dir = clonedPath
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git log failed in clone: %v\n%s", err, out)
+	}
+}
+
+func TestCreateFetchFailureWarnsButContinues(t *testing.T) {
+	bare := initBareRepo(t)
+	clone := cloneRepo(t, bare)
+
+	// Set origin to an unreachable URL so git fetch fails. The clone step
+	// uses the local repoDir path (not the remote URL), so it succeeds.
+	// upstreamURL() returns the configured URL string without connecting.
+	run(t, clone, "git", "remote", "set-url", "origin", "https://invalid.example.com/repo.git")
+
+	clonedPath := filepath.Join(t.TempDir(), "instance-workspace")
+	var warnings strings.Builder
+	opts := CreateOptions{Warnings: &warnings}
+
+	err := Create(clone, clonedPath, opts)
+	if err != nil {
+		t.Fatalf("Create() error (fetch failure should be non-fatal): %v", err)
+	}
+
+	if !strings.Contains(warnings.String(), "warning: git fetch origin failed") {
+		t.Fatalf("expected fetch warning, got: %q", warnings.String())
+	}
+
+	// The clone should still have the README from the original state.
+	if _, err := os.ReadFile(filepath.Join(clonedPath, "README.md")); err != nil {
+		t.Fatalf("missing README in clone: %v", err)
+	}
+}
+
 func TestRemoveWithModifiedFiles(t *testing.T) {
 	bare := initBareRepo(t)
 	clone := cloneRepo(t, bare)

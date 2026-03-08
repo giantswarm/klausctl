@@ -7,6 +7,7 @@ package worktree
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -77,22 +78,46 @@ func upstreamURL(repoDir string) (string, error) {
 	return url, nil
 }
 
+// CreateOptions configures the behavior of Create.
+type CreateOptions struct {
+	// NoFetch skips the "git fetch origin" step before cloning.
+	// When false (the default), origin is fetched so the clone reflects
+	// up-to-date remote state.
+	NoFetch bool
+
+	// Warnings receives non-fatal warning messages (e.g. fetch failures).
+	// When nil, warnings are silently discarded.
+	Warnings io.Writer
+}
+
 // Create creates a local clone at clonePath from the given repository
 // directory. It uses `git clone --local --no-checkout` for efficiency
 // (hardlinks objects on the same filesystem), then checks out a detached
 // HEAD at origin/<default-branch> and fixes up the origin remote URL to
 // point at the upstream remote rather than the local repo path.
 //
+// Unless opts.NoFetch is set, origin is fetched first so the clone
+// reflects the latest remote state. Fetch failures are non-fatal: a
+// warning is emitted and creation continues with existing local state.
+//
 // The resulting clone has a self-contained .git directory that works
 // inside containers without additional volume mounts.
-func Create(repoDir, clonePath string) error {
-	// Fetch latest from origin before cloning.
-	fetchCmd := exec.Command("git", "fetch", "origin")
-	fetchCmd.Dir = repoDir
-	var fetchErr bytes.Buffer
-	fetchCmd.Stderr = &fetchErr
-	if err := fetchCmd.Run(); err != nil {
-		return fmt.Errorf("git fetch origin: %s: %w", strings.TrimSpace(fetchErr.String()), err)
+func Create(repoDir, clonePath string, opts ...CreateOptions) error {
+	var o CreateOptions
+	if len(opts) > 0 {
+		o = opts[0]
+	}
+
+	if !o.NoFetch {
+		fetchCmd := exec.Command("git", "fetch", "origin")
+		fetchCmd.Dir = repoDir
+		if err := fetchCmd.Run(); err != nil {
+			// Omit stderr details to avoid leaking credentials that may
+			// be embedded in the remote URL.
+			if o.Warnings != nil {
+				fmt.Fprintln(o.Warnings, "warning: git fetch origin failed, continuing with existing state")
+			}
+		}
 	}
 
 	// Get the upstream remote URL before cloning (--local sets origin to the

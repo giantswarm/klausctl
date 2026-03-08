@@ -29,6 +29,11 @@ type CreateOptions struct {
 	// automatically for git-backed workspaces.
 	NoIsolate bool
 
+	// NoFetch skips the "git fetch origin" step before cloning the
+	// workspace. When false (the default), origin is fetched to ensure
+	// agents work against up-to-date code.
+	NoFetch bool
+
 	// Git identity and auth overrides.
 	GitAuthorName        string
 	GitAuthorEmail       string
@@ -94,7 +99,11 @@ func GenerateInstanceConfig(paths *Paths, opts CreateOptions) (*Config, error) {
 			return nil, fmt.Errorf("creating instance directory for workspace clone: %w", err)
 		}
 
-		if err := worktree.Create(workspace, wtPath); err != nil {
+		wtOpts := worktree.CreateOptions{
+			NoFetch:  opts.NoFetch,
+			Warnings: opts.Output,
+		}
+		if err := worktree.Create(workspace, wtPath, wtOpts); err != nil {
 			return nil, fmt.Errorf("creating workspace clone: %w", err)
 		}
 
