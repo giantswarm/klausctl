@@ -128,14 +128,14 @@ func ComputeSummary(entries []*Entry, filters SummaryFilters) *SummaryStats {
 		}
 
 		// First attempt
-		if e.Tags["first_attempt"] == "true" {
+		if e.Tags["first_attempt"] == "yes" {
 			s.FirstAttempt++
 		}
 
 		// Scope adherence (only count entries that have the scope tag)
 		if scope := e.Tags["scope"]; scope != "" {
 			s.ScopeTotal++
-			if scope == "adhered" {
+			if scope == "yes" {
 				s.ScopeAdherence++
 			}
 		}
@@ -366,7 +366,7 @@ func ComputeTrends(entries []*Entry, weeks int, filters ...SummaryFilters) []Tre
 		if e.Tags["outcome"] == "success" {
 			acc.success++
 		}
-		if e.Tags["first_attempt"] == "true" {
+		if e.Tags["first_attempt"] == "yes" {
 			acc.firstAttempt++
 		}
 		if e.TotalCostUSD != nil {
