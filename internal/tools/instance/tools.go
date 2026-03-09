@@ -42,6 +42,7 @@ func RegisterTools(s *mcpserver.MCPServer, sc *server.ServerContext) {
 	registerRun(s, sc)
 	registerArchiveList(s, sc)
 	registerArchiveShow(s, sc)
+	registerArchiveTag(s, sc)
 }
 
 func registerCreate(s *mcpserver.MCPServer, sc *server.ServerContext) {

@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"sort"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -34,11 +36,22 @@ var archiveShowCmd = &cobra.Command{
 	RunE:  runArchiveShow,
 }
 
+var archiveTagCmd = &cobra.Command{
+	Use:   "tag <uuid> [--key=value ...]",
+	Short: "Attach metadata tags to an archived transcript",
+	Long:  "Add or update tags on an archive entry. Tags are free-form --key=value pairs.",
+	Args:  cobra.ExactArgs(1),
+	// Allow unknown flags so that free-form --key=value pairs are not rejected.
+	FParseErrWhitelist: cobra.FParseErrWhitelist{UnknownFlags: true},
+	RunE:               runArchiveTag,
+}
+
 func init() {
 	archiveCmd.PersistentFlags().StringVarP(&archiveOutput, "output", "o", "text", "output format: text, json")
 	archiveShowCmd.Flags().BoolVar(&archiveShowFull, "full", false, "include the full messages array in the output")
 	archiveCmd.AddCommand(archiveListCmd)
 	archiveCmd.AddCommand(archiveShowCmd)
+	archiveCmd.AddCommand(archiveTagCmd)
 	rootCmd.AddCommand(archiveCmd)
 }
 
@@ -146,6 +159,7 @@ func renderArchiveShowText(out io.Writer, e *archive.Entry) error {
 	if e.ErrorMessage != "" {
 		fmt.Fprintf(out, "Error:        %s\n", e.ErrorMessage)
 	}
+	renderTags(out, e.Tags)
 	if len(e.ToolCalls) > 0 {
 		fmt.Fprintf(out, "\nTool Calls:\n")
 		type toolCount struct {
@@ -201,6 +215,80 @@ func renderArchiveShowText(out io.Writer, e *archive.Entry) error {
 		fmt.Fprintf(out, "\n%s\n", e.ResultText)
 	}
 	return nil
+}
+
+func runArchiveTag(cmd *cobra.Command, args []string) error {
+	uuid := args[0]
+
+	tags := parseTagFlags()
+	if len(tags) == 0 {
+		return fmt.Errorf("no tags provided; use --key=value to set tags")
+	}
+
+	paths, err := config.DefaultPaths()
+	if err != nil {
+		return err
+	}
+
+	entry, err := archive.Tag(paths.ArchivesDir, uuid, tags)
+	if err != nil {
+		return err
+	}
+
+	out := cmd.OutOrStdout()
+
+	if archiveOutput == "json" {
+		enc := json.NewEncoder(out)
+		enc.SetIndent("", "  ")
+		return enc.Encode(entry)
+	}
+
+	fmt.Fprintf(out, "Tagged archive %s\n", entry.UUID)
+	renderTags(out, entry.Tags)
+	return nil
+}
+
+// parseTagFlags extracts free-form --key=value pairs from os.Args. It scans
+// arguments after the "tag" subcommand and skips known flags (--output/-o).
+func parseTagFlags() map[string]string {
+	tags := make(map[string]string)
+	inTag := false
+	for _, arg := range os.Args {
+		if arg == "tag" {
+			inTag = true
+			continue
+		}
+		if !inTag {
+			continue
+		}
+		if !strings.HasPrefix(arg, "--") {
+			continue
+		}
+		// Skip known flags.
+		if strings.HasPrefix(arg, "--output") || strings.HasPrefix(arg, "-o") {
+			continue
+		}
+		kv := strings.TrimPrefix(arg, "--")
+		if k, v, ok := strings.Cut(kv, "="); ok && k != "" {
+			tags[k] = v
+		}
+	}
+	return tags
+}
+
+func renderTags(out io.Writer, tags map[string]string) {
+	if len(tags) == 0 {
+		return
+	}
+	fmt.Fprintf(out, "\nTags:\n")
+	sorted := make([]string, 0, len(tags))
+	for k := range tags {
+		sorted = append(sorted, k)
+	}
+	sort.Strings(sorted)
+	for _, k := range sorted {
+		fmt.Fprintf(out, "  %s = %s\n", k, tags[k])
+	}
 }
 
 func truncate(s string, max int) string {

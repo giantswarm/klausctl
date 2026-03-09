@@ -263,6 +263,104 @@ func TestToListSummary(t *testing.T) {
 	}
 }
 
+func TestTag_NewTags(t *testing.T) {
+	dir := t.TempDir()
+
+	entry := &Entry{UUID: "tag-uuid", Name: "dev", Status: "completed"}
+	if err := Save(dir, entry); err != nil {
+		t.Fatalf("Save() error: %v", err)
+	}
+
+	updated, err := Tag(dir, "tag-uuid", map[string]string{"env": "prod", "team": "platform"})
+	if err != nil {
+		t.Fatalf("Tag() error: %v", err)
+	}
+	if updated.Tags["env"] != "prod" {
+		t.Errorf("Tags[env] = %q, want %q", updated.Tags["env"], "prod")
+	}
+	if updated.Tags["team"] != "platform" {
+		t.Errorf("Tags[team] = %q, want %q", updated.Tags["team"], "platform")
+	}
+
+	// Verify persistence by reloading.
+	reloaded, err := Load(dir, "tag-uuid")
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+	if reloaded.Tags["env"] != "prod" {
+		t.Errorf("reloaded Tags[env] = %q, want %q", reloaded.Tags["env"], "prod")
+	}
+	if reloaded.Tags["team"] != "platform" {
+		t.Errorf("reloaded Tags[team] = %q, want %q", reloaded.Tags["team"], "platform")
+	}
+}
+
+func TestTag_MergeOverwrite(t *testing.T) {
+	dir := t.TempDir()
+
+	entry := &Entry{
+		UUID:   "merge-uuid",
+		Name:   "dev",
+		Status: "completed",
+		Tags:   map[string]string{"env": "staging", "team": "platform"},
+	}
+	if err := Save(dir, entry); err != nil {
+		t.Fatalf("Save() error: %v", err)
+	}
+
+	updated, err := Tag(dir, "merge-uuid", map[string]string{"env": "prod", "region": "eu"})
+	if err != nil {
+		t.Fatalf("Tag() error: %v", err)
+	}
+	// "env" should be overwritten.
+	if updated.Tags["env"] != "prod" {
+		t.Errorf("Tags[env] = %q, want %q", updated.Tags["env"], "prod")
+	}
+	// "team" should be preserved.
+	if updated.Tags["team"] != "platform" {
+		t.Errorf("Tags[team] = %q, want %q", updated.Tags["team"], "platform")
+	}
+	// "region" should be added.
+	if updated.Tags["region"] != "eu" {
+		t.Errorf("Tags[region] = %q, want %q", updated.Tags["region"], "eu")
+	}
+
+	// Verify all three tags persisted.
+	reloaded, err := Load(dir, "merge-uuid")
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+	if len(reloaded.Tags) != 3 {
+		t.Errorf("len(Tags) = %d, want 3", len(reloaded.Tags))
+	}
+}
+
+func TestTag_NotFound(t *testing.T) {
+	dir := t.TempDir()
+	_, err := Tag(dir, "nonexistent", map[string]string{"k": "v"})
+	if err == nil {
+		t.Fatal("Tag() should return error for missing archive")
+	}
+}
+
+func TestLoadEntryWithoutTags(t *testing.T) {
+	dir := t.TempDir()
+
+	// Write an entry JSON without a tags field (backward compatibility).
+	raw := `{"uuid":"no-tags","name":"old","status":"completed"}`
+	if err := os.WriteFile(filepath.Join(dir, "no-tags.json"), []byte(raw), 0o644); err != nil {
+		t.Fatalf("writing file: %v", err)
+	}
+
+	entry, err := Load(dir, "no-tags")
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+	if entry.Tags != nil {
+		t.Errorf("Tags = %v, want nil for legacy entry", entry.Tags)
+	}
+}
+
 func mustMarshal(t *testing.T, v any) string {
 	t.Helper()
 	data, err := json.Marshal(v)

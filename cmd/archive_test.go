@@ -148,6 +148,35 @@ func TestRenderArchiveShowText_Metrics(t *testing.T) {
 	}
 }
 
+func TestRenderArchiveShowText_Tags(t *testing.T) {
+	entry := &archive.Entry{
+		UUID:      "tag-uuid",
+		Name:      "dev",
+		Status:    "completed",
+		Image:     "test:latest",
+		Workspace: "/tmp/ws",
+		StartedAt: time.Date(2025, 1, 15, 10, 0, 0, 0, time.UTC),
+		StoppedAt: time.Date(2025, 1, 15, 10, 30, 0, 0, time.UTC),
+		Tags:      map[string]string{"env": "prod", "team": "platform"},
+	}
+
+	var buf bytes.Buffer
+	if err := renderArchiveShowText(&buf, entry); err != nil {
+		t.Fatalf("renderArchiveShowText() error: %v", err)
+	}
+	out := buf.String()
+
+	if !strings.Contains(out, "Tags:") {
+		t.Error("expected Tags section")
+	}
+	if !strings.Contains(out, "env = prod") {
+		t.Error("expected env = prod tag")
+	}
+	if !strings.Contains(out, "team = platform") {
+		t.Error("expected team = platform tag")
+	}
+}
+
 func TestRenderArchiveShowText_NoMetrics(t *testing.T) {
 	entry := &archive.Entry{
 		UUID:      "test-uuid",
@@ -177,5 +206,8 @@ func TestRenderArchiveShowText_NoMetrics(t *testing.T) {
 	}
 	if strings.Contains(out, "Errors:") {
 		t.Error("should not show Errors when zero")
+	}
+	if strings.Contains(out, "Tags:") {
+		t.Error("should not show Tags when empty")
 	}
 }
