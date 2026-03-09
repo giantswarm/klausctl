@@ -171,6 +171,9 @@ func handleStatsList(_ context.Context, req mcp.CallToolRequest, sc *server.Serv
 	}
 
 	limit := int(math.Round(req.GetFloat("limit", 0)))
+	if limit <= 0 || limit > 1000 {
+		limit = 1000
+	}
 
 	filters := archive.SummaryFilters{
 		Repo:       req.GetString("repo", ""),

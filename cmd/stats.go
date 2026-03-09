@@ -322,6 +322,10 @@ func runStatsList(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
+	if statsListLimit < 0 {
+		return fmt.Errorf("--limit must be non-negative, got %d", statsListLimit)
+	}
+
 	switch statsListSort {
 	case "date", "cost", "messages":
 	default:
