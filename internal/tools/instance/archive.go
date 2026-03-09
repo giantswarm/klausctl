@@ -45,6 +45,39 @@ func handleArchiveList(_ context.Context, _ mcp.CallToolRequest, sc *server.Serv
 	return server.JSONResult(list)
 }
 
+func registerArchiveTag(s *mcpserver.MCPServer, sc *server.ServerContext) {
+	tool := mcp.NewTool("klaus_archive_tag",
+		mcp.WithDescription("Attach metadata tags to an archived instance transcript"),
+		mcp.WithString("uuid", mcp.Required(), mcp.Description("Archive UUID")),
+		mcp.WithObject("tags", mcp.Required(), mcp.Description("Key-value pairs to merge into existing tags (overwrites existing keys)")),
+	)
+	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return handleArchiveTag(ctx, req, sc)
+	})
+}
+
+func handleArchiveTag(_ context.Context, req mcp.CallToolRequest, sc *server.ServerContext) (*mcp.CallToolResult, error) {
+	uuid, err := req.RequireString("uuid")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	rawTags, err := extractStringMap(req.GetArguments(), "tags")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	if len(rawTags) == 0 {
+		return mcp.NewToolResultError("tags must be a non-empty object with string values"), nil
+	}
+
+	entry, err := archive.Tag(sc.Paths.ArchivesDir, uuid, rawTags)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("tagging archive: %v", err)), nil
+	}
+
+	return server.JSONResult(entry)
+}
+
 func handleArchiveShow(_ context.Context, req mcp.CallToolRequest, sc *server.ServerContext) (*mcp.CallToolResult, error) {
 	uuid, err := req.RequireString("uuid")
 	if err != nil {

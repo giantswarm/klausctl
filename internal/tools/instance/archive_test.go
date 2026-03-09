@@ -176,6 +176,118 @@ func TestHandleArchiveShowNotFound(t *testing.T) {
 	assertIsError(t, result)
 }
 
+func TestHandleArchiveTag(t *testing.T) {
+	sc := testServerContext(t)
+
+	entry := &archive.Entry{
+		UUID:      "tag-uuid",
+		Name:      "test",
+		Status:    "completed",
+		StoppedAt: time.Now(),
+	}
+	if err := archive.Save(sc.Paths.ArchivesDir, entry); err != nil {
+		t.Fatalf("saving entry: %v", err)
+	}
+
+	req := callToolRequest(map[string]any{
+		"uuid": "tag-uuid",
+		"tags": map[string]any{"env": "prod", "team": "platform"},
+	})
+	result, err := handleArchiveTag(context.Background(), req, sc)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	text := extractResultText(t, result)
+	var loaded archive.Entry
+	if err := json.Unmarshal([]byte(text), &loaded); err != nil {
+		t.Fatalf("expected JSON object, got: %s", text)
+	}
+	if loaded.Tags["env"] != "prod" {
+		t.Errorf("Tags[env] = %q, want %q", loaded.Tags["env"], "prod")
+	}
+	if loaded.Tags["team"] != "platform" {
+		t.Errorf("Tags[team] = %q, want %q", loaded.Tags["team"], "platform")
+	}
+}
+
+func TestHandleArchiveTagMerge(t *testing.T) {
+	sc := testServerContext(t)
+
+	entry := &archive.Entry{
+		UUID:      "merge-uuid",
+		Name:      "test",
+		Status:    "completed",
+		StoppedAt: time.Now(),
+		Tags:      map[string]string{"env": "staging", "team": "old"},
+	}
+	if err := archive.Save(sc.Paths.ArchivesDir, entry); err != nil {
+		t.Fatalf("saving entry: %v", err)
+	}
+
+	req := callToolRequest(map[string]any{
+		"uuid": "merge-uuid",
+		"tags": map[string]any{"env": "prod"},
+	})
+	result, err := handleArchiveTag(context.Background(), req, sc)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	text := extractResultText(t, result)
+	var loaded archive.Entry
+	if err := json.Unmarshal([]byte(text), &loaded); err != nil {
+		t.Fatalf("expected JSON object, got: %s", text)
+	}
+	if loaded.Tags["env"] != "prod" {
+		t.Errorf("Tags[env] = %q, want %q", loaded.Tags["env"], "prod")
+	}
+	if loaded.Tags["team"] != "old" {
+		t.Errorf("Tags[team] = %q, want %q (should be preserved)", loaded.Tags["team"], "old")
+	}
+}
+
+func TestHandleArchiveTagNotFound(t *testing.T) {
+	sc := testServerContext(t)
+
+	req := callToolRequest(map[string]any{
+		"uuid": "nonexistent",
+		"tags": map[string]any{"k": "v"},
+	})
+	result, err := handleArchiveTag(context.Background(), req, sc)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	assertIsError(t, result)
+}
+
+func TestHandleArchiveTagEmptyTags(t *testing.T) {
+	sc := testServerContext(t)
+
+	req := callToolRequest(map[string]any{
+		"uuid": "some-uuid",
+		"tags": map[string]any{},
+	})
+	result, err := handleArchiveTag(context.Background(), req, sc)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	assertIsError(t, result)
+}
+
+func TestHandleArchiveTagMissingUUID(t *testing.T) {
+	sc := testServerContext(t)
+
+	req := callToolRequest(map[string]any{
+		"tags": map[string]any{"k": "v"},
+	})
+	result, err := handleArchiveTag(context.Background(), req, sc)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	assertIsError(t, result)
+}
+
 func TestHandleArchiveShowMissingUUID(t *testing.T) {
 	sc := testServerContext(t)
 

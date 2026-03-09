@@ -42,6 +42,7 @@ type Entry struct {
 	PRURLs        []string        `json:"pr_urls,omitempty"`
 	ErrorCount    int             `json:"error_count,omitempty"`
 	ErrorMessage  string          `json:"error,omitempty"`
+	Tags          map[string]string `json:"tags,omitempty"`
 }
 
 // Save writes an archive entry as <uuid>.json in archivesDir.
@@ -201,6 +202,33 @@ func (e *Entry) ToListSummary() ListSummary {
 		MessageCount: e.MessageCount,
 		TotalCostUSD: e.TotalCostUSD,
 	}
+}
+
+// Tag loads an archive entry by UUID, merges the provided tags (overwriting
+// existing keys), saves the updated entry, and returns it.
+func Tag(archivesDir, uuid string, tags map[string]string) (*Entry, error) {
+	for k := range tags {
+		if strings.TrimSpace(k) == "" {
+			return nil, fmt.Errorf("tag key must not be empty or whitespace-only")
+		}
+	}
+
+	entry, err := Load(archivesDir, uuid)
+	if err != nil {
+		return nil, err
+	}
+
+	if entry.Tags == nil {
+		entry.Tags = make(map[string]string, len(tags))
+	}
+	for k, v := range tags {
+		entry.Tags[k] = v
+	}
+
+	if err := Save(archivesDir, entry); err != nil {
+		return nil, fmt.Errorf("saving tagged archive: %w", err)
+	}
+	return entry, nil
 }
 
 // --- JSON decode helpers ---
