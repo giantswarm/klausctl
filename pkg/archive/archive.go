@@ -29,19 +29,19 @@ type Entry struct {
 	StoppedAt   time.Time `json:"stopped_at"`
 
 	// Agent result — flat fields from the agent's full result response.
-	ResultText    string          `json:"result_text,omitempty"`
-	Messages      json.RawMessage `json:"messages,omitempty"`
-	MessageCount  int             `json:"message_count"`
-	Status        string          `json:"status"`
-	SessionID     string          `json:"session_id,omitempty"`
-	TotalCostUSD  *float64        `json:"total_cost_usd,omitempty"`
-	ToolCalls     map[string]int  `json:"tool_calls,omitempty"`
-	ModelUsage    map[string]int  `json:"model_usage,omitempty"`
-	TokenUsage    json.RawMessage `json:"token_usage,omitempty"`
-	SubagentCalls json.RawMessage `json:"subagent_calls,omitempty"`
-	PRURLs        []string        `json:"pr_urls,omitempty"`
-	ErrorCount    int             `json:"error_count,omitempty"`
-	ErrorMessage  string          `json:"error,omitempty"`
+	ResultText    string            `json:"result_text,omitempty"`
+	Messages      json.RawMessage   `json:"messages,omitempty"`
+	MessageCount  int               `json:"message_count"`
+	Status        string            `json:"status"`
+	SessionID     string            `json:"session_id,omitempty"`
+	TotalCostUSD  *float64          `json:"total_cost_usd,omitempty"`
+	ToolCalls     map[string]int    `json:"tool_calls,omitempty"`
+	ModelUsage    map[string]int    `json:"model_usage,omitempty"`
+	TokenUsage    json.RawMessage   `json:"token_usage,omitempty"`
+	SubagentCalls json.RawMessage   `json:"subagent_calls,omitempty"`
+	PRURLs        []string          `json:"pr_urls,omitempty"`
+	ErrorCount    int               `json:"error_count,omitempty"`
+	ErrorMessage  string            `json:"error,omitempty"`
 	Tags          map[string]string `json:"tags,omitempty"`
 }
 
