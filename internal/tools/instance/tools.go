@@ -46,6 +46,8 @@ func RegisterTools(s *mcpserver.MCPServer, sc *server.ServerContext) {
 	registerStatsSummary(s, sc)
 	registerStatsSpend(s, sc)
 	registerStatsTrends(s, sc)
+	registerStatsList(s, sc)
+	registerStatsTop(s, sc)
 }
 
 func registerCreate(s *mcpserver.MCPServer, sc *server.ServerContext) {
