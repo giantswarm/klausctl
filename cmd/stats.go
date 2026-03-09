@@ -109,7 +109,7 @@ func init() {
 	statsListCmd.Flags().StringVar(&statsListRepo, "repo", "", "filter by repo tag")
 	statsListCmd.Flags().StringVar(&statsListOutcome, "outcome", "", "filter by outcome tag (success, partial, failed)")
 	statsListCmd.Flags().StringVar(&statsListComplexity, "complexity", "", "filter by complexity tag")
-	statsListCmd.Flags().StringVar(&statsListSort, "sort", "date", "sort by: date, cost, messages")
+	statsListCmd.Flags().StringVar(&statsListSort, "sort", "date", "sort by: date, cost, messages, duration")
 	statsListCmd.Flags().IntVar(&statsListLimit, "limit", 0, "limit number of rows (0 = all)")
 
 	statsTopCmd.Flags().StringVar(&statsTopBy, "by", "cost", "sort by: cost, messages, duration")
@@ -143,12 +143,8 @@ func runStatsSummary(cmd *cobra.Command, _ []string) error {
 		filters.Since = t
 	}
 	filters.Repo = statsSummaryRepo
-	if statsSummaryOutcome != "" {
-		switch statsSummaryOutcome {
-		case "success", "partial", "failed":
-		default:
-			return fmt.Errorf("invalid --outcome %q: use success, partial, or failed", statsSummaryOutcome)
-		}
+	if err := validateOutcome(statsSummaryOutcome); err != nil {
+		return err
 	}
 	filters.Outcome = statsSummaryOutcome
 
@@ -221,6 +217,9 @@ func runStatsSpend(cmd *cobra.Command, _ []string) error {
 	default:
 		return fmt.Errorf("invalid --by value %q: use week, repo, or complexity", statsSpendBy)
 	}
+	if err := validateOutcome(statsSpendOutcome); err != nil {
+		return err
+	}
 
 	paths, err := config.DefaultPaths()
 	if err != nil {
@@ -262,6 +261,10 @@ func renderSpendText(out io.Writer, groups []archive.SpendGroup) error {
 }
 
 func runStatsTrends(cmd *cobra.Command, _ []string) error {
+	if err := validateOutcome(statsTrendsOutcome); err != nil {
+		return err
+	}
+
 	paths, err := config.DefaultPaths()
 	if err != nil {
 		return err
@@ -327,9 +330,9 @@ func runStatsList(cmd *cobra.Command, _ []string) error {
 	}
 
 	switch statsListSort {
-	case "date", "cost", "messages":
+	case "date", "cost", "messages", "duration":
 	default:
-		return fmt.Errorf("invalid --sort value %q: use date, cost, or messages", statsListSort)
+		return fmt.Errorf("invalid --sort value %q: use date, cost, messages, or duration", statsListSort)
 	}
 
 	filters := archive.SummaryFilters{
@@ -393,4 +396,16 @@ func runStatsTop(cmd *cobra.Command, _ []string) error {
 	}
 
 	return renderListText(out, list)
+}
+
+func validateOutcome(outcome string) error {
+	if outcome == "" {
+		return nil
+	}
+	switch outcome {
+	case "success", "partial", "failed":
+		return nil
+	default:
+		return fmt.Errorf("invalid --outcome %q: use success, partial, or failed", outcome)
+	}
 }

@@ -105,7 +105,8 @@ func ComputeSummary(entries []*Entry, filters SummaryFilters) *SummaryStats {
 	var totalMessages int
 	var durations []time.Duration
 	hasCost := false
-	minMsgs, maxMsgs := math.MaxInt, 0
+	hasMessages := false
+	var minMsgs, maxMsgs int
 
 	// Complexity accumulators
 	type complexityAcc struct {
@@ -166,11 +167,17 @@ func ComputeSummary(entries []*Entry, filters SummaryFilters) *SummaryStats {
 			}
 		}
 		totalMessages += e.MessageCount
-		if e.MessageCount < minMsgs {
+		if !hasMessages {
 			minMsgs = e.MessageCount
-		}
-		if e.MessageCount > maxMsgs {
 			maxMsgs = e.MessageCount
+			hasMessages = true
+		} else {
+			if e.MessageCount < minMsgs {
+				minMsgs = e.MessageCount
+			}
+			if e.MessageCount > maxMsgs {
+				maxMsgs = e.MessageCount
+			}
 		}
 
 		if !e.StartedAt.IsZero() && !e.StoppedAt.IsZero() {

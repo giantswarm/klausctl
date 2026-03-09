@@ -1,5 +1,7 @@
 // Package instance implements MCP tool handlers for klaus instance lifecycle
-// management: create, start, stop, delete, status, logs, and list.
+// management (create, start, stop, delete, status, logs, list), archive
+// operations (list, show, tag), and aggregate stats (summary, spend, trends,
+// list, top).
 package instance
 
 import (
