@@ -58,7 +58,7 @@ func registerStatsList(s *mcpserver.MCPServer, sc *server.ServerContext) {
 		mcp.WithString("repo", mcp.Description("Filter by repo tag")),
 		mcp.WithString("outcome", mcp.Description("Filter by outcome tag: success, partial, or failed")),
 		mcp.WithString("complexity", mcp.Description("Filter by complexity tag")),
-		mcp.WithString("sort_by", mcp.Description("Sort by: date (default), cost, or messages")),
+		mcp.WithString("sort_by", mcp.Description("Sort by: date (default), cost, messages, or duration")),
 		mcp.WithNumber("limit", mcp.Description("Limit number of rows (0 = all)")),
 	)
 	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -165,12 +165,15 @@ func handleStatsList(_ context.Context, req mcp.CallToolRequest, sc *server.Serv
 
 	sortBy := req.GetString("sort_by", "date")
 	switch sortBy {
-	case "date", "cost", "messages":
+	case "date", "cost", "messages", "duration":
 	default:
-		return mcp.NewToolResultError(fmt.Sprintf("invalid sort_by %q: use date, cost, or messages", sortBy)), nil
+		return mcp.NewToolResultError(fmt.Sprintf("invalid sort_by %q: use date, cost, messages, or duration", sortBy)), nil
 	}
 
 	limit := int(math.Round(req.GetFloat("limit", 0)))
+	if limit <= 0 || limit > 1000 {
+		limit = 1000
+	}
 
 	filters := archive.SummaryFilters{
 		Repo:       req.GetString("repo", ""),
