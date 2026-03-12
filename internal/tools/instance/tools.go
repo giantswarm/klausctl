@@ -42,6 +42,7 @@ func RegisterTools(s *mcpserver.MCPServer, sc *server.ServerContext) {
 	registerPrompt(s, sc)
 	registerResult(s, sc)
 	registerRun(s, sc)
+	registerMessages(s, sc)
 	registerArchiveList(s, sc)
 	registerArchiveShow(s, sc)
 	registerArchiveTag(s, sc)
