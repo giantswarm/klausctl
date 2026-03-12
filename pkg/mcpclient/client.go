@@ -123,6 +123,11 @@ func (c *Client) Result(ctx context.Context, instanceName, baseURL string, full 
 	return c.callTool(ctx, instanceName, baseURL, "result", args)
 }
 
+// Messages retrieves the agent's conversation messages.
+func (c *Client) Messages(ctx context.Context, instanceName, baseURL string) (*mcp.CallToolResult, error) {
+	return c.callTool(ctx, instanceName, baseURL, "messages", map[string]any{})
+}
+
 // SessionID returns the MCP session ID for the given instance, if any.
 func (c *Client) SessionID(instanceName string) string {
 	c.mu.Lock()

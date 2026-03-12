@@ -11,6 +11,7 @@ import (
 	mcpserver "github.com/mark3labs/mcp-go/server"
 
 	"github.com/giantswarm/klausctl/internal/server"
+	"github.com/giantswarm/klausctl/pkg/config"
 	"github.com/giantswarm/klausctl/pkg/instance"
 	"github.com/giantswarm/klausctl/pkg/runtime"
 )
@@ -153,6 +154,133 @@ func handleResult(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 		Status:   "completed",
 		Result:   text,
 	})
+}
+
+func registerMessages(s *mcpserver.MCPServer, sc *server.ServerContext) {
+	tool := mcp.NewTool("klaus_messages",
+		mcp.WithDescription("Retrieve conversation messages from a running klaus instance"),
+		mcp.WithString("name", mcp.Required(), mcp.Description("Instance name")),
+		mcp.WithBoolean("follow", mcp.Description("Poll for new messages until the agent completes (default: false)")),
+	)
+	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return handleMessages(ctx, req, sc)
+	})
+}
+
+type messagesResult struct {
+	Instance string           `json:"instance"`
+	Status   string           `json:"status"`
+	Count    int              `json:"count"`
+	Messages []agentMessageMC `json:"messages"`
+}
+
+type agentMessageMC struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
+type agentMessagesToolResponse struct {
+	Status   string           `json:"status"`
+	Messages []agentMessageMC `json:"messages"`
+}
+
+func handleMessages(ctx context.Context, req mcp.CallToolRequest, sc *server.ServerContext) (*mcp.CallToolResult, error) {
+	name, err := req.RequireString("name")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	if err := config.ValidateInstanceName(name); err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	follow := req.GetBool("follow", false)
+
+	baseURL, err := agentBaseURL(ctx, name, sc)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	if !follow {
+		return fetchMessages(ctx, name, baseURL, sc)
+	}
+
+	return followMessagesUntilDone(ctx, name, baseURL, sc)
+}
+
+func fetchMessages(ctx context.Context, name, baseURL string, sc *server.ServerContext) (*mcp.CallToolResult, error) {
+	toolResult, err := sc.MCPClient.Messages(ctx, name, baseURL)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("fetching messages from %q: %v", name, err)), nil
+	}
+
+	if toolResult.IsError {
+		return server.JSONResult(messagesResult{
+			Instance: name,
+			Status:   "error",
+			Messages: []agentMessageMC{},
+		})
+	}
+
+	text := extractText(toolResult)
+	var parsed agentMessagesToolResponse
+	if err := json.Unmarshal([]byte(text), &parsed); err == nil && parsed.Status != "" {
+		return server.JSONResult(messagesResult{
+			Instance: name,
+			Status:   parsed.Status,
+			Count:    len(parsed.Messages),
+			Messages: parsed.Messages,
+		})
+	}
+
+	return server.JSONResult(messagesResult{
+		Instance: name,
+		Status:   "unknown",
+		Messages: []agentMessageMC{},
+	})
+}
+
+func followMessagesUntilDone(ctx context.Context, name, baseURL string, sc *server.ServerContext) (*mcp.CallToolResult, error) {
+	const maxFollowDuration = 30 * time.Minute
+	ctx, cancel := context.WithTimeout(ctx, maxFollowDuration)
+	defer cancel()
+
+	poll := 2 * time.Second
+	const maxPoll = 10 * time.Second
+
+	var lastResult *mcp.CallToolResult
+
+	for {
+		toolResult, err := sc.MCPClient.Messages(ctx, name, baseURL)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("fetching messages from %q: %v", name, err)), nil
+		}
+
+		text := extractText(toolResult)
+		var parsed agentMessagesToolResponse
+		if json.Unmarshal([]byte(text), &parsed) == nil {
+			lastResult, _ = server.JSONResult(messagesResult{
+				Instance: name,
+				Status:   parsed.Status,
+				Count:    len(parsed.Messages),
+				Messages: parsed.Messages,
+			})
+			if terminalStatuses[parsed.Status] {
+				return lastResult, nil
+			}
+		}
+
+		select {
+		case <-ctx.Done():
+			if lastResult != nil {
+				return lastResult, nil
+			}
+			return mcp.NewToolResultError("timed out waiting for messages"), nil
+		case <-time.After(poll):
+		}
+
+		if poll < maxPoll {
+			poll = min(poll*2, maxPoll)
+		}
+	}
 }
 
 // agentBaseURL resolves the MCP endpoint URL for a running instance.

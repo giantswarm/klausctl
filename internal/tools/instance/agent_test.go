@@ -202,6 +202,36 @@ func TestParseAgentToolResponse(t *testing.T) {
 	}
 }
 
+func TestHandleMessagesMissingName(t *testing.T) {
+	sc := testServerContext(t)
+	req := callToolRequest(map[string]any{})
+	result, err := handleMessages(context.Background(), req, sc)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	assertIsError(t, result)
+}
+
+func TestHandleMessagesInvalidName(t *testing.T) {
+	sc := testServerContext(t)
+	req := callToolRequest(map[string]any{"name": "../../etc"})
+	result, err := handleMessages(context.Background(), req, sc)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	assertIsError(t, result)
+}
+
+func TestHandleMessagesInstanceNotFound(t *testing.T) {
+	sc := testServerContext(t)
+	req := callToolRequest(map[string]any{"name": "nonexistent"})
+	result, err := handleMessages(context.Background(), req, sc)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	assertIsError(t, result)
+}
+
 func TestAgentBaseURLInstanceNotFound(t *testing.T) {
 	sc := testServerContext(t)
 	_, err := agentBaseURL(context.Background(), "nonexistent", sc)
