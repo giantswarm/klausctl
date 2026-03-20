@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	goruntime "runtime"
 	"strings"
 
 	klausoci "github.com/giantswarm/klaus-oci"
@@ -34,7 +35,7 @@ func BuildRunOptions(cfg *config.Config, paths *config.Paths, containerName, ima
 		return runtime.RunOptions{}, err
 	}
 
-	return runtime.RunOptions{
+	opts := runtime.RunOptions{
 		Name:    containerName,
 		Image:   image,
 		Detach:  true,
@@ -42,7 +43,35 @@ func BuildRunOptions(cfg *config.Config, paths *config.Paths, containerName, ima
 		EnvVars: env,
 		Volumes: volumes,
 		Ports:   map[int]int{cfg.Port: 8080},
-	}, nil
+	}
+
+	if needsDockerInternalHost(cfg) {
+		opts.ExtraHosts = append(opts.ExtraHosts, "host.docker.internal:host-gateway")
+	}
+
+	return opts, nil
+}
+
+// needsDockerInternalHost reports whether the container needs an explicit
+// host.docker.internal mapping. On Linux, Docker does not provide this
+// automatically (unlike Docker Desktop on macOS/Windows), so we add
+// --add-host host.docker.internal:host-gateway when any resolved MCP server
+// URL references host.docker.internal.
+func needsDockerInternalHost(cfg *config.Config) bool {
+	if goruntime.GOOS != "linux" {
+		return false
+	}
+	for _, v := range cfg.McpServers {
+		m, ok := v.(map[string]any)
+		if !ok {
+			continue
+		}
+		url, _ := m["url"].(string)
+		if strings.Contains(url, "host.docker.internal") {
+			return true
+		}
+	}
+	return false
 }
 
 // BuildEnvVars constructs all container environment variables from config.

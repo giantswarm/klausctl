@@ -58,6 +58,11 @@ func (r *execRuntime) Run(ctx context.Context, opts RunOptions) (string, error) 
 		args = append(args, "-p", fmt.Sprintf("%d:%d", hostPort, containerPort))
 	}
 
+	// Extra host mappings.
+	for _, h := range opts.ExtraHosts {
+		args = append(args, "--add-host", h)
+	}
+
 	// Volume mounts.
 	for _, v := range opts.Volumes {
 		mount := fmt.Sprintf("%s:%s", v.HostPath, v.ContainerPath)

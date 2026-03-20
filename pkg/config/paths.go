@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -36,6 +37,16 @@ type Paths struct {
 	McpServersFile string
 	// SourcesFile is the path to the sources configuration file (~/.config/klausctl/sources.yaml).
 	SourcesFile string
+	// MusterConfigDir is the muster config root (~/.config/klausctl/muster/).
+	// Contains muster's own config.yaml and the mcpservers/ subdirectory.
+	MusterConfigDir string
+	// MusterMCPServersDir is where muster-native MCPServerSpec YAML files live
+	// (~/.config/klausctl/muster/mcpservers/).
+	MusterMCPServersDir string
+	// MusterPIDFile tracks the PID of the managed muster process.
+	MusterPIDFile string
+	// MusterPortFile tracks the port of the managed muster process.
+	MusterPortFile string
 }
 
 // DefaultPaths returns the default paths using XDG conventions.
@@ -55,20 +66,26 @@ func DefaultPaths() (*Paths, error) {
 		sourcesFile = filepath.Clean(override)
 	}
 
+	musterDir := filepath.Join(base, "muster")
+
 	return &Paths{
-		ConfigDir:        base,
-		ConfigFile:       filepath.Join(defaultInstanceDir, "config.yaml"),
-		InstancesDir:     instancesDir,
-		InstanceDir:      defaultInstanceDir,
-		RenderedDir:      filepath.Join(defaultInstanceDir, "rendered"),
-		ExtensionsDir:    filepath.Join(defaultInstanceDir, "rendered", "extensions"),
-		PluginsDir:       filepath.Join(base, "plugins"),
-		PersonalitiesDir: filepath.Join(base, "personalities"),
-		InstanceFile:     filepath.Join(defaultInstanceDir, "instance.json"),
-		ArchivesDir:      filepath.Join(base, "archives"),
-		SecretsFile:      filepath.Join(base, "secrets.yaml"),
-		McpServersFile:   filepath.Join(base, "mcpservers.yaml"),
-		SourcesFile:      sourcesFile,
+		ConfigDir:           base,
+		ConfigFile:          filepath.Join(defaultInstanceDir, "config.yaml"),
+		InstancesDir:        instancesDir,
+		InstanceDir:         defaultInstanceDir,
+		RenderedDir:         filepath.Join(defaultInstanceDir, "rendered"),
+		ExtensionsDir:       filepath.Join(defaultInstanceDir, "rendered", "extensions"),
+		PluginsDir:          filepath.Join(base, "plugins"),
+		PersonalitiesDir:    filepath.Join(base, "personalities"),
+		InstanceFile:        filepath.Join(defaultInstanceDir, "instance.json"),
+		ArchivesDir:         filepath.Join(base, "archives"),
+		SecretsFile:         filepath.Join(base, "secrets.yaml"),
+		McpServersFile:      filepath.Join(base, "mcpservers.yaml"),
+		SourcesFile:         sourcesFile,
+		MusterConfigDir:     musterDir,
+		MusterMCPServersDir: filepath.Join(musterDir, "mcpservers"),
+		MusterPIDFile:       filepath.Join(base, "muster.pid"),
+		MusterPortFile:      filepath.Join(base, "muster.port"),
 	}, nil
 }
 
@@ -114,20 +131,47 @@ func (p *Paths) ForInstance(name string) *Paths {
 
 	instDir := filepath.Join(p.InstancesDir, instanceName)
 	return &Paths{
-		ConfigDir:        p.ConfigDir,
-		ConfigFile:       filepath.Join(instDir, "config.yaml"),
-		InstancesDir:     p.InstancesDir,
-		InstanceDir:      instDir,
-		RenderedDir:      filepath.Join(instDir, "rendered"),
-		ExtensionsDir:    filepath.Join(instDir, "rendered", "extensions"),
-		PluginsDir:       p.PluginsDir,
-		PersonalitiesDir: p.PersonalitiesDir,
-		InstanceFile:     filepath.Join(instDir, "instance.json"),
-		ArchivesDir:      p.ArchivesDir,
-		SecretsFile:      p.SecretsFile,
-		McpServersFile:   p.McpServersFile,
-		SourcesFile:      p.SourcesFile,
+		ConfigDir:           p.ConfigDir,
+		ConfigFile:          filepath.Join(instDir, "config.yaml"),
+		InstancesDir:        p.InstancesDir,
+		InstanceDir:         instDir,
+		RenderedDir:         filepath.Join(instDir, "rendered"),
+		ExtensionsDir:       filepath.Join(instDir, "rendered", "extensions"),
+		PluginsDir:          p.PluginsDir,
+		PersonalitiesDir:    p.PersonalitiesDir,
+		InstanceFile:        filepath.Join(instDir, "instance.json"),
+		ArchivesDir:         p.ArchivesDir,
+		SecretsFile:         p.SecretsFile,
+		McpServersFile:      p.McpServersFile,
+		SourcesFile:         p.SourcesFile,
+		MusterConfigDir:     p.MusterConfigDir,
+		MusterMCPServersDir: p.MusterMCPServersDir,
+		MusterPIDFile:       p.MusterPIDFile,
+		MusterPortFile:      p.MusterPortFile,
 	}
+}
+
+// HasMusterConfig reports whether the muster config directory contains at
+// least one MCP server YAML file. The bridge should only start when there is
+// something to serve.
+func (p *Paths) HasMusterConfig() (bool, error) {
+	entries, err := os.ReadDir(p.MusterMCPServersDir)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
+		return false, fmt.Errorf("reading muster mcpservers directory: %w", err)
+	}
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		if filepath.Ext(name) == ".yaml" || filepath.Ext(name) == ".yml" {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 var instanceNameRegexp = regexp.MustCompile(`^[a-zA-Z]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$`)

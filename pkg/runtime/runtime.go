@@ -57,6 +57,9 @@ type RunOptions struct {
 	Volumes []Volume
 	// Ports maps host ports to container ports.
 	Ports map[int]int
+	// ExtraHosts adds custom host-to-IP mappings (--add-host).
+	// Each entry is "hostname:ip" (e.g. "host.docker.internal:host-gateway").
+	ExtraHosts []string
 }
 
 // Volume represents a bind mount.

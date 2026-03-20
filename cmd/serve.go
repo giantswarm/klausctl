@@ -7,6 +7,7 @@ import (
 	"github.com/giantswarm/klausctl/internal/server"
 	artifacttools "github.com/giantswarm/klausctl/internal/tools/artifact"
 	instancetools "github.com/giantswarm/klausctl/internal/tools/instance"
+	mustertools "github.com/giantswarm/klausctl/internal/tools/muster"
 	"github.com/giantswarm/klausctl/pkg/config"
 	"github.com/giantswarm/klausctl/pkg/mcpclient"
 )
@@ -67,6 +68,7 @@ func runServe(_ *cobra.Command, _ []string) error {
 
 	instancetools.RegisterTools(mcpSrv, serverCtx)
 	artifacttools.RegisterTools(mcpSrv, serverCtx)
+	mustertools.RegisterTools(mcpSrv, serverCtx)
 
 	return mcpserver.ServeStdio(mcpSrv)
 }
@@ -77,6 +79,7 @@ func serverInstructions() string {
 Use the instance tools to create, start, stop, delete, and inspect local klaus instances.
 Use the artifact tools to discover available toolchains, personalities, and plugins.
 Use the agent tools to send prompts to and retrieve results from running instances.
+Use the muster tools to manage the muster MCP bridge that exposes stdio MCP servers to containers.
 
 Typical workflow:
 1. Use klaus_list to see existing instances.

@@ -3,6 +3,7 @@ package orchestrator
 import (
 	"os"
 	"path/filepath"
+	goruntime "runtime"
 	"strings"
 	"testing"
 
@@ -818,6 +819,86 @@ func TestBuildVolumes_NoSourcesMountWhenFileMissing(t *testing.T) {
 	}
 	if _, ok := env["KLAUSCTL_SOURCES_FILE"]; ok {
 		t.Error("expected KLAUSCTL_SOURCES_FILE to be absent when sources.yaml does not exist")
+	}
+}
+
+func TestBuildRunOptions_ExtraHostsWithHostDockerInternal(t *testing.T) {
+	workspace := t.TempDir()
+	cfg := &config.Config{
+		Workspace: workspace,
+		Port:      9090,
+		McpServers: map[string]any{
+			"muster": map[string]any{
+				"url":  "http://host.docker.internal:8090/mcp",
+				"type": "http",
+			},
+		},
+	}
+	paths := testPaths(t)
+
+	opts, err := BuildRunOptions(cfg, paths, "test-container", "test-image:latest", "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// On Linux, host.docker.internal mapping should be added automatically.
+	if goruntime.GOOS == "linux" {
+		expected := "host.docker.internal:host-gateway"
+		found := false
+		for _, h := range opts.ExtraHosts {
+			if h == expected {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("expected ExtraHosts to contain %q on Linux, got %v", expected, opts.ExtraHosts)
+		}
+	} else {
+		if len(opts.ExtraHosts) > 0 {
+			t.Errorf("expected empty ExtraHosts on non-Linux, got %v", opts.ExtraHosts)
+		}
+	}
+}
+
+func TestBuildRunOptions_NoExtraHostsWithoutHostDockerInternal(t *testing.T) {
+	workspace := t.TempDir()
+	cfg := &config.Config{
+		Workspace: workspace,
+		Port:      9090,
+		McpServers: map[string]any{
+			"remote": map[string]any{
+				"url":  "https://mcp.example.com/mcp",
+				"type": "http",
+			},
+		},
+	}
+	paths := testPaths(t)
+
+	opts, err := BuildRunOptions(cfg, paths, "test-container", "test-image:latest", "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(opts.ExtraHosts) > 0 {
+		t.Errorf("expected empty ExtraHosts when no host.docker.internal URL, got %v", opts.ExtraHosts)
+	}
+}
+
+func TestBuildRunOptions_NoExtraHostsWithoutMcpServers(t *testing.T) {
+	workspace := t.TempDir()
+	cfg := &config.Config{
+		Workspace: workspace,
+		Port:      9090,
+	}
+	paths := testPaths(t)
+
+	opts, err := BuildRunOptions(cfg, paths, "test-container", "test-image:latest", "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(opts.ExtraHosts) > 0 {
+		t.Errorf("expected empty ExtraHosts with no MCP servers, got %v", opts.ExtraHosts)
 	}
 }
 
