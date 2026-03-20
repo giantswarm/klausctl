@@ -27,7 +27,7 @@ var musterStartCmd = &cobra.Command{
 	Use:   "start",
 	Short: "Start the muster bridge",
 	Long: `Start a background muster process that aggregates configured MCP servers
-and exposes them via HTTP. The bridge is registered as "muster-bridge" in the
+and exposes them via HTTP. The bridge is registered as "muster" in the
 managed MCP server store so instances can reference it via --mcpserver.`,
 	Args: cobra.NoArgs,
 	RunE: runMusterStart,

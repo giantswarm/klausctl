@@ -828,7 +828,7 @@ func TestBuildRunOptions_ExtraHostsWithHostDockerInternal(t *testing.T) {
 		Workspace: workspace,
 		Port:      9090,
 		McpServers: map[string]any{
-			"muster-bridge": map[string]any{
+			"muster": map[string]any{
 				"url":  "http://host.docker.internal:8090/mcp",
 				"type": "http",
 			},

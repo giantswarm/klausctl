@@ -21,7 +21,7 @@ func RegisterTools(s *mcpserver.MCPServer, sc *server.ServerContext) {
 
 func registerStart(s *mcpserver.MCPServer, sc *server.ServerContext) {
 	tool := mcp.NewTool("klaus_muster_start",
-		mcp.WithDescription("Start the muster MCP bridge. Launches a background muster process that aggregates stdio MCP servers behind an HTTP endpoint for container access. The bridge is auto-registered as 'muster-bridge' in the MCP server store."),
+		mcp.WithDescription("Start the muster MCP bridge. Launches a background muster process that aggregates stdio MCP servers behind an HTTP endpoint for container access. The bridge is auto-registered as 'muster' in the MCP server store."),
 	)
 	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		st, err := musterbridge.Start(ctx, sc.Paths)

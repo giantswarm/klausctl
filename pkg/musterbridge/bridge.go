@@ -25,7 +25,7 @@ import (
 
 const (
 	DefaultPort       = 8090
-	BridgeName        = "muster-bridge"
+	BridgeName        = "muster"
 	healthPollTimeout = 15 * time.Second
 	healthPollDelay   = 500 * time.Millisecond
 )
@@ -86,7 +86,7 @@ func Start(ctx context.Context, paths *config.Paths) (*Status, error) {
 	// If already running, ensure the store entry exists and return current status.
 	if st, alive := checkRunning(paths); alive {
 		if err := registerBridge(paths, st.Port); err != nil {
-			return nil, fmt.Errorf("registering muster-bridge in mcpserverstore: %w", err)
+			return nil, fmt.Errorf("registering muster in mcpserverstore: %w", err)
 		}
 		return st, nil
 	}
@@ -125,7 +125,7 @@ func Start(ctx context.Context, paths *config.Paths) (*Status, error) {
 
 	// Auto-register in mcpserverstore.
 	if err := registerBridge(paths, port); err != nil {
-		return nil, fmt.Errorf("registering muster-bridge in mcpserverstore: %w", err)
+		return nil, fmt.Errorf("registering muster in mcpserverstore: %w", err)
 	}
 
 	return &Status{

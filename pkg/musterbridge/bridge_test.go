@@ -213,7 +213,7 @@ func TestDeregisterBridge_PreservesOtherEntries(t *testing.T) {
 		t.Error("other-server should be preserved after deregisterBridge")
 	}
 	if _, err := reloaded.Get(BridgeName); err == nil {
-		t.Error("muster-bridge should be removed after deregisterBridge")
+		t.Error("muster should be removed after deregisterBridge")
 	}
 }
 
