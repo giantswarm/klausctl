@@ -133,6 +133,144 @@ func TestForInstance(t *testing.T) {
 	if got := filepath.Base(custom.InstanceFile); got != "instance.json" {
 		t.Fatalf("InstanceFile base = %q, want instance.json", got)
 	}
+
+	if custom.MusterConfigDir != paths.MusterConfigDir {
+		t.Errorf("ForInstance MusterConfigDir = %q, want %q", custom.MusterConfigDir, paths.MusterConfigDir)
+	}
+	if custom.MusterMCPServersDir != paths.MusterMCPServersDir {
+		t.Errorf("ForInstance MusterMCPServersDir = %q, want %q", custom.MusterMCPServersDir, paths.MusterMCPServersDir)
+	}
+	if custom.MusterPIDFile != paths.MusterPIDFile {
+		t.Errorf("ForInstance MusterPIDFile = %q, want %q", custom.MusterPIDFile, paths.MusterPIDFile)
+	}
+	if custom.MusterPortFile != paths.MusterPortFile {
+		t.Errorf("ForInstance MusterPortFile = %q, want %q", custom.MusterPortFile, paths.MusterPortFile)
+	}
+}
+
+func TestDefaultPathsMuster(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+
+	paths, err := DefaultPaths()
+	if err != nil {
+		t.Fatalf("DefaultPaths() returned error: %v", err)
+	}
+
+	base := filepath.Join(dir, "klausctl")
+
+	if want := filepath.Join(base, "muster"); paths.MusterConfigDir != want {
+		t.Errorf("MusterConfigDir = %q, want %q", paths.MusterConfigDir, want)
+	}
+	if want := filepath.Join(base, "muster", "mcpservers"); paths.MusterMCPServersDir != want {
+		t.Errorf("MusterMCPServersDir = %q, want %q", paths.MusterMCPServersDir, want)
+	}
+	if want := filepath.Join(base, "muster.pid"); paths.MusterPIDFile != want {
+		t.Errorf("MusterPIDFile = %q, want %q", paths.MusterPIDFile, want)
+	}
+	if want := filepath.Join(base, "muster.port"); paths.MusterPortFile != want {
+		t.Errorf("MusterPortFile = %q, want %q", paths.MusterPortFile, want)
+	}
+}
+
+func TestHasMusterConfig(t *testing.T) {
+	t.Run("no directory", func(t *testing.T) {
+		paths := &Paths{
+			MusterMCPServersDir: filepath.Join(t.TempDir(), "nonexistent", "mcpservers"),
+		}
+		has, err := paths.HasMusterConfig()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if has {
+			t.Error("expected false for nonexistent directory")
+		}
+	})
+
+	t.Run("empty directory", func(t *testing.T) {
+		dir := filepath.Join(t.TempDir(), "mcpservers")
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		paths := &Paths{MusterMCPServersDir: dir}
+		has, err := paths.HasMusterConfig()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if has {
+			t.Error("expected false for empty directory")
+		}
+	})
+
+	t.Run("directory with non-yaml files", func(t *testing.T) {
+		dir := filepath.Join(t.TempDir(), "mcpservers")
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "readme.txt"), []byte("not yaml"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		paths := &Paths{MusterMCPServersDir: dir}
+		has, err := paths.HasMusterConfig()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if has {
+			t.Error("expected false when no YAML files present")
+		}
+	})
+
+	t.Run("directory with yaml file", func(t *testing.T) {
+		dir := filepath.Join(t.TempDir(), "mcpservers")
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "pro.yaml"), []byte("kind: MCPServer\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		paths := &Paths{MusterMCPServersDir: dir}
+		has, err := paths.HasMusterConfig()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !has {
+			t.Error("expected true when YAML file present")
+		}
+	})
+
+	t.Run("directory with yml file", func(t *testing.T) {
+		dir := filepath.Join(t.TempDir(), "mcpservers")
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "klausctl.yml"), []byte("kind: MCPServer\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		paths := &Paths{MusterMCPServersDir: dir}
+		has, err := paths.HasMusterConfig()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !has {
+			t.Error("expected true when YML file present")
+		}
+	})
+
+	t.Run("subdirectories ignored", func(t *testing.T) {
+		dir := filepath.Join(t.TempDir(), "mcpservers")
+		subdir := filepath.Join(dir, "subdir.yaml")
+		if err := os.MkdirAll(subdir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		paths := &Paths{MusterMCPServersDir: dir}
+		has, err := paths.HasMusterConfig()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if has {
+			t.Error("expected false when only subdirectories present")
+		}
+	})
 }
 
 func TestValidateInstanceName(t *testing.T) {
