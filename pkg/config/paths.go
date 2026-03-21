@@ -33,6 +33,8 @@ type Paths struct {
 	ArchivesDir string
 	// SecretsFile is the path to the secrets store (~/.config/klausctl/secrets.yaml).
 	SecretsFile string
+	// TokensDir is the directory for stored OAuth tokens (~/.config/klausctl/tokens/).
+	TokensDir string
 	// McpServersFile is the path to the managed MCP servers file (~/.config/klausctl/mcpservers.yaml).
 	McpServersFile string
 	// SourcesFile is the path to the sources configuration file (~/.config/klausctl/sources.yaml).
@@ -79,6 +81,7 @@ func DefaultPaths() (*Paths, error) {
 		PersonalitiesDir:    filepath.Join(base, "personalities"),
 		InstanceFile:        filepath.Join(defaultInstanceDir, "instance.json"),
 		ArchivesDir:         filepath.Join(base, "archives"),
+		TokensDir:           filepath.Join(base, "tokens"),
 		SecretsFile:         filepath.Join(base, "secrets.yaml"),
 		McpServersFile:      filepath.Join(base, "mcpservers.yaml"),
 		SourcesFile:         sourcesFile,
@@ -141,6 +144,7 @@ func (p *Paths) ForInstance(name string) *Paths {
 		PersonalitiesDir:    p.PersonalitiesDir,
 		InstanceFile:        filepath.Join(instDir, "instance.json"),
 		ArchivesDir:         p.ArchivesDir,
+		TokensDir:           p.TokensDir,
 		SecretsFile:         p.SecretsFile,
 		McpServersFile:      p.McpServersFile,
 		SourcesFile:         p.SourcesFile,
