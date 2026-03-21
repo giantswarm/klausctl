@@ -18,7 +18,7 @@ func TestBuildAuthURL(t *testing.T) {
 		ChallengeMethod: "S256",
 	}
 
-	result := buildAuthURL("https://dex.example.com/auth", "klausctl", "http://127.0.0.1:3001/callback", "test-state", pkce)
+	result := buildAuthURL("https://dex.example.com/auth", DefaultClientIDMetadataURL, "http://127.0.0.1:3001/callback", "test-state", pkce)
 
 	u, err := url.Parse(result)
 	if err != nil {
@@ -32,7 +32,7 @@ func TestBuildAuthURL(t *testing.T) {
 	params := u.Query()
 	checks := map[string]string{
 		"response_type":         "code",
-		"client_id":             "klausctl",
+		"client_id":             DefaultClientIDMetadataURL,
 		"redirect_uri":          "http://127.0.0.1:3001/callback",
 		"state":                 "test-state",
 		"code_challenge":        "test-challenge",

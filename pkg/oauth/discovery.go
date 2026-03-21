@@ -93,6 +93,38 @@ func fetchMetadata(ctx context.Context, url string) (*Metadata, error) {
 	return &meta, nil
 }
 
+// FetchResourceMetadata fetches RFC 9728 OAuth Protected Resource Metadata
+// from the given URL. This is used when a server's WWW-Authenticate header
+// contains resource_metadata instead of realm.
+func FetchResourceMetadata(ctx context.Context, metadataURL string) (*ProtectedResourceMetadata, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, metadataURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("creating request for %s: %w", metadataURL, err)
+	}
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("fetching %s: %w", metadataURL, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("fetching %s: status %d", metadataURL, resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return nil, fmt.Errorf("reading response from %s: %w", metadataURL, err)
+	}
+
+	var meta ProtectedResourceMetadata
+	if err := json.Unmarshal(body, &meta); err != nil {
+		return nil, fmt.Errorf("parsing resource metadata from %s: %w", metadataURL, err)
+	}
+	return &meta, nil
+}
+
 // ClearMetadataCache removes all cached metadata entries.
 // Exported for testing.
 func ClearMetadataCache() {

@@ -13,9 +13,11 @@ import (
 )
 
 const (
-	clientID = "klausctl"
+	// DefaultClientIDMetadataURL is the CIMD URL hosted on GitHub Pages.
+	// Authorization servers that support Client ID Metadata Documents (CIMD)
+	// will fetch this URL to validate client metadata (redirect URIs, etc.).
+	DefaultClientIDMetadataURL = "https://giantswarm.github.io/klausctl/client.json"
 
-	// Scopes matching muster's agent client for group claims and refresh tokens.
 	defaultScopes = "openid profile email groups offline_access"
 )
 
@@ -43,6 +45,16 @@ func (c *Client) Login(ctx context.Context, serverURL string) error {
 	}
 
 	issuerURL := challenge.Realm
+	if issuerURL == "" && challenge.ResourceMetadata != "" {
+		resMeta, rmErr := FetchResourceMetadata(ctx, challenge.ResourceMetadata)
+		if rmErr != nil {
+			return fmt.Errorf("fetching resource metadata: %w", rmErr)
+		}
+		if len(resMeta.AuthorizationServers) == 0 {
+			return fmt.Errorf("resource metadata at %s has no authorization_servers", challenge.ResourceMetadata)
+		}
+		issuerURL = resMeta.AuthorizationServers[0]
+	}
 	if issuerURL == "" {
 		return fmt.Errorf("server %s returned no issuer URL in WWW-Authenticate", serverURL)
 	}
@@ -64,7 +76,7 @@ func (c *Client) Login(ctx context.Context, serverURL string) error {
 		return fmt.Errorf("starting callback server: %w", err)
 	}
 
-	authURL := buildAuthURL(meta.AuthorizationEndpoint, clientID, redirectURI, state, pkce)
+	authURL := buildAuthURL(meta.AuthorizationEndpoint, DefaultClientIDMetadataURL, redirectURI, state, pkce)
 
 	fmt.Printf("Opening browser for authentication...\n")
 	fmt.Printf("If the browser does not open, visit:\n  %s\n\n", authURL)
@@ -78,7 +90,7 @@ func (c *Client) Login(ctx context.Context, serverURL string) error {
 		return fmt.Errorf("waiting for callback: %w", err)
 	}
 
-	token, err := exchangeCode(ctx, meta.TokenEndpoint, clientID, redirectURI, result.Code, pkce.Verifier)
+	token, err := exchangeCode(ctx, meta.TokenEndpoint, DefaultClientIDMetadataURL, redirectURI, result.Code, pkce.Verifier)
 	if err != nil {
 		return fmt.Errorf("exchanging authorization code: %w", err)
 	}

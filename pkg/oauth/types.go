@@ -49,6 +49,14 @@ type AuthChallenge struct {
 	ResourceMetadata string
 }
 
+// ProtectedResourceMetadata holds RFC 9728 OAuth Protected Resource Metadata
+// fetched from .well-known/oauth-protected-resource.
+type ProtectedResourceMetadata struct {
+	Resource             string   `json:"resource"`
+	AuthorizationServers []string `json:"authorization_servers"`
+	BearerMethods        []string `json:"bearer_methods_supported,omitempty"`
+}
+
 // PKCEChallenge holds a PKCE verifier/challenge pair for the S256 method.
 type PKCEChallenge struct {
 	Verifier        string

@@ -201,6 +201,54 @@ func TestDiscoverMetadata_InvalidJSON(t *testing.T) {
 	}
 }
 
+func TestFetchResourceMetadata_Success(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(ProtectedResourceMetadata{
+			Resource:             "https://mcp.example.com",
+			AuthorizationServers: []string{"https://auth.example.com"},
+			BearerMethods:        []string{"header"},
+		})
+	}))
+	defer server.Close()
+
+	got, err := FetchResourceMetadata(context.Background(), server.URL)
+	if err != nil {
+		t.Fatalf("FetchResourceMetadata: %v", err)
+	}
+	if len(got.AuthorizationServers) != 1 || got.AuthorizationServers[0] != "https://auth.example.com" {
+		t.Errorf("AuthorizationServers = %v, want [https://auth.example.com]", got.AuthorizationServers)
+	}
+	if got.Resource != "https://mcp.example.com" {
+		t.Errorf("Resource = %q, want %q", got.Resource, "https://mcp.example.com")
+	}
+}
+
+func TestFetchResourceMetadata_NotFound(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	_, err := FetchResourceMetadata(context.Background(), server.URL)
+	if err == nil {
+		t.Fatal("expected error for 404 response")
+	}
+}
+
+func TestFetchResourceMetadata_InvalidJSON(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte("not json"))
+	}))
+	defer server.Close()
+
+	_, err := FetchResourceMetadata(context.Background(), server.URL)
+	if err == nil {
+		t.Fatal("expected error for invalid JSON")
+	}
+}
+
 func TestClearMetadataCache(t *testing.T) {
 	metadataCacheMu.Lock()
 	metadataCache["test"] = cachedMetadata{}
