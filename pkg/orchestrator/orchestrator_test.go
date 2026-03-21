@@ -6,8 +6,10 @@ import (
 	goruntime "runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/giantswarm/klausctl/pkg/config"
+	"github.com/giantswarm/klausctl/pkg/oauth"
 	"github.com/giantswarm/klausctl/pkg/runtime"
 )
 
@@ -899,6 +901,134 @@ func TestBuildRunOptions_NoExtraHostsWithoutMcpServers(t *testing.T) {
 
 	if len(opts.ExtraHosts) > 0 {
 		t.Errorf("expected empty ExtraHosts with no MCP servers, got %v", opts.ExtraHosts)
+	}
+}
+
+func TestResolveSecretRefs_OAuthToken(t *testing.T) {
+	paths := testPaths(t)
+
+	if err := config.EnsureDir(paths.ConfigDir); err != nil {
+		t.Fatal(err)
+	}
+
+	serverURL := "https://muster.example.com/mcp"
+	mcpContent := "muster-oauth:\n  url: " + serverURL + "\n"
+	if err := os.WriteFile(paths.McpServersFile, []byte(mcpContent), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	tokenStore := oauth.NewTokenStore(paths.TokensDir)
+	if err := tokenStore.StoreToken(serverURL, "https://dex.example.com", oauth.Token{
+		AccessToken: "oauth-access-token-xyz",
+		TokenType:   "Bearer",
+		ExpiresIn:   3600,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := &config.Config{
+		Workspace:     t.TempDir(),
+		McpServerRefs: []string{"muster-oauth"},
+	}
+
+	if err := ResolveSecretRefs(cfg, paths); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	entry, ok := cfg.McpServers["muster-oauth"]
+	if !ok {
+		t.Fatal("expected muster-oauth in McpServers")
+	}
+
+	m := entry.(map[string]any)
+	headers, ok := m["headers"].(map[string]string)
+	if !ok {
+		t.Fatalf("expected headers map, got %T", m["headers"])
+	}
+	if headers["Authorization"] != "Bearer oauth-access-token-xyz" {
+		t.Errorf("Authorization = %q, want %q", headers["Authorization"], "Bearer oauth-access-token-xyz")
+	}
+}
+
+func TestResolveSecretRefs_OAuthTokenExpired(t *testing.T) {
+	paths := testPaths(t)
+
+	if err := config.EnsureDir(paths.ConfigDir); err != nil {
+		t.Fatal(err)
+	}
+
+	serverURL := "https://muster.example.com/mcp"
+	mcpContent := "muster-expired:\n  url: " + serverURL + "\n"
+	if err := os.WriteFile(paths.McpServersFile, []byte(mcpContent), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	tokenStore := oauth.NewTokenStore(paths.TokensDir)
+	if err := tokenStore.StoreToken(serverURL, "https://dex.example.com", oauth.Token{
+		AccessToken: "expired-token",
+		TokenType:   "Bearer",
+		ExpiresIn:   1,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	time.Sleep(2 * time.Second)
+
+	cfg := &config.Config{
+		Workspace:     t.TempDir(),
+		McpServerRefs: []string{"muster-expired"},
+	}
+
+	if err := ResolveSecretRefs(cfg, paths); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	m := cfg.McpServers["muster-expired"].(map[string]any)
+	if _, hasHeaders := m["headers"]; hasHeaders {
+		t.Error("expected no headers for expired OAuth token")
+	}
+}
+
+func TestResolveSecretRefs_StaticSecretTakesPrecedence(t *testing.T) {
+	paths := testPaths(t)
+
+	if err := config.EnsureDir(paths.ConfigDir); err != nil {
+		t.Fatal(err)
+	}
+
+	serverURL := "https://muster.example.com/mcp"
+
+	if err := os.WriteFile(paths.SecretsFile, []byte("static-secret: static-token-123\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	mcpContent := "muster-both:\n  url: " + serverURL + "\n  secret: static-secret\n"
+	if err := os.WriteFile(paths.McpServersFile, []byte(mcpContent), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	tokenStore := oauth.NewTokenStore(paths.TokensDir)
+	if err := tokenStore.StoreToken(serverURL, "https://dex.example.com", oauth.Token{
+		AccessToken: "oauth-token-should-not-be-used",
+		TokenType:   "Bearer",
+		ExpiresIn:   3600,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := &config.Config{
+		Workspace:     t.TempDir(),
+		McpServerRefs: []string{"muster-both"},
+	}
+
+	if err := ResolveSecretRefs(cfg, paths); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	m := cfg.McpServers["muster-both"].(map[string]any)
+	headers := m["headers"].(map[string]string)
+	if headers["Authorization"] != "Bearer static-token-123" {
+		t.Errorf("Authorization = %q, want static secret not OAuth token", headers["Authorization"])
 	}
 }
 

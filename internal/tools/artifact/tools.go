@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	klausoci "github.com/giantswarm/klaus-oci"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -18,6 +19,7 @@ import (
 	"github.com/giantswarm/klausctl/internal/server"
 	"github.com/giantswarm/klausctl/pkg/config"
 	"github.com/giantswarm/klausctl/pkg/mcpserverstore"
+	"github.com/giantswarm/klausctl/pkg/oauth"
 	"github.com/giantswarm/klausctl/pkg/orchestrator"
 	"github.com/giantswarm/klausctl/pkg/secret"
 )
@@ -34,6 +36,7 @@ func RegisterTools(s *mcpserver.MCPServer, sc *server.ServerContext) {
 	registerMcpServerAdd(s, sc)
 	registerMcpServerList(s, sc)
 	registerMcpServerRemove(s, sc)
+	registerMcpServerAuthStatus(s, sc)
 	registerSourceList(s, sc)
 	registerSourceShow(s, sc)
 	registerSourceAdd(s, sc)
@@ -553,6 +556,84 @@ func handleMcpServerRemove(_ context.Context, req mcp.CallToolRequest, sc *serve
 		"name":   name,
 		"status": "removed",
 	})
+}
+
+func registerMcpServerAuthStatus(s *mcpserver.MCPServer, sc *server.ServerContext) {
+	tool := mcp.NewTool("klaus_mcpserver_auth_status",
+		mcp.WithDescription("Show OAuth authentication status for managed MCP servers (does NOT trigger browser flows)"),
+		mcp.WithString("name", mcp.Description("Server name (omit for all servers)")),
+	)
+	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return handleMcpServerAuthStatus(ctx, req, sc)
+	})
+}
+
+type mcpServerAuthEntry struct {
+	Name      string `json:"name"`
+	URL       string `json:"url"`
+	Auth      string `json:"auth"`
+	Issuer    string `json:"issuer,omitempty"`
+	ExpiresAt string `json:"expires_at,omitempty"`
+}
+
+func handleMcpServerAuthStatus(_ context.Context, req mcp.CallToolRequest, sc *server.ServerContext) (*mcp.CallToolResult, error) {
+	store, err := mcpserverstore.Load(sc.Paths.McpServersFile)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("loading MCP servers: %v", err)), nil
+	}
+
+	tokenStore := oauth.NewTokenStore(sc.Paths.TokensDir)
+
+	nameFilter := req.GetString("name", "")
+	if nameFilter != "" {
+		def, err := store.Get(nameFilter)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		entry := buildAuthEntry(nameFilter, def, tokenStore)
+		return server.JSONResult(entry)
+	}
+
+	names := store.List()
+	all := store.All()
+	entries := make([]mcpServerAuthEntry, 0, len(names))
+	for _, name := range names {
+		entries = append(entries, buildAuthEntry(name, all[name], tokenStore))
+	}
+
+	return server.JSONResult(entries)
+}
+
+func buildAuthEntry(name string, def mcpserverstore.McpServerDef, tokenStore *oauth.TokenStore) mcpServerAuthEntry {
+	entry := mcpServerAuthEntry{
+		Name: name,
+		URL:  def.URL,
+	}
+
+	if def.Secret != "" {
+		entry.Auth = "secret"
+		return entry
+	}
+
+	st := tokenStore.GetToken(def.URL)
+	if st == nil {
+		entry.Auth = "none"
+		return entry
+	}
+
+	if st.IsExpired() {
+		entry.Auth = "expired"
+	} else {
+		entry.Auth = "valid"
+	}
+	entry.Issuer = st.Issuer
+
+	if st.Token.ExpiresIn > 0 {
+		expiry := st.CreatedAt.Add(time.Duration(st.Token.ExpiresIn) * time.Second)
+		entry.ExpiresAt = expiry.Format(time.RFC3339)
+	}
+
+	return entry
 }
 
 // --- Source tools ---

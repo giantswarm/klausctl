@@ -15,6 +15,7 @@ import (
 
 	"github.com/giantswarm/klausctl/pkg/config"
 	"github.com/giantswarm/klausctl/pkg/mcpserverstore"
+	"github.com/giantswarm/klausctl/pkg/oauth"
 	"github.com/giantswarm/klausctl/pkg/renderer"
 	"github.com/giantswarm/klausctl/pkg/runtime"
 	"github.com/giantswarm/klausctl/pkg/secret"
@@ -409,6 +410,7 @@ func ResolveSecretRefs(cfg *config.Config, paths *config.Paths) error {
 	}
 
 	var secretStore *secret.Store
+	tokenStore := oauth.NewTokenStore(paths.TokensDir)
 	for _, ref := range cfg.McpServerRefs {
 		def, err := mcpStore.Get(ref)
 		if err != nil {
@@ -433,6 +435,10 @@ func ResolveSecretRefs(cfg *config.Config, paths *config.Paths) error {
 			}
 			entry["headers"] = map[string]string{
 				"Authorization": "Bearer " + token,
+			}
+		} else if st := tokenStore.GetValidToken(def.URL); st != nil {
+			entry["headers"] = map[string]string{
+				"Authorization": "Bearer " + st.Token.AccessToken,
 			}
 		}
 
