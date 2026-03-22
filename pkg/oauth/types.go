@@ -35,10 +35,10 @@ func (st *StoredToken) IsExpired() bool {
 // RFC 8414 (.well-known/oauth-authorization-server) or
 // OpenID Connect discovery (.well-known/openid-configuration).
 type Metadata struct {
-	Issuer                string   `json:"issuer"`
-	AuthorizationEndpoint string   `json:"authorization_endpoint"`
-	TokenEndpoint         string   `json:"token_endpoint"`
-	ScopesSupported       []string `json:"scopes_supported,omitempty"`
+	Issuer                 string   `json:"issuer"`
+	AuthorizationEndpoint  string   `json:"authorization_endpoint"`
+	TokenEndpoint          string   `json:"token_endpoint"`
+	ScopesSupported        []string `json:"scopes_supported,omitempty"`
 	CodeChallengeSupported []string `json:"code_challenge_methods_supported,omitempty"`
 }
 
