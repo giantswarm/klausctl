@@ -13,6 +13,7 @@ import (
 	"github.com/giantswarm/klausctl/internal/server"
 	"github.com/giantswarm/klausctl/pkg/config"
 	"github.com/giantswarm/klausctl/pkg/instance"
+	"github.com/giantswarm/klausctl/pkg/rawmsg"
 	"github.com/giantswarm/klausctl/pkg/runtime"
 )
 
@@ -179,9 +180,35 @@ type agentMessageMC struct {
 	Content string `json:"content"`
 }
 
+// agentMessagesToolResponse is the legacy format with pre-parsed role/content.
 type agentMessagesToolResponse struct {
 	Status   string           `json:"status"`
 	Messages []agentMessageMC `json:"messages"`
+}
+
+// parseMessagesText parses the agent's messages response, handling both the
+// new RawMessagesInfo format and the legacy role/content format.
+func parseMessagesText(text string) (status string, count int, messages []agentMessageMC) {
+	// Try new raw format first.
+	if s, total, msgs, ok := rawmsg.Parse(text); ok {
+		converted := make([]agentMessageMC, len(msgs))
+		for i, m := range msgs {
+			converted[i] = agentMessageMC{Role: m.Role, Content: m.Content}
+		}
+		cnt := len(converted)
+		if total > cnt {
+			cnt = total
+		}
+		return s, cnt, converted
+	}
+
+	// Fall back to legacy format.
+	var parsed agentMessagesToolResponse
+	if err := json.Unmarshal([]byte(text), &parsed); err == nil && parsed.Status != "" {
+		return parsed.Status, len(parsed.Messages), parsed.Messages
+	}
+
+	return "", 0, nil
 }
 
 func handleMessages(ctx context.Context, req mcp.CallToolRequest, sc *server.ServerContext) (*mcp.CallToolResult, error) {
@@ -221,13 +248,13 @@ func fetchMessages(ctx context.Context, name, baseURL string, sc *server.ServerC
 	}
 
 	text := extractText(toolResult)
-	var parsed agentMessagesToolResponse
-	if err := json.Unmarshal([]byte(text), &parsed); err == nil && parsed.Status != "" {
+	status, count, msgs := parseMessagesText(text)
+	if status != "" {
 		return server.JSONResult(messagesResult{
 			Instance: name,
-			Status:   parsed.Status,
-			Count:    len(parsed.Messages),
-			Messages: parsed.Messages,
+			Status:   status,
+			Count:    count,
+			Messages: msgs,
 		})
 	}
 
@@ -255,15 +282,15 @@ func followMessagesUntilDone(ctx context.Context, name, baseURL string, sc *serv
 		}
 
 		text := extractText(toolResult)
-		var parsed agentMessagesToolResponse
-		if json.Unmarshal([]byte(text), &parsed) == nil {
+		status, count, msgs := parseMessagesText(text)
+		if status != "" {
 			lastResult, _ = server.JSONResult(messagesResult{
 				Instance: name,
-				Status:   parsed.Status,
-				Count:    len(parsed.Messages),
-				Messages: parsed.Messages,
+				Status:   status,
+				Count:    count,
+				Messages: msgs,
 			})
-			if terminalStatuses[parsed.Status] {
+			if terminalStatuses[status] {
 				return lastResult, nil
 			}
 		}

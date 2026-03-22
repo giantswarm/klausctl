@@ -15,6 +15,7 @@ import (
 	"github.com/giantswarm/klausctl/pkg/config"
 	"github.com/giantswarm/klausctl/pkg/instance"
 	"github.com/giantswarm/klausctl/pkg/mcpclient"
+	"github.com/giantswarm/klausctl/pkg/rawmsg"
 	"github.com/giantswarm/klausctl/pkg/runtime"
 )
 
@@ -195,6 +196,7 @@ func renderSingleMessage(out io.Writer, msg agentMessage) {
 
 // parseMessagesResponse extracts the messages array from the agent's MCP tool
 // response. The agent returns a JSON payload inside MCP TextContent.
+// It handles both the new RawMessagesInfo format and the legacy role/content format.
 func parseMessagesResponse(toolResult *mcp.CallToolResult) agentMessagesResponse {
 	if toolResult != nil && toolResult.IsError {
 		return agentMessagesResponse{Status: "error"}
@@ -202,6 +204,16 @@ func parseMessagesResponse(toolResult *mcp.CallToolResult) agentMessagesResponse
 
 	text := extractMCPText(toolResult)
 
+	// Try new raw format first.
+	if status, _, msgs, ok := rawmsg.Parse(text); ok {
+		converted := make([]agentMessage, len(msgs))
+		for i, m := range msgs {
+			converted[i] = agentMessage{Role: m.Role, Content: m.Content}
+		}
+		return agentMessagesResponse{Status: status, Messages: converted}
+	}
+
+	// Fall back to legacy format.
 	var parsed agentMessagesResponse
 	if err := json.Unmarshal([]byte(text), &parsed); err == nil && parsed.Status != "" {
 		return parsed

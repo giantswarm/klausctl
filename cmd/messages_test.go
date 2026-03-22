@@ -82,6 +82,32 @@ func TestParseMessagesResponse(t *testing.T) {
 			wantStatus: "unknown",
 			wantCount:  0,
 		},
+		{
+			name: "raw format with messages",
+			result: &mcp.CallToolResult{
+				Content: []mcp.Content{
+					mcp.TextContent{
+						Type: "text",
+						Text: `{"status":"completed","total":3,"messages":[{"type":"user","text":"hello"},{"type":"assistant","subtype":"text","text":"hi"},{"type":"assistant","subtype":"tool_use","tool_name":"bash"}]}`,
+					},
+				},
+			},
+			wantStatus: "completed",
+			wantCount:  3,
+		},
+		{
+			name: "raw format busy",
+			result: &mcp.CallToolResult{
+				Content: []mcp.Content{
+					mcp.TextContent{
+						Type: "text",
+						Text: `{"status":"busy","total":5,"messages":[{"type":"user","text":"work"}]}`,
+					},
+				},
+			},
+			wantStatus: "busy",
+			wantCount:  1,
+		},
 	}
 
 	for _, tt := range tests {
@@ -174,6 +200,64 @@ func TestRenderMessages_JSON(t *testing.T) {
 	}
 	if decoded.Messages[1].Content != "world" {
 		t.Errorf("Messages[1].Content = %q, want %q", decoded.Messages[1].Content, "world")
+	}
+}
+
+func TestRenderMessages_RawFormat(t *testing.T) {
+	colorEnabled = false
+	t.Cleanup(func() { colorEnabled = detectColor() })
+
+	result := &mcp.CallToolResult{
+		Content: []mcp.Content{
+			mcp.TextContent{
+				Type: "text",
+				Text: `{"status":"completed","total":3,"messages":[{"type":"user","text":"hello world"},{"type":"assistant","subtype":"text","text":"hi there"},{"type":"assistant","subtype":"tool_use","tool_name":"read_file"}]}`,
+			},
+		},
+	}
+
+	messagesOutput = "text"
+	var buf bytes.Buffer
+	err := renderMessages(&buf, "dev", result)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	for _, want := range []string{
+		"Instance: dev",
+		"Status:   completed",
+		"Messages: 3",
+		"[user]",
+		"hello world",
+		"[assistant]",
+		"hi there",
+		"[tool_use: read_file]",
+	} {
+		if !strings.Contains(output, want) {
+			t.Errorf("output missing %q\ngot:\n%s", want, output)
+		}
+	}
+}
+
+func TestParseMessagesResponse_RawContent(t *testing.T) {
+	result := &mcp.CallToolResult{
+		Content: []mcp.Content{
+			mcp.TextContent{
+				Type: "text",
+				Text: `{"status":"completed","total":2,"messages":[{"type":"user","text":"hello"},{"type":"assistant","subtype":"text","text":"world"}]}`,
+			},
+		},
+	}
+	parsed := parseMessagesResponse(result)
+	if len(parsed.Messages) != 2 {
+		t.Fatalf("expected 2 messages, got %d", len(parsed.Messages))
+	}
+	if parsed.Messages[0].Role != "user" || parsed.Messages[0].Content != "hello" {
+		t.Errorf("Messages[0] = %+v, want user/hello", parsed.Messages[0])
+	}
+	if parsed.Messages[1].Role != "assistant" || parsed.Messages[1].Content != "world" {
+		t.Errorf("Messages[1] = %+v, want assistant/world", parsed.Messages[1])
 	}
 }
 

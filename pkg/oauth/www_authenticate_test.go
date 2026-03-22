@@ -4,11 +4,11 @@ import "testing"
 
 func TestParseWWWAuthenticate(t *testing.T) {
 	tests := []struct {
-		name              string
-		header            string
-		wantNil           bool
-		wantRealm         string
-		wantResourceMeta  string
+		name             string
+		header           string
+		wantNil          bool
+		wantRealm        string
+		wantResourceMeta string
 	}{
 		{
 			name:      "realm only",

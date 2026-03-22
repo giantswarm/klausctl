@@ -59,4 +59,3 @@ func TestOpenBrowser_InvalidURL(t *testing.T) {
 		t.Error("expected error for invalid URL")
 	}
 }
-
