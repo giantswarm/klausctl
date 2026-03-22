@@ -71,8 +71,8 @@ func TestLoadAppliesDefaults(t *testing.T) {
 		t.Fatalf("Load() returned error: %v", err)
 	}
 
-	if cfg.Image != "gsoci.azurecr.io/giantswarm/klaus:latest" {
-		t.Errorf("default Image = %q, want %q", cfg.Image, "gsoci.azurecr.io/giantswarm/klaus:latest")
+	if cfg.Image != DefaultImageRepository {
+		t.Errorf("default Image = %q, want %q", cfg.Image, DefaultImageRepository)
 	}
 	if cfg.Port != 8080 {
 		t.Errorf("default Port = %d, want %d", cfg.Port, 8080)
@@ -328,7 +328,7 @@ func TestImageExplicitlySetFalse(t *testing.T) {
 	if cfg.ImageExplicitlySet() {
 		t.Error("ImageExplicitlySet() = true, want false when image is not set in config")
 	}
-	if cfg.Image != "gsoci.azurecr.io/giantswarm/klaus:latest" {
+	if cfg.Image != DefaultImageRepository {
 		t.Errorf("Image = %q, want default applied", cfg.Image)
 	}
 }

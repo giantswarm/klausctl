@@ -12,6 +12,20 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+const (
+	// DefaultImageRepository is the OCI repository for the base klaus image.
+	DefaultImageRepository = "gsoci.azurecr.io/giantswarm/klaus"
+
+	// DefaultImageFallback is the full image reference used when registry
+	// resolution is unavailable (offline, auth error, etc.).
+	DefaultImageFallback = DefaultImageRepository + ":latest"
+)
+
+// IsDefaultImage reports whether image is the unresolved default (no tag or :latest).
+func IsDefaultImage(image string) bool {
+	return image == DefaultImageRepository || image == DefaultImageFallback
+}
+
 // Config represents the klausctl configuration file at ~/.config/klausctl/config.yaml.
 // The structure intentionally mirrors the Helm chart values so that knowledge transfers
 // between local, standalone, and operator-managed modes.
@@ -295,7 +309,7 @@ func Load(path string) (*Config, error) {
 // applyDefaults fills in default values for unset fields.
 func (c *Config) applyDefaults() {
 	if c.Image == "" {
-		c.Image = "gsoci.azurecr.io/giantswarm/klaus:latest"
+		c.Image = DefaultImageRepository
 	}
 	if c.Port == 0 {
 		c.Port = 8080

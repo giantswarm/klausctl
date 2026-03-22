@@ -165,8 +165,10 @@ func defaultConfigTemplate() string {
 # Instance-level image and plugins compose with and can override personality values.
 # personality: gsoci.azurecr.io/giantswarm/klaus-personalities/sre:v1.0.0
 
-# Klaus container image (overrides personality image if set)
-image: gsoci.azurecr.io/giantswarm/klaus:latest
+# Klaus container image (overrides personality image if set).
+# When omitted or set to the bare repository, the latest semver tag is
+# resolved from the registry at start time.
+# image: gsoci.azurecr.io/giantswarm/klaus
 
 # Workspace directory to mount into the container
 workspace: ~/projects

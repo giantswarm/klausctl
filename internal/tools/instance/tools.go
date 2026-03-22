@@ -581,7 +581,8 @@ func startExistingInstance(ctx context.Context, name string, sc *server.ServerCo
 		}
 	}
 
-	image := cfg.Image
+	image := orchestrator.ResolveDefaultImage(ctx, client, cfg.Image, io.Discard)
+	cfg.Image = image
 
 	if err := orchestrator.ResolveSecretRefs(cfg, paths); err != nil {
 		return nil, err
