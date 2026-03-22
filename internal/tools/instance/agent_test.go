@@ -202,6 +202,60 @@ func TestParseAgentToolResponse(t *testing.T) {
 	}
 }
 
+func TestParseMessagesText(t *testing.T) {
+	tests := []struct {
+		name       string
+		text       string
+		wantStatus string
+		wantCount  int
+		wantFirst  agentMessageMC
+	}{
+		{
+			name:       "raw format",
+			text:       `{"status":"completed","total":2,"messages":[{"type":"user","text":"hello"},{"type":"assistant","subtype":"text","text":"world"}]}`,
+			wantStatus: "completed",
+			wantCount:  2,
+			wantFirst:  agentMessageMC{Role: "user", Content: "hello"},
+		},
+		{
+			name:       "raw format tool_use",
+			text:       `{"status":"busy","total":3,"messages":[{"type":"assistant","subtype":"tool_use","tool_name":"bash"}]}`,
+			wantStatus: "busy",
+			wantCount:  3,
+			wantFirst:  agentMessageMC{Role: "assistant", Content: "[tool_use: bash]"},
+		},
+		{
+			name:       "legacy format",
+			text:       `{"status":"completed","messages":[{"role":"user","content":"hello"},{"role":"assistant","content":"world"}]}`,
+			wantStatus: "completed",
+			wantCount:  2,
+			wantFirst:  agentMessageMC{Role: "user", Content: "hello"},
+		},
+		{
+			name:       "invalid json",
+			text:       `not json`,
+			wantStatus: "",
+			wantCount:  0,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			status, count, msgs := parseMessagesText(tt.text)
+			if status != tt.wantStatus {
+				t.Errorf("status = %q, want %q", status, tt.wantStatus)
+			}
+			if count != tt.wantCount {
+				t.Errorf("count = %d, want %d", count, tt.wantCount)
+			}
+			if tt.wantStatus != "" && len(msgs) > 0 {
+				if msgs[0] != tt.wantFirst {
+					t.Errorf("first message = %+v, want %+v", msgs[0], tt.wantFirst)
+				}
+			}
+		})
+	}
+}
+
 func TestHandleMessagesMissingName(t *testing.T) {
 	sc := testServerContext(t)
 	req := callToolRequest(map[string]any{})
