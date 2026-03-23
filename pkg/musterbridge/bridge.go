@@ -14,7 +14,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -97,7 +96,7 @@ func Start(ctx context.Context, paths *config.Paths) (*Status, error) {
 		"--config-path", paths.MusterConfigDir,
 		"--silent",
 	)
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	setSysProcAttr(cmd)
 	cmd.Stdout = nil
 	cmd.Stderr = nil
 
@@ -150,8 +149,7 @@ func Stop(paths *config.Paths) error {
 		return nil
 	}
 
-	// Send SIGTERM for graceful shutdown.
-	if err := proc.Signal(syscall.SIGTERM); err != nil {
+	if err := sendTermSignal(proc); err != nil {
 		if errors.Is(err, os.ErrProcessDone) {
 			cleanupFiles(paths)
 			return nil
@@ -169,7 +167,7 @@ func Stop(paths *config.Paths) error {
 	select {
 	case <-done:
 	case <-time.After(5 * time.Second):
-		_ = proc.Signal(syscall.SIGKILL)
+		_ = sendKillSignal(proc)
 	}
 
 	cleanupFiles(paths)
@@ -250,15 +248,6 @@ func readPort(path string) (int, error) {
 		return 0, err
 	}
 	return strconv.Atoi(strings.TrimSpace(string(data)))
-}
-
-func processAlive(pid int) bool {
-	proc, err := os.FindProcess(pid)
-	if err != nil {
-		return false
-	}
-	// Signal 0 tests existence without actually sending a signal.
-	return proc.Signal(syscall.Signal(0)) == nil
 }
 
 func cleanupFiles(paths *config.Paths) {
