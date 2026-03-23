@@ -231,27 +231,31 @@ func handleFetch(_ context.Context, req mcp.CallToolRequest, sc *server.ServerCo
 		}
 		parts := strings.SplitN(repoArg, "/", 2)
 		owner, repo := parts[0], parts[1]
-		if err := workspace.FetchRepo(sc.Paths.ReposDir, owner, repo); err != nil {
+		if _, err := workspace.EnsureCached(sc.Paths.ReposDir, owner, repo, false); err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("fetching %s/%s: %v", owner, repo, err)), nil
 		}
 		return mcp.NewToolResultText(fmt.Sprintf("Fetched %s/%s", owner, repo)), nil
 	}
 
-	cached, err := workspace.ListCached(sc.Paths.ReposDir)
+	cfg, err := workspace.Load(sc.Paths.WorkspacesFile)
 	if err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("listing cached repos: %v", err)), nil
+		return mcp.NewToolResultError(fmt.Sprintf("loading workspace config: %v", err)), nil
 	}
 
-	if len(cached) == 0 {
-		return mcp.NewToolResultText("No cached repos to fetch."), nil
+	if len(cfg.Repos) == 0 {
+		return mcp.NewToolResultText("No repos registered in workspace config."), nil
 	}
 
 	var fetched []string
-	for _, r := range cached {
-		if err := workspace.FetchRepo(sc.Paths.ReposDir, r.Owner, r.Repo); err != nil {
-			return mcp.NewToolResultError(fmt.Sprintf("fetching %s: %v", r.Identifier, err)), nil
+	for _, r := range cfg.Repos {
+		parts := strings.SplitN(r.Name, "/", 2)
+		if len(parts) != 2 {
+			continue
 		}
-		fetched = append(fetched, r.Identifier)
+		if _, err := workspace.EnsureCached(sc.Paths.ReposDir, parts[0], parts[1], false); err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("fetching %s: %v", r.Name, err)), nil
+		}
+		fetched = append(fetched, r.Name)
 	}
 
 	return mcp.NewToolResultText(fmt.Sprintf("Fetched %d repos: %s", len(fetched), strings.Join(fetched, ", "))), nil

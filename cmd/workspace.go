@@ -240,22 +240,27 @@ func runWorkspaceFetch(cmd *cobra.Command, args []string) error {
 		owner, repo := parts[0], parts[1]
 
 		fmt.Fprintf(out, "Fetching %s/%s...\n", owner, repo)
-		return workspace.FetchRepo(paths.ReposDir, owner, repo)
+		_, err := workspace.EnsureCached(paths.ReposDir, owner, repo, false)
+		return err
 	}
 
-	cached, err := workspace.ListCached(paths.ReposDir)
+	cfg, err := loadWorkspaceConfig(paths)
 	if err != nil {
 		return err
 	}
 
-	if len(cached) == 0 {
-		fmt.Fprintln(out, "No cached repos to fetch.")
+	if len(cfg.Repos) == 0 {
+		fmt.Fprintln(out, "No repos registered in workspace config.")
 		return nil
 	}
 
-	for _, r := range cached {
-		fmt.Fprintf(out, "Fetching %s...\n", r.Identifier)
-		if err := workspace.FetchRepo(paths.ReposDir, r.Owner, r.Repo); err != nil {
+	for _, r := range cfg.Repos {
+		repoParts := strings.SplitN(r.Name, "/", 2)
+		if len(repoParts) != 2 {
+			continue
+		}
+		fmt.Fprintf(out, "Fetching %s...\n", r.Name)
+		if _, err := workspace.EnsureCached(paths.ReposDir, repoParts[0], repoParts[1], false); err != nil {
 			return err
 		}
 	}
