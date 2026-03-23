@@ -2,38 +2,30 @@ package instance
 
 import (
 	"context"
+	"net/http"
 	"testing"
 	"time"
-
-	"github.com/giantswarm/klausctl/internal/server"
-	"github.com/giantswarm/klausctl/pkg/mcpclient"
 )
 
-func TestWaitForMCPReadyMCPCancelledContext(t *testing.T) {
+func TestWaitForHTTPReadyMCPCancelledContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	cancel() // cancel immediately
+	cancel()
 
-	sc := &server.ServerContext{
-		MCPClient: mcpclient.New("test"),
-	}
-	defer sc.MCPClient.Close()
+	httpClient := &http.Client{Timeout: 5 * time.Second}
 
-	err := waitForMCPReadyMCP(ctx, "test-instance", "http://localhost:0/mcp", sc)
+	err := waitForHTTPReadyMCP(ctx, httpClient, "http://localhost:0")
 	if err == nil {
 		t.Fatal("expected error for cancelled context")
 	}
 }
 
-func TestWaitForMCPReadyMCPTimeout(t *testing.T) {
+func TestWaitForHTTPReadyMCPTimeout(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 
-	sc := &server.ServerContext{
-		MCPClient: mcpclient.New("test"),
-	}
-	defer sc.MCPClient.Close()
+	httpClient := &http.Client{Timeout: 5 * time.Second}
 
-	err := waitForMCPReadyMCP(ctx, "test-instance", "http://localhost:0/mcp", sc)
+	err := waitForHTTPReadyMCP(ctx, httpClient, "http://localhost:0")
 	if err == nil {
 		t.Fatal("expected error for unreachable endpoint")
 	}

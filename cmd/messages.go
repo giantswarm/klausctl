@@ -46,20 +46,16 @@ func init() {
 	rootCmd.AddCommand(messagesCmd)
 }
 
-// agentMessage represents a single message in the agent conversation.
 type agentMessage struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
 }
 
-// agentMessagesResponse represents the JSON payload returned by the agent's
-// messages MCP tool.
 type agentMessagesResponse struct {
 	Status   string         `json:"status"`
 	Messages []agentMessage `json:"messages"`
 }
 
-// messagesCLIResult is the structured output for JSON mode.
 type messagesCLIResult struct {
 	Instance string         `json:"instance"`
 	Status   string         `json:"status"`
@@ -139,12 +135,11 @@ func followMessages(ctx context.Context, out io.Writer, client *mcpclient.Client
 
 		parsed := parseMessagesResponse(toolResult)
 		if len(parsed.Messages) > seen {
-			newMsgs := parsed.Messages[seen:]
-			for _, msg := range newMsgs {
+			for _, msg := range parsed.Messages[seen:] {
 				renderSingleMessage(out, msg)
 			}
 			seen = len(parsed.Messages)
-			poll = 2 * time.Second // Reset backoff on new messages.
+			poll = 2 * time.Second
 		}
 
 		if agentTerminalStatuses[parsed.Status] {
@@ -161,6 +156,12 @@ func followMessages(ctx context.Context, out io.Writer, client *mcpclient.Client
 			poll = min(poll*2, maxPoll)
 		}
 	}
+}
+
+var agentTerminalStatuses = map[string]bool{
+	"completed": true,
+	"error":     true,
+	"failed":    true,
 }
 
 func renderMessages(out io.Writer, instanceName string, toolResult *mcp.CallToolResult) error {
@@ -194,9 +195,6 @@ func renderSingleMessage(out io.Writer, msg agentMessage) {
 	fmt.Fprintf(out, "[%s]\n%s\n\n", msg.Role, msg.Content)
 }
 
-// parseMessagesResponse extracts the messages array from the agent's MCP tool
-// response. The agent returns a JSON payload inside MCP TextContent.
-// It handles both the new RawMessagesInfo format and the legacy role/content format.
 func parseMessagesResponse(toolResult *mcp.CallToolResult) agentMessagesResponse {
 	if toolResult != nil && toolResult.IsError {
 		return agentMessagesResponse{Status: "error"}
@@ -204,7 +202,6 @@ func parseMessagesResponse(toolResult *mcp.CallToolResult) agentMessagesResponse
 
 	text := extractMCPText(toolResult)
 
-	// Try new raw format first.
 	if status, _, msgs, ok := rawmsg.Parse(text); ok {
 		converted := make([]agentMessage, len(msgs))
 		for i, m := range msgs {
@@ -213,7 +210,6 @@ func parseMessagesResponse(toolResult *mcp.CallToolResult) agentMessagesResponse
 		return agentMessagesResponse{Status: status, Messages: converted}
 	}
 
-	// Fall back to legacy format.
 	var parsed agentMessagesResponse
 	if err := json.Unmarshal([]byte(text), &parsed); err == nil && parsed.Status != "" {
 		return parsed

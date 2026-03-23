@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `klausctl run` and `klausctl prompt` now send prompts via `POST /v1/chat/completions` with streaming instead of MCP `Prompt` tool. In blocking mode, content deltas are printed in real time. In non-blocking mode, the stream is drained in the background.
+- `klaus_run` and `klaus_prompt` MCP tools use the completions streaming API for prompt delivery. Blocking mode drains the stream then fetches the result via MCP `Result` tool.
+- Readiness probes (`waitForMCPReady`) replaced with lightweight `GET /status` HTTP polling via `agentclient.FetchStatus`.
+- `klausctl messages --follow` remains on MCP polling (control plane).
+
+### Removed
+
+- `waitForAgentResult` polling loop in `cmd/prompt.go` (replaced by completions streaming).
+- `waitForResult` polling loop in `internal/tools/instance/agent.go` (replaced by completions streaming).
+
+### Added
+
+- `pkg/agentclient/chat.go`: `StreamCompletion` function for streaming `POST /v1/chat/completions` responses as a channel of deltas.
+
 ### Fixed
 
 - Fix `klausctl plugin validate` rejecting commands-only plugins by adding `commands/` to the recognized plugin content list. ([#69](https://github.com/giantswarm/klausctl/issues/69))

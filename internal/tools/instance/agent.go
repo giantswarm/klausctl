@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	mcpserver "github.com/mark3labs/mcp-go/server"
 
 	"github.com/giantswarm/klausctl/internal/server"
+	"github.com/giantswarm/klausctl/pkg/agentclient"
 	"github.com/giantswarm/klausctl/pkg/config"
 	"github.com/giantswarm/klausctl/pkg/instance"
 	"github.com/giantswarm/klausctl/pkg/rawmsg"
@@ -63,30 +65,37 @@ func handlePrompt(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	toolResult, err := sc.MCPClient.Prompt(ctx, name, baseURL, message)
+	agentURL := strings.TrimSuffix(baseURL, "/mcp")
+	httpClient := &http.Client{Timeout: 0}
+
+	compCh, err := agentclient.StreamCompletion(ctx, httpClient, agentURL, message)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("sending prompt to %q: %v", name, err)), nil
 	}
 
 	if !blocking {
+		go func() {
+			for range compCh {
+			}
+		}()
 		return server.JSONResult(promptResult{
-			Instance:  name,
-			Status:    "started",
-			SessionID: sc.MCPClient.SessionID(name),
-			Result:    extractText(toolResult),
+			Instance: name,
+			Status:   "started",
 		})
 	}
 
-	result, err := waitForResult(ctx, name, baseURL, sc)
+	for range compCh {
+	}
+
+	resultResp, err := sc.MCPClient.Result(ctx, name, baseURL, false)
 	if err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("waiting for result from %q: %v", name, err)), nil
+		return mcp.NewToolResultError(fmt.Sprintf("fetching result from %q: %v", name, err)), nil
 	}
 
 	return server.JSONResult(promptResult{
-		Instance:  name,
-		Status:    "completed",
-		SessionID: sc.MCPClient.SessionID(name),
-		Result:    result,
+		Instance: name,
+		Status:   "completed",
+		Result:   extractText(resultResp),
 	})
 }
 
@@ -336,41 +345,6 @@ var terminalStatuses = map[string]bool{
 	"completed": true,
 	"error":     true,
 	"failed":    true,
-}
-
-// waitForResult polls the agent's status tool until the task completes or the
-// context is cancelled, then retrieves the result.
-func waitForResult(ctx context.Context, name, baseURL string, sc *server.ServerContext) (string, error) {
-	poll := 2 * time.Second
-	const maxPoll = 30 * time.Second
-
-	for {
-		select {
-		case <-ctx.Done():
-			return "", ctx.Err()
-		case <-time.After(poll):
-		}
-
-		statusResult, err := sc.MCPClient.Status(ctx, name, baseURL)
-		if err != nil {
-			return "", fmt.Errorf("polling status: %w", err)
-		}
-
-		if terminalStatuses[parseStatusField(statusResult)] {
-			break
-		}
-
-		if poll < maxPoll {
-			poll = min(poll*2, maxPoll)
-		}
-	}
-
-	resultResp, err := sc.MCPClient.Result(ctx, name, baseURL, false)
-	if err != nil {
-		return "", fmt.Errorf("fetching result: %w", err)
-	}
-
-	return extractText(resultResp), nil
 }
 
 // extractText returns the concatenated text content from an MCP tool result.

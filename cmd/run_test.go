@@ -2,10 +2,9 @@ package cmd
 
 import (
 	"context"
+	"net/http"
 	"testing"
 	"time"
-
-	"github.com/giantswarm/klausctl/pkg/mcpclient"
 )
 
 func TestRunCommandHasAllCreateFlags(t *testing.T) {
@@ -67,28 +66,25 @@ func TestRunCommandMessageShorthand(t *testing.T) {
 	}
 }
 
-func TestWaitForMCPReadyCancelledContext(t *testing.T) {
+func TestWaitForHTTPReadyCancelledContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	cancel() // cancel immediately
+	cancel()
 
-	client := mcpclient.New("test")
-	defer client.Close()
+	httpClient := &http.Client{Timeout: 5 * time.Second}
 
-	err := waitForMCPReady(ctx, "test-instance", "http://localhost:0/mcp", client)
+	err := waitForHTTPReady(ctx, httpClient, "http://localhost:0")
 	if err == nil {
 		t.Fatal("expected error for cancelled context")
 	}
 }
 
-func TestWaitForMCPReadyTimeout(t *testing.T) {
-	// Use a very short timeout context to test the timeout path quickly.
+func TestWaitForHTTPReadyTimeout(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 
-	client := mcpclient.New("test")
-	defer client.Close()
+	httpClient := &http.Client{Timeout: 5 * time.Second}
 
-	err := waitForMCPReady(ctx, "test-instance", "http://localhost:0/mcp", client)
+	err := waitForHTTPReady(ctx, httpClient, "http://localhost:0")
 	if err == nil {
 		t.Fatal("expected error for unreachable endpoint")
 	}

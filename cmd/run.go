@@ -5,15 +5,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"os/signal"
 	"time"
 
 	"github.com/spf13/cobra"
 
+	"github.com/giantswarm/klausctl/pkg/agentclient"
 	"github.com/giantswarm/klausctl/pkg/config"
 	"github.com/giantswarm/klausctl/pkg/instance"
-	"github.com/giantswarm/klausctl/pkg/mcpclient"
 )
 
 var (
@@ -151,49 +152,64 @@ func runRun(cmd *cobra.Command, args []string) error {
 	}
 	instancePaths := paths.ForInstance(instanceName)
 
-	// Load instance state to get the port for MCP communication.
 	inst, err := instance.Load(instancePaths)
 	if err != nil {
 		return fmt.Errorf("loading instance state after create: %w", err)
 	}
 
-	baseURL := fmt.Sprintf("http://localhost:%d/mcp", inst.Port)
+	agentURL := fmt.Sprintf("http://localhost:%d", inst.Port)
+	httpClient := &http.Client{Timeout: 0}
 
-	client := mcpclient.New(buildVersion)
-	defer client.Close()
-
-	// Wait for the MCP endpoint inside the container to become ready.
-	if err := waitForMCPReady(ctx, instanceName, baseURL, client); err != nil {
+	if err := waitForHTTPReady(ctx, httpClient, agentURL); err != nil {
 		return fmt.Errorf("waiting for instance %q to become ready: %w", instanceName, err)
 	}
 
 	fmt.Fprintf(out, "\nSending prompt to %s...\n", instanceName)
 
-	toolResult, err := client.Prompt(ctx, instanceName, baseURL, runMessage)
+	if runBlocking {
+		return runBlocked(ctx, out, httpClient, agentURL, instanceName)
+	}
+
+	return runNonBlocking(ctx, out, httpClient, agentURL, instanceName)
+}
+
+// runBlocked sends the prompt via the chat completions streaming API and
+// prints content deltas as they arrive.
+func runBlocked(ctx context.Context, out io.Writer, httpClient *http.Client, agentURL, instanceName string) error {
+	compCh, err := agentclient.StreamCompletion(ctx, httpClient, agentURL, runMessage)
 	if err != nil {
 		return fmt.Errorf("sending prompt to %q: %w", instanceName, err)
 	}
 
-	if !runBlocking {
-		result := promptCLIResult{
-			Instance:  instanceName,
-			Status:    "started",
-			SessionID: client.SessionID(instanceName),
-			Result:    extractMCPText(toolResult),
+	for delta := range compCh {
+		if delta.Done {
+			break
 		}
-		return renderRunResult(out, result)
+		fmt.Fprint(out, delta.Content)
 	}
+	fmt.Fprintln(out)
 
-	agentResult, err := waitForAgentResult(ctx, instanceName, baseURL, client)
+	return renderRunResult(out, promptCLIResult{
+		Instance: instanceName,
+		Status:   "completed",
+	})
+}
+
+// runNonBlocking sends the prompt via the chat completions API without
+// waiting for the agent to finish.
+func runNonBlocking(ctx context.Context, out io.Writer, httpClient *http.Client, agentURL, instanceName string) error {
+	compCh, err := agentclient.StreamCompletion(ctx, httpClient, agentURL, runMessage)
 	if err != nil {
-		return fmt.Errorf("waiting for result from %q: %w", instanceName, err)
+		return fmt.Errorf("sending prompt to %q: %w", instanceName, err)
 	}
+	go func() {
+		for range compCh {
+		}
+	}()
 
 	result := promptCLIResult{
-		Instance:  instanceName,
-		Status:    "completed",
-		SessionID: client.SessionID(instanceName),
-		Result:    agentResult,
+		Instance: instanceName,
+		Status:   "started",
 	}
 	return renderRunResult(out, result)
 }
@@ -216,19 +232,19 @@ func renderRunResult(out io.Writer, result promptCLIResult) error {
 	return nil
 }
 
-// waitForMCPReady polls the agent's MCP endpoint until it responds
-// successfully or the context is cancelled. This handles the delay between
-// container start and the MCP server being fully initialized.
-func waitForMCPReady(ctx context.Context, instanceName, baseURL string, client *mcpclient.Client) error {
-	poll := 2 * time.Second
-	const maxPoll = 10 * time.Second
+// waitForHTTPReady polls the agent's /status endpoint until it responds
+// successfully or the context is cancelled. Uses lightweight HTTP GET
+// instead of full MCP session initialization.
+func waitForHTTPReady(ctx context.Context, client *http.Client, baseURL string) error {
 	const maxWait = 2 * time.Minute
+	poll := 1 * time.Second
+	const maxPoll = 5 * time.Second
 
 	deadline := time.Now().Add(maxWait)
 
 	for {
 		if time.Now().After(deadline) {
-			return fmt.Errorf("timed out after %s waiting for MCP endpoint", maxWait)
+			return fmt.Errorf("timed out after %s waiting for HTTP endpoint", maxWait)
 		}
 
 		select {
@@ -237,7 +253,7 @@ func waitForMCPReady(ctx context.Context, instanceName, baseURL string, client *
 		case <-time.After(poll):
 		}
 
-		_, err := client.Status(ctx, instanceName, baseURL)
+		_, err := agentclient.FetchStatus(ctx, client, baseURL)
 		if err == nil {
 			return nil
 		}

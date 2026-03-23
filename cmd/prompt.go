@@ -5,17 +5,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"os/signal"
 	"strings"
-	"time"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/spf13/cobra"
 
+	"github.com/giantswarm/klausctl/pkg/agentclient"
 	"github.com/giantswarm/klausctl/pkg/config"
 	"github.com/giantswarm/klausctl/pkg/instance"
-	"github.com/giantswarm/klausctl/pkg/mcpclient"
 	"github.com/giantswarm/klausctl/pkg/runtime"
 )
 
@@ -95,36 +95,53 @@ func runPrompt(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("instance %q is not running (status: %s); run 'klausctl start %s' first", instanceName, status, instanceName)
 	}
 
-	baseURL := fmt.Sprintf("http://localhost:%d/mcp", inst.Port)
+	agentURL := fmt.Sprintf("http://localhost:%d", inst.Port)
+	httpClient := &http.Client{Timeout: 0}
 
-	client := mcpclient.New(buildVersion)
-	defer client.Close()
+	if promptBlocking {
+		return runPromptBlocking(ctx, out, httpClient, agentURL, instanceName)
+	}
 
-	toolResult, err := client.Prompt(ctx, instanceName, baseURL, promptMessage)
+	return runPromptNonBlocking(ctx, out, httpClient, agentURL, instanceName)
+}
+
+// runPromptBlocking sends the prompt via the chat completions streaming API
+// and prints content deltas as they arrive.
+func runPromptBlocking(ctx context.Context, out io.Writer, httpClient *http.Client, agentURL, instanceName string) error {
+	compCh, err := agentclient.StreamCompletion(ctx, httpClient, agentURL, promptMessage)
 	if err != nil {
 		return fmt.Errorf("sending prompt to %q: %w", instanceName, err)
 	}
 
-	if !promptBlocking {
-		result := promptCLIResult{
-			Instance:  instanceName,
-			Status:    "started",
-			SessionID: client.SessionID(instanceName),
-			Result:    extractMCPText(toolResult),
+	for delta := range compCh {
+		if delta.Done {
+			break
 		}
-		return renderPromptResult(out, result)
+		fmt.Fprint(out, delta.Content)
 	}
+	fmt.Fprintln(out)
 
-	agentResult, err := waitForAgentResult(ctx, instanceName, baseURL, client)
+	return renderPromptResult(out, promptCLIResult{
+		Instance: instanceName,
+		Status:   "completed",
+	})
+}
+
+// runPromptNonBlocking sends the prompt via the completions API and returns
+// immediately.
+func runPromptNonBlocking(ctx context.Context, out io.Writer, httpClient *http.Client, agentURL, instanceName string) error {
+	compCh, err := agentclient.StreamCompletion(ctx, httpClient, agentURL, promptMessage)
 	if err != nil {
-		return fmt.Errorf("waiting for result from %q: %w", instanceName, err)
+		return fmt.Errorf("sending prompt to %q: %w", instanceName, err)
 	}
+	go func() {
+		for range compCh {
+		}
+	}()
 
 	result := promptCLIResult{
-		Instance:  instanceName,
-		Status:    "completed",
-		SessionID: client.SessionID(instanceName),
-		Result:    agentResult,
+		Instance: instanceName,
+		Status:   "started",
 	}
 	return renderPromptResult(out, result)
 }
@@ -145,47 +162,6 @@ func renderPromptResult(out io.Writer, result promptCLIResult) error {
 		fmt.Fprintf(out, "\n%s\n", result.Result)
 	}
 	return nil
-}
-
-// waitForAgentResult polls the agent's status until the task completes, then
-// retrieves the result.
-func waitForAgentResult(ctx context.Context, name, baseURL string, client *mcpclient.Client) (string, error) {
-	poll := 2 * time.Second
-	const maxPoll = 30 * time.Second
-
-	for {
-		select {
-		case <-ctx.Done():
-			return "", ctx.Err()
-		case <-time.After(poll):
-		}
-
-		statusResult, err := client.Status(ctx, name, baseURL)
-		if err != nil {
-			return "", fmt.Errorf("polling status: %w", err)
-		}
-
-		if agentTerminalStatuses[parseAgentStatusField(statusResult)] {
-			break
-		}
-
-		if poll < maxPoll {
-			poll = min(poll*2, maxPoll)
-		}
-	}
-
-	resultResp, err := client.Result(ctx, name, baseURL, false)
-	if err != nil {
-		return "", fmt.Errorf("fetching result: %w", err)
-	}
-
-	return extractMCPText(resultResp), nil
-}
-
-var agentTerminalStatuses = map[string]bool{
-	"completed": true,
-	"error":     true,
-	"failed":    true,
 }
 
 // extractMCPText returns the concatenated text content from an MCP tool result.
