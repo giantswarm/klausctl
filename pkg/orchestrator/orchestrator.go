@@ -18,7 +18,6 @@ import (
 	"github.com/giantswarm/klausctl/pkg/oauth"
 	"github.com/giantswarm/klausctl/pkg/renderer"
 	"github.com/giantswarm/klausctl/pkg/runtime"
-	ws "github.com/giantswarm/klausctl/pkg/workspace"
 	"github.com/giantswarm/klausctl/pkg/secret"
 )
 
@@ -183,12 +182,7 @@ func setClaudeEnvVars(env map[string]string, claude *config.ClaudeConfig) {
 func BuildVolumes(cfg *config.Config, paths *config.Paths, env map[string]string, personalityDir string) ([]runtime.Volume, error) {
 	var vols []runtime.Volume
 
-	workspace := cfg.Workspace
-	if ws.IsRepoIdentifier(workspace) {
-		workspace = filepath.Join(paths.ReposDir, workspace)
-	} else {
-		workspace = config.ExpandPath(workspace)
-	}
+	workspace := config.ResolveWorkspacePath(cfg.Workspace, paths.ReposDir)
 	mountPath := workspace
 	if cfg.WorktreePath != "" {
 		mountPath = cfg.WorktreePath

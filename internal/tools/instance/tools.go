@@ -12,7 +12,6 @@ import (
 	"io"
 	"log"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -28,7 +27,6 @@ import (
 	"github.com/giantswarm/klausctl/pkg/orchestrator"
 	"github.com/giantswarm/klausctl/pkg/renderer"
 	"github.com/giantswarm/klausctl/pkg/runtime"
-	ws "github.com/giantswarm/klausctl/pkg/workspace"
 	"github.com/giantswarm/klausctl/pkg/worktree"
 )
 
@@ -527,12 +525,7 @@ func startExistingInstance(ctx context.Context, name string, sc *server.ServerCo
 		return nil, fmt.Errorf("loading config for %q: %w", name, err)
 	}
 
-	workspace := cfg.Workspace
-	if ws.IsRepoIdentifier(workspace) {
-		workspace = filepath.Join(sc.Paths.ReposDir, workspace)
-	} else {
-		workspace = config.ExpandPath(workspace)
-	}
+	workspace := config.ResolveWorkspacePath(cfg.Workspace, sc.Paths.ReposDir)
 	if _, err := os.Stat(workspace); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil, fmt.Errorf("workspace directory does not exist: %s", workspace)
