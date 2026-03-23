@@ -8,9 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 
-	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/spf13/cobra"
 
 	"github.com/giantswarm/klausctl/pkg/agentclient"
@@ -160,20 +158,3 @@ func renderPromptResult(out io.Writer, result promptCLIResult) error {
 	return nil
 }
 
-// extractMCPText returns the concatenated text content from an MCP tool result.
-// Only TextContent items are extracted. Non-text content types (images, etc.)
-// are silently skipped; callers needing the raw payload should inspect
-// result.Content directly.
-func extractMCPText(result *mcp.CallToolResult) string {
-	if result == nil {
-		return ""
-	}
-
-	var parts []string
-	for _, c := range result.Content {
-		if tc, ok := c.(mcp.TextContent); ok {
-			parts = append(parts, tc.Text)
-		}
-	}
-	return strings.Join(parts, "\n")
-}

@@ -123,9 +123,25 @@ func (c *Client) Result(ctx context.Context, instanceName, baseURL string, full 
 	return c.callTool(ctx, instanceName, baseURL, "result", args)
 }
 
+// MessagesOpts holds optional parameters for the Messages call.
+type MessagesOpts struct {
+	Offset int
+	Types  string
+}
+
 // Messages retrieves the agent's conversation messages.
-func (c *Client) Messages(ctx context.Context, instanceName, baseURL string) (*mcp.CallToolResult, error) {
-	return c.callTool(ctx, instanceName, baseURL, "messages", map[string]any{})
+// When opts is non-nil, offset and types are forwarded to the agent.
+func (c *Client) Messages(ctx context.Context, instanceName, baseURL string, opts *MessagesOpts) (*mcp.CallToolResult, error) {
+	args := map[string]any{}
+	if opts != nil {
+		if opts.Offset > 0 {
+			args["offset"] = opts.Offset
+		}
+		if opts.Types != "" {
+			args["types"] = opts.Types
+		}
+	}
+	return c.callTool(ctx, instanceName, baseURL, "messages", args)
 }
 
 // SessionID returns the MCP session ID for the given instance, if any.

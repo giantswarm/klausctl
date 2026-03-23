@@ -141,11 +141,11 @@ func parseResultResponse(instanceName string, toolResult *mcp.CallToolResult) re
 		return resultCLIResult{
 			Instance: instanceName,
 			Status:   "error",
-			Result:   extractMCPText(toolResult),
+			Result:   mcpclient.ExtractText(toolResult),
 		}
 	}
 
-	text := extractMCPText(toolResult)
+	text := mcpclient.ExtractText(toolResult)
 
 	var parsed agentResultResponse
 	if err := json.Unmarshal([]byte(text), &parsed); err == nil && parsed.Status != "" {
@@ -186,7 +186,7 @@ func renderResultOutput(out io.Writer, result resultCLIResult) error {
 // renderFullResultOutput parses the agent's full result response and outputs
 // it as a fullResultCLIResult JSON object.
 func renderFullResultOutput(out io.Writer, instanceName string, toolResult *mcp.CallToolResult) error {
-	text := extractMCPText(toolResult)
+	text := mcpclient.ExtractText(toolResult)
 
 	result := fullResultCLIResult{Instance: instanceName}
 

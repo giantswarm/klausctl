@@ -11,19 +11,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `klaus_messages` MCP tool is now a passthrough proxy -- it forwards the agent's OpenAI-compatible `{messages, metadata, total}` response directly without format conversion. ([#167](https://github.com/giantswarm/klausctl/issues/167))
+- `klaus_messages` accepts new `offset` and `types` parameters, forwarded to the agent's `messages` tool for pagination and filtering.
+- `klausctl messages` CLI parses the new OpenAI-compatible envelope directly.
 - `klausctl run` and `klausctl prompt` now send prompts via `POST /v1/chat/completions` with streaming instead of MCP `Prompt` tool. In blocking mode, content deltas are printed in real time. In non-blocking mode, the stream is drained in the background.
 - `klaus_run` and `klaus_prompt` MCP tools use the completions streaming API for prompt delivery. Blocking mode drains the stream then fetches the result via MCP `Result` tool.
 - Readiness probes (`waitForMCPReady`) replaced with lightweight `GET /status` HTTP polling via `agentclient.FetchStatus`.
 - `klausctl messages --follow` remains on MCP polling (control plane).
+- Deduplicate MCP result helpers (`ExtractText`, `ParseStatusField`, `IsTerminalStatus`) into `pkg/mcpclient/result.go`; remove local copies from `cmd/`, `internal/`, and `pkg/archive/`.
+- `klausctl messages --follow` only probes agent status when no new messages arrive, halving network calls during active output.
+- `klausctl messages -o json` now includes `metadata` (session, model, cost, duration) when the agent provides it.
+- Negative `offset` values in `klaus_messages` are clamped to 0 instead of forwarded as-is.
+- `parseMessagesResponse` validates that the JSON response contains a `messages` array before accepting it.
 
 ### Removed
 
+- `pkg/rawmsg/` package and all raw-to-role/content conversion logic (superseded by agent-side OpenAI-compatible format). ([#167](https://github.com/giantswarm/klausctl/issues/167))
 - `waitForAgentResult` polling loop in `cmd/prompt.go` (replaced by completions streaming).
 - `waitForResult` polling loop in `internal/tools/instance/agent.go` (replaced by completions streaming).
+- Duplicate `extractText`/`extractMCPText` functions from `cmd/prompt.go`, `internal/tools/instance/agent.go`, and `pkg/archive/capture.go`.
+- Duplicate `terminalStatuses` maps and `parseStatusField` functions.
 
 ### Added
 
 - `pkg/agentclient/chat.go`: `StreamCompletion` function for streaming `POST /v1/chat/completions` responses as a channel of deltas.
+- `pkg/mcpclient/result.go`: shared `ExtractText`, `ParseStatusField`, `IsTerminalStatus` helpers with unit tests.
 
 ### Fixed
 
