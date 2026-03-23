@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spf13/cobra"
+
 	"github.com/giantswarm/klausctl/pkg/archive"
 )
 
@@ -209,5 +211,153 @@ func TestRenderArchiveShowText_NoMetrics(t *testing.T) {
 	}
 	if strings.Contains(out, "Tags:") {
 		t.Error("should not show Tags when empty")
+	}
+}
+
+func TestBuildArchiveFilter_Defaults(t *testing.T) {
+	cmd := &cobra.Command{}
+	cmd.Flags().BoolVar(&archiveListTagged, "tagged", false, "")
+	cmd.Flags().BoolVar(&archiveListUntagged, "untagged", false, "")
+
+	archiveListSince = ""
+	archiveListName = ""
+	archiveListOutcome = ""
+	archiveListTagged = false
+	archiveListUntagged = false
+
+	f, err := buildArchiveFilter(cmd)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !f.Since.IsZero() {
+		t.Error("expected zero Since")
+	}
+	if f.Name != "" {
+		t.Error("expected empty Name")
+	}
+	if f.Tagged != nil {
+		t.Error("expected nil Tagged")
+	}
+	if f.Outcome != "" {
+		t.Error("expected empty Outcome")
+	}
+}
+
+func TestBuildArchiveFilter_TaggedAndUntaggedMutuallyExclusive(t *testing.T) {
+	cmd := &cobra.Command{}
+	cmd.Flags().BoolVar(&archiveListTagged, "tagged", false, "")
+	cmd.Flags().BoolVar(&archiveListUntagged, "untagged", false, "")
+
+	archiveListTagged = true
+	archiveListUntagged = true
+
+	_, err := buildArchiveFilter(cmd)
+	if err == nil {
+		t.Fatal("expected error for --tagged and --untagged together")
+	}
+}
+
+func TestBuildArchiveFilter_SinceParses(t *testing.T) {
+	cmd := &cobra.Command{}
+	cmd.Flags().BoolVar(&archiveListTagged, "tagged", false, "")
+	cmd.Flags().BoolVar(&archiveListUntagged, "untagged", false, "")
+
+	archiveListSince = "2025-06-15T10:00:00Z"
+	archiveListName = ""
+	archiveListOutcome = ""
+	archiveListTagged = false
+	archiveListUntagged = false
+
+	f, err := buildArchiveFilter(cmd)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if f.Since.IsZero() {
+		t.Error("expected non-zero Since")
+	}
+}
+
+func TestBuildArchiveFilter_InvalidSince(t *testing.T) {
+	cmd := &cobra.Command{}
+	cmd.Flags().BoolVar(&archiveListTagged, "tagged", false, "")
+	cmd.Flags().BoolVar(&archiveListUntagged, "untagged", false, "")
+
+	archiveListSince = "not-a-date"
+	archiveListTagged = false
+	archiveListUntagged = false
+
+	_, err := buildArchiveFilter(cmd)
+	if err == nil {
+		t.Fatal("expected error for invalid since")
+	}
+}
+
+func TestBuildArchiveFilter_NameAndOutcome(t *testing.T) {
+	cmd := &cobra.Command{}
+	cmd.Flags().BoolVar(&archiveListTagged, "tagged", false, "")
+	cmd.Flags().BoolVar(&archiveListUntagged, "untagged", false, "")
+
+	archiveListSince = ""
+	archiveListName = "dev"
+	archiveListOutcome = "success"
+	archiveListTagged = false
+	archiveListUntagged = false
+
+	f, err := buildArchiveFilter(cmd)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if f.Name != "dev" {
+		t.Errorf("expected Name=dev, got %q", f.Name)
+	}
+	if f.Outcome != "success" {
+		t.Errorf("expected Outcome=success, got %q", f.Outcome)
+	}
+}
+
+func TestBuildArchiveFilter_TaggedFlag(t *testing.T) {
+	cmd := &cobra.Command{}
+	cmd.Flags().BoolVar(&archiveListTagged, "tagged", false, "")
+	cmd.Flags().BoolVar(&archiveListUntagged, "untagged", false, "")
+
+	archiveListSince = ""
+	archiveListName = ""
+	archiveListOutcome = ""
+	archiveListUntagged = false
+
+	// Simulate --tagged being set on the command line.
+	if err := cmd.Flags().Set("tagged", "true"); err != nil {
+		t.Fatal(err)
+	}
+
+	f, err := buildArchiveFilter(cmd)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if f.Tagged == nil || *f.Tagged != true {
+		t.Error("expected Tagged=true")
+	}
+}
+
+func TestBuildArchiveFilter_UntaggedFlag(t *testing.T) {
+	cmd := &cobra.Command{}
+	cmd.Flags().BoolVar(&archiveListTagged, "tagged", false, "")
+	cmd.Flags().BoolVar(&archiveListUntagged, "untagged", false, "")
+
+	archiveListSince = ""
+	archiveListName = ""
+	archiveListOutcome = ""
+	archiveListTagged = false
+
+	if err := cmd.Flags().Set("untagged", "true"); err != nil {
+		t.Fatal(err)
+	}
+
+	f, err := buildArchiveFilter(cmd)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if f.Tagged == nil || *f.Tagged != false {
+		t.Error("expected Tagged=false (untagged)")
 	}
 }

@@ -3,6 +3,7 @@ package instance
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	mcpserver "github.com/mark3labs/mcp-go/server"
@@ -13,7 +14,13 @@ import (
 
 func registerArchiveList(s *mcpserver.MCPServer, sc *server.ServerContext) {
 	tool := mcp.NewTool("klaus_archive_list",
-		mcp.WithDescription("List all archived instance transcripts"),
+		mcp.WithDescription("List archived instance transcripts with optional filtering and pagination"),
+		mcp.WithNumber("limit", mcp.Description("Max entries to return (default: 20)")),
+		mcp.WithNumber("offset", mcp.Description("Skip first N matched entries for pagination (default: 0)")),
+		mcp.WithString("since", mcp.Description("Only entries stopped after this RFC3339 date")),
+		mcp.WithString("name", mcp.Description("Substring match on instance name")),
+		mcp.WithBoolean("tagged", mcp.Description("If true, only entries with tags; if false, only entries without tags")),
+		mcp.WithString("outcome", mcp.Description("Filter by tags.outcome value (success/partial/failed)")),
 	)
 	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		return handleArchiveList(ctx, req, sc)
@@ -31,18 +38,58 @@ func registerArchiveShow(s *mcpserver.MCPServer, sc *server.ServerContext) {
 	})
 }
 
-func handleArchiveList(_ context.Context, _ mcp.CallToolRequest, sc *server.ServerContext) (*mcp.CallToolResult, error) {
+type archiveListResponse struct {
+	Total int                   `json:"total"`
+	Items []archive.ListSummary `json:"items"`
+}
+
+func handleArchiveList(_ context.Context, req mcp.CallToolRequest, sc *server.ServerContext) (*mcp.CallToolResult, error) {
 	entries, err := archive.LoadAll(sc.Paths.ArchivesDir)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("loading archives: %v", err)), nil
 	}
 
-	list := make([]archive.ListSummary, 0, len(entries))
-	for _, e := range entries {
-		list = append(list, e.ToListSummary())
+	// Build filter from request parameters.
+	var f archive.Filter
+	if sinceStr := req.GetString("since", ""); sinceStr != "" {
+		t, err := time.Parse(time.RFC3339, sinceStr)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("invalid since value: %v", err)), nil
+		}
+		f.Since = t
+	}
+	f.Name = req.GetString("name", "")
+	f.Outcome = req.GetString("outcome", "")
+
+	args := req.GetArguments()
+	if _, ok := args["tagged"]; ok {
+		tagged := req.GetBool("tagged", false)
+		f.Tagged = &tagged
 	}
 
-	return server.JSONResult(list)
+	entries = archive.FilterEntries(entries, f)
+	total := len(entries)
+
+	limit := int(req.GetFloat("limit", 20))
+	offset := int(req.GetFloat("offset", 0))
+
+	if offset < 0 {
+		offset = 0
+	}
+	if offset > len(entries) {
+		offset = len(entries)
+	}
+	entries = entries[offset:]
+	if limit > 0 && limit < len(entries) {
+		entries = entries[:limit]
+	}
+
+	items := make([]archive.ListSummary, 0, len(entries))
+	for _, e := range entries {
+		items = append(items, e.ToListSummary())
+	}
+
+	return server.JSONResult(archiveListResponse{Total: total, Items: items})
 }
 
 func registerArchiveTag(s *mcpserver.MCPServer, sc *server.ServerContext) {
