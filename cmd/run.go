@@ -227,4 +227,3 @@ func renderRunResult(out io.Writer, result promptCLIResult) error {
 	}
 	return nil
 }
-
