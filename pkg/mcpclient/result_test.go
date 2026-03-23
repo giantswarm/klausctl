@@ -1,11 +1,9 @@
-package cmd
+package mcpclient
 
 import (
 	"testing"
 
 	"github.com/mark3labs/mcp-go/mcp"
-
-	"github.com/giantswarm/klausctl/pkg/mcpclient"
 )
 
 func TestExtractText(t *testing.T) {
@@ -67,7 +65,7 @@ func TestExtractText(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := mcpclient.ExtractText(tt.result)
+			got := ExtractText(tt.result)
 			if got != tt.want {
 				t.Errorf("ExtractText() = %q, want %q", got, tt.want)
 			}
@@ -75,29 +73,62 @@ func TestExtractText(t *testing.T) {
 	}
 }
 
-func TestColorStatus(t *testing.T) {
-	colorEnabled = false
-	t.Cleanup(func() { colorEnabled = detectColor() })
-
+func TestParseStatusField(t *testing.T) {
 	tests := []struct {
-		input string
-		want  string
+		name   string
+		result *mcp.CallToolResult
+		want   string
 	}{
-		{"started", "started"},
-		{"completed", "completed"},
-		{"idle", "idle"},
-		{"busy", "busy"},
-		{"error", "error"},
-		{"failed", "failed"},
-		{"unknown", "unknown"},
+		{
+			name:   "nil result",
+			result: nil,
+			want:   "",
+		},
+		{
+			name:   "json with status field",
+			result: mcp.NewToolResultText(`{"status":"completed","detail":"all done"}`),
+			want:   "completed",
+		},
+		{
+			name:   "json with error status",
+			result: mcp.NewToolResultText(`{"status":"error","message":"something broke"}`),
+			want:   "error",
+		},
+		{
+			name:   "non-json text returns empty",
+			result: mcp.NewToolResultText("some plain text"),
+			want:   "",
+		},
+		{
+			name:   "json without status field returns empty",
+			result: mcp.NewToolResultText(`{"message":"no status here"}`),
+			want:   "",
+		},
+		{
+			name:   "json with empty status returns empty",
+			result: mcp.NewToolResultText(`{"status":""}`),
+			want:   "",
+		},
 	}
-
 	for _, tt := range tests {
-		t.Run(tt.input, func(t *testing.T) {
-			got := colorStatus(tt.input)
+		t.Run(tt.name, func(t *testing.T) {
+			got := ParseStatusField(tt.result)
 			if got != tt.want {
-				t.Errorf("colorStatus(%q) = %q, want %q", tt.input, got, tt.want)
+				t.Errorf("ParseStatusField() = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestIsTerminalStatus(t *testing.T) {
+	for _, status := range []string{"completed", "error", "failed"} {
+		if !IsTerminalStatus(status) {
+			t.Errorf("expected %q to be terminal", status)
+		}
+	}
+	for _, status := range []string{"running", "idle", "processing", "busy", ""} {
+		if IsTerminalStatus(status) {
+			t.Errorf("expected %q to NOT be terminal", status)
+		}
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"strings"
 	"time"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -15,7 +16,6 @@ import (
 	"github.com/giantswarm/klausctl/pkg/config"
 	"github.com/giantswarm/klausctl/pkg/instance"
 	"github.com/giantswarm/klausctl/pkg/mcpclient"
-	"github.com/giantswarm/klausctl/pkg/rawmsg"
 	"github.com/giantswarm/klausctl/pkg/runtime"
 )
 
@@ -46,21 +46,32 @@ func init() {
 	rootCmd.AddCommand(messagesCmd)
 }
 
+// agentMessage is the display-ready role/content pair used by the CLI.
 type agentMessage struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
 }
 
-type agentMessagesResponse struct {
-	Status   string         `json:"status"`
-	Messages []agentMessage `json:"messages"`
+// messagesEnvelope is the envelope returned by the agent's messages tool.
+type messagesEnvelope struct {
+	Messages []json.RawMessage       `json:"messages"`
+	Metadata *openAIMessagesMetadata `json:"metadata,omitempty"`
+	Total    int                     `json:"total"`
+}
+
+type openAIMessagesMetadata struct {
+	SessionID  string  `json:"session_id,omitempty"`
+	Model      string  `json:"model,omitempty"`
+	CostUSD    float64 `json:"cost_usd,omitempty"`
+	DurationMS int     `json:"duration_ms,omitempty"`
+	NumTurns   int     `json:"num_turns,omitempty"`
 }
 
 type messagesCLIResult struct {
-	Instance string         `json:"instance"`
-	Status   string         `json:"status"`
-	Count    int            `json:"count"`
-	Messages []agentMessage `json:"messages"`
+	Instance string                  `json:"instance"`
+	Count    int                     `json:"count"`
+	Messages []agentMessage          `json:"messages"`
+	Metadata *openAIMessagesMetadata `json:"metadata,omitempty"`
 }
 
 func runMessages(cmd *cobra.Command, args []string) error {
@@ -114,7 +125,7 @@ func runMessages(cmd *cobra.Command, args []string) error {
 }
 
 func fetchAndRenderMessages(ctx context.Context, out io.Writer, client *mcpclient.Client, instanceName, baseURL string) error {
-	toolResult, err := client.Messages(ctx, instanceName, baseURL)
+	toolResult, err := client.Messages(ctx, instanceName, baseURL, nil)
 	if err != nil {
 		return fmt.Errorf("fetching messages from %q: %w", instanceName, err)
 	}
@@ -128,7 +139,7 @@ func followMessages(ctx context.Context, out io.Writer, client *mcpclient.Client
 	const maxPoll = 10 * time.Second
 
 	for {
-		toolResult, err := client.Messages(ctx, instanceName, baseURL)
+		toolResult, err := client.Messages(ctx, instanceName, baseURL, nil)
 		if err != nil {
 			return fmt.Errorf("fetching messages from %q: %w", instanceName, err)
 		}
@@ -140,9 +151,7 @@ func followMessages(ctx context.Context, out io.Writer, client *mcpclient.Client
 			}
 			seen = len(parsed.Messages)
 			poll = 2 * time.Second
-		}
-
-		if agentTerminalStatuses[parsed.Status] {
+		} else if isAgentDone(ctx, client, instanceName, baseURL) {
 			return nil
 		}
 
@@ -158,20 +167,27 @@ func followMessages(ctx context.Context, out io.Writer, client *mcpclient.Client
 	}
 }
 
-var agentTerminalStatuses = map[string]bool{
-	"completed": true,
-	"error":     true,
-	"failed":    true,
+func isAgentDone(ctx context.Context, client *mcpclient.Client, instanceName, baseURL string) bool {
+	statusResult, err := client.Status(ctx, instanceName, baseURL)
+	if err != nil {
+		return false
+	}
+	return mcpclient.IsTerminalStatus(mcpclient.ParseStatusField(statusResult))
 }
 
 func renderMessages(out io.Writer, instanceName string, toolResult *mcp.CallToolResult) error {
 	parsed := parseMessagesResponse(toolResult)
 
+	count := parsed.Total
+	if count == 0 {
+		count = len(parsed.Messages)
+	}
+
 	result := messagesCLIResult{
 		Instance: instanceName,
-		Status:   parsed.Status,
-		Count:    len(parsed.Messages),
+		Count:    count,
 		Messages: parsed.Messages,
+		Metadata: parsed.Metadata,
 	}
 
 	if messagesOutput == "json" {
@@ -181,7 +197,6 @@ func renderMessages(out io.Writer, instanceName string, toolResult *mcp.CallTool
 	}
 
 	fmt.Fprintf(out, "Instance: %s\n", result.Instance)
-	fmt.Fprintf(out, "Status:   %s\n", colorStatus(result.Status))
 	fmt.Fprintf(out, "Messages: %d\n\n", result.Count)
 
 	for _, msg := range result.Messages {
@@ -195,25 +210,160 @@ func renderSingleMessage(out io.Writer, msg agentMessage) {
 	fmt.Fprintf(out, "[%s]\n%s\n\n", msg.Role, msg.Content)
 }
 
-func parseMessagesResponse(toolResult *mcp.CallToolResult) agentMessagesResponse {
+// parsedMessages holds display-ready messages converted from the agent envelope.
+type parsedMessages struct {
+	Messages []agentMessage
+	Metadata *openAIMessagesMetadata
+	Total    int
+}
+
+func parseMessagesResponse(toolResult *mcp.CallToolResult) parsedMessages {
 	if toolResult != nil && toolResult.IsError {
-		return agentMessagesResponse{Status: "error"}
+		return parsedMessages{}
 	}
 
-	text := extractMCPText(toolResult)
+	text := mcpclient.ExtractText(toolResult)
+	if text == "" {
+		return parsedMessages{}
+	}
 
-	if status, _, msgs, ok := rawmsg.Parse(text); ok {
-		converted := make([]agentMessage, len(msgs))
-		for i, m := range msgs {
-			converted[i] = agentMessage{Role: m.Role, Content: m.Content}
+	var envelope messagesEnvelope
+	if err := json.Unmarshal([]byte(text), &envelope); err != nil || envelope.Messages == nil {
+		return parsedMessages{}
+	}
+
+	msgs := make([]agentMessage, 0, len(envelope.Messages))
+	for _, raw := range envelope.Messages {
+		if msg, ok := convertRawMessage(raw); ok {
+			msgs = append(msgs, msg)
 		}
-		return agentMessagesResponse{Status: status, Messages: converted}
 	}
 
-	var parsed agentMessagesResponse
-	if err := json.Unmarshal([]byte(text), &parsed); err == nil && parsed.Status != "" {
-		return parsed
+	return parsedMessages{
+		Messages: msgs,
+		Metadata: envelope.Metadata,
+		Total:    envelope.Total,
+	}
+}
+
+// rawMessageItem represents a single message from the agent's messages array.
+// The agent wraps each OpenAI-compatible message inside a {"type", "message"} envelope.
+type rawMessageItem struct {
+	Type    string          `json:"type"`
+	Subtype string          `json:"subtype,omitempty"`
+	Message json.RawMessage `json:"message,omitempty"`
+	Result  string          `json:"result,omitempty"`
+}
+
+// openAIMessage is the inner OpenAI-compatible message object.
+type openAIMessage struct {
+	Role    string          `json:"role"`
+	Content json.RawMessage `json:"content"`
+}
+
+// openAIContentBlock is a single block inside an OpenAI content array.
+type openAIContentBlock struct {
+	Type      string `json:"type"`
+	Text      string `json:"text,omitempty"`
+	Name      string `json:"name,omitempty"`
+	ToolUseID string `json:"tool_use_id,omitempty"`
+}
+
+func convertRawMessage(data json.RawMessage) (agentMessage, bool) {
+	// Try flat {role, content} first (future fully-OpenAI-compatible format).
+	var flat agentMessage
+	if err := json.Unmarshal(data, &flat); err == nil && flat.Role != "" && flat.Content != "" {
+		return flat, true
 	}
 
-	return agentMessagesResponse{Status: "unknown"}
+	var item rawMessageItem
+	if err := json.Unmarshal(data, &item); err != nil {
+		return agentMessage{}, false
+	}
+
+	switch item.Type {
+	case "system":
+		if item.Subtype == "init" || item.Subtype == "hook_started" || item.Subtype == "hook_response" {
+			return agentMessage{}, false
+		}
+		return agentMessage{Role: "system", Content: extractInnerText(item.Message)}, true
+
+	case "assistant":
+		text := extractInnerText(item.Message)
+		if text == "" {
+			return agentMessage{}, false
+		}
+		return agentMessage{Role: "assistant", Content: text}, true
+
+	case "user":
+		text := extractInnerText(item.Message)
+		if text == "" {
+			return agentMessage{}, false
+		}
+		return agentMessage{Role: "user", Content: text}, true
+
+	case "result":
+		if item.Result != "" {
+			return agentMessage{Role: "system", Content: item.Result}, true
+		}
+		return agentMessage{}, false
+
+	default:
+		return agentMessage{}, false
+	}
+}
+
+// extractInnerText extracts displayable text from the inner OpenAI-compatible
+// message object. It handles both string content and array-of-content-blocks.
+func extractInnerText(data json.RawMessage) string {
+	if len(data) == 0 {
+		return ""
+	}
+
+	var inner openAIMessage
+	if err := json.Unmarshal(data, &inner); err != nil {
+		return ""
+	}
+
+	// content might be a plain string.
+	var plainContent string
+	if err := json.Unmarshal(inner.Content, &plainContent); err == nil {
+		return plainContent
+	}
+
+	// content is an array of content blocks.
+	var blocks []openAIContentBlock
+	if err := json.Unmarshal(inner.Content, &blocks); err != nil {
+		return ""
+	}
+
+	var parts []string
+	for _, b := range blocks {
+		switch b.Type {
+		case "text":
+			if b.Text != "" {
+				parts = append(parts, b.Text)
+			}
+		case "tool_use":
+			name := b.Name
+			if name == "" {
+				name = "unknown"
+			}
+			label := fmt.Sprintf("[tool_use: %s]", name)
+			if b.Text != "" {
+				label += " " + b.Text
+			}
+			parts = append(parts, label)
+		case "tool_result":
+			if b.Text != "" {
+				t := b.Text
+				if len(t) > 500 {
+					t = t[:500] + "..."
+				}
+				parts = append(parts, t)
+			}
+		}
+	}
+
+	return strings.Join(parts, "\n")
 }

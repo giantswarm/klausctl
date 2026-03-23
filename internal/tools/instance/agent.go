@@ -15,7 +15,7 @@ import (
 	"github.com/giantswarm/klausctl/pkg/agentclient"
 	"github.com/giantswarm/klausctl/pkg/config"
 	"github.com/giantswarm/klausctl/pkg/instance"
-	"github.com/giantswarm/klausctl/pkg/rawmsg"
+	"github.com/giantswarm/klausctl/pkg/mcpclient"
 	"github.com/giantswarm/klausctl/pkg/runtime"
 )
 
@@ -94,7 +94,7 @@ func handlePrompt(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 	return server.JSONResult(promptResult{
 		Instance: name,
 		Status:   "completed",
-		Result:   extractText(resultResp),
+		Result:   mcpclient.ExtractText(resultResp),
 	})
 }
 
@@ -134,18 +134,18 @@ func handleResult(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 		return server.JSONResult(agentResult{
 			Instance: name,
 			Status:   "error",
-			Result:   extractText(toolResult),
+			Result:   mcpclient.ExtractText(toolResult),
 		})
 	}
 
 	// When full is requested, pass the raw agent JSON through without
 	// re-parsing into the reduced agentResult struct.
 	if full {
-		text := extractText(toolResult)
+		text := mcpclient.ExtractText(toolResult)
 		return mcp.NewToolResultText(text), nil
 	}
 
-	text := extractText(toolResult)
+	text := mcpclient.ExtractText(toolResult)
 
 	var parsed agentToolResponse
 	if err := json.Unmarshal([]byte(text), &parsed); err == nil && parsed.Status != "" {
@@ -167,56 +167,15 @@ func handleResult(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 
 func registerMessages(s *mcpserver.MCPServer, sc *server.ServerContext) {
 	tool := mcp.NewTool("klaus_messages",
-		mcp.WithDescription("Retrieve conversation messages from a running klaus instance"),
+		mcp.WithDescription("Retrieve conversation messages from a running klaus instance in OpenAI-compatible format"),
 		mcp.WithString("name", mcp.Required(), mcp.Description("Instance name")),
+		mcp.WithNumber("offset", mcp.Description("Start returning messages from this index (0-based)")),
+		mcp.WithString("types", mcp.Description("Comma-separated message types to include (e.g. 'user,assistant,tool')")),
 		mcp.WithBoolean("follow", mcp.Description("Poll for new messages until the agent completes (default: false)")),
 	)
 	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		return handleMessages(ctx, req, sc)
 	})
-}
-
-type messagesResult struct {
-	Instance string           `json:"instance"`
-	Status   string           `json:"status"`
-	Count    int              `json:"count"`
-	Messages []agentMessageMC `json:"messages"`
-}
-
-type agentMessageMC struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
-}
-
-// agentMessagesToolResponse is the legacy format with pre-parsed role/content.
-type agentMessagesToolResponse struct {
-	Status   string           `json:"status"`
-	Messages []agentMessageMC `json:"messages"`
-}
-
-// parseMessagesText parses the agent's messages response, handling both the
-// new RawMessagesInfo format and the legacy role/content format.
-func parseMessagesText(text string) (status string, count int, messages []agentMessageMC) {
-	// Try new raw format first.
-	if s, total, msgs, ok := rawmsg.Parse(text); ok {
-		converted := make([]agentMessageMC, len(msgs))
-		for i, m := range msgs {
-			converted[i] = agentMessageMC{Role: m.Role, Content: m.Content}
-		}
-		cnt := len(converted)
-		if total > cnt {
-			cnt = total
-		}
-		return s, cnt, converted
-	}
-
-	// Fall back to legacy format.
-	var parsed agentMessagesToolResponse
-	if err := json.Unmarshal([]byte(text), &parsed); err == nil && parsed.Status != "" {
-		return parsed.Status, len(parsed.Messages), parsed.Messages
-	}
-
-	return "", 0, nil
 }
 
 func handleMessages(ctx context.Context, req mcp.CallToolRequest, sc *server.ServerContext) (*mcp.CallToolResult, error) {
@@ -234,46 +193,38 @@ func handleMessages(ctx context.Context, req mcp.CallToolRequest, sc *server.Ser
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
+	opts := messagesOptsFromReq(req)
+
 	if !follow {
-		return fetchMessages(ctx, name, baseURL, sc)
+		return fetchMessages(ctx, name, baseURL, sc, opts)
 	}
 
-	return followMessagesUntilDone(ctx, name, baseURL, sc)
+	return followMessagesUntilDone(ctx, name, baseURL, sc, opts)
 }
 
-func fetchMessages(ctx context.Context, name, baseURL string, sc *server.ServerContext) (*mcp.CallToolResult, error) {
-	toolResult, err := sc.MCPClient.Messages(ctx, name, baseURL)
+func messagesOptsFromReq(req mcp.CallToolRequest) *mcpclient.MessagesOpts {
+	offset := max(int(req.GetFloat("offset", 0)), 0)
+	types := req.GetString("types", "")
+	if offset == 0 && types == "" {
+		return nil
+	}
+	return &mcpclient.MessagesOpts{Offset: offset, Types: types}
+}
+
+func fetchMessages(ctx context.Context, name, baseURL string, sc *server.ServerContext, opts *mcpclient.MessagesOpts) (*mcp.CallToolResult, error) {
+	toolResult, err := sc.MCPClient.Messages(ctx, name, baseURL, opts)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("fetching messages from %q: %v", name, err)), nil
 	}
 
 	if toolResult.IsError {
-		return server.JSONResult(messagesResult{
-			Instance: name,
-			Status:   "error",
-			Messages: []agentMessageMC{},
-		})
+		return toolResult, nil
 	}
 
-	text := extractText(toolResult)
-	status, count, msgs := parseMessagesText(text)
-	if status != "" {
-		return server.JSONResult(messagesResult{
-			Instance: name,
-			Status:   status,
-			Count:    count,
-			Messages: msgs,
-		})
-	}
-
-	return server.JSONResult(messagesResult{
-		Instance: name,
-		Status:   "unknown",
-		Messages: []agentMessageMC{},
-	})
+	return mcp.NewToolResultText(mcpclient.ExtractText(toolResult)), nil
 }
 
-func followMessagesUntilDone(ctx context.Context, name, baseURL string, sc *server.ServerContext) (*mcp.CallToolResult, error) {
+func followMessagesUntilDone(ctx context.Context, name, baseURL string, sc *server.ServerContext, opts *mcpclient.MessagesOpts) (*mcp.CallToolResult, error) {
 	const maxFollowDuration = 30 * time.Minute
 	ctx, cancel := context.WithTimeout(ctx, maxFollowDuration)
 	defer cancel()
@@ -284,23 +235,20 @@ func followMessagesUntilDone(ctx context.Context, name, baseURL string, sc *serv
 	var lastResult *mcp.CallToolResult
 
 	for {
-		toolResult, err := sc.MCPClient.Messages(ctx, name, baseURL)
+		toolResult, err := sc.MCPClient.Messages(ctx, name, baseURL, opts)
 		if err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("fetching messages from %q: %v", name, err)), nil
 		}
 
-		text := extractText(toolResult)
-		status, count, msgs := parseMessagesText(text)
-		if status != "" {
-			lastResult, _ = server.JSONResult(messagesResult{
-				Instance: name,
-				Status:   status,
-				Count:    count,
-				Messages: msgs,
-			})
-			if terminalStatuses[status] {
-				return lastResult, nil
-			}
+		lastResult = mcp.NewToolResultText(mcpclient.ExtractText(toolResult))
+
+		statusResult, statusErr := sc.MCPClient.Status(ctx, name, baseURL)
+		status := ""
+		if statusErr == nil {
+			status = mcpclient.ParseStatusField(statusResult)
+		}
+		if mcpclient.IsTerminalStatus(status) {
+			return lastResult, nil
 		}
 
 		select {
@@ -339,52 +287,6 @@ func agentBaseURL(ctx context.Context, name string, sc *server.ServerContext) (s
 	return fmt.Sprintf("http://localhost:%d/mcp", inst.Port), nil
 }
 
-// terminalStatuses are the agent statuses that indicate the task is done.
-var terminalStatuses = map[string]bool{
-	"completed": true,
-	"error":     true,
-	"failed":    true,
-}
-
-// extractText returns the concatenated text content from an MCP tool result.
-func extractText(result *mcp.CallToolResult) string {
-	if result == nil {
-		return ""
-	}
-
-	var parts []string
-	for _, c := range result.Content {
-		if tc, ok := c.(mcp.TextContent); ok {
-			parts = append(parts, tc.Text)
-		}
-	}
-	if len(parts) > 0 {
-		return strings.Join(parts, "\n")
-	}
-
-	raw, err := json.Marshal(result.Content)
-	if err != nil {
-		return ""
-	}
-	return string(raw)
-}
-
-// parseStatusField extracts the "status" field from a JSON tool result.
-// Returns the status string if found, or empty string otherwise.
-func parseStatusField(result *mcp.CallToolResult) string {
-	text := extractText(result)
-	if text == "" {
-		return ""
-	}
-	var parsed struct {
-		Status string `json:"status"`
-	}
-	if err := json.Unmarshal([]byte(text), &parsed); err == nil && parsed.Status != "" {
-		return parsed.Status
-	}
-	return text
-}
-
 // queryAgentStatus probes the agent's internal status through its MCP endpoint.
 // Returns the parsed status string or empty if the agent is unreachable.
 func queryAgentStatus(ctx context.Context, name string, port int, sc *server.ServerContext) string {
@@ -398,5 +300,5 @@ func queryAgentStatus(ctx context.Context, name string, port int, sc *server.Ser
 		return ""
 	}
 
-	return parseStatusField(result)
+	return mcpclient.ParseStatusField(result)
 }
