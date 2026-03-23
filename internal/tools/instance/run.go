@@ -32,7 +32,7 @@ func registerRun(s *mcpserver.MCPServer, sc *server.ServerContext) {
 		mcp.WithString("permissionMode", mcp.Description("Claude permission mode (overrides personality default): default, acceptEdits, bypassPermissions, dontAsk, plan, delegate")),
 		mcp.WithString("model", mcp.Description("Claude model (overrides personality default, e.g. sonnet, opus, claude-sonnet-4-20250514)")),
 		mcp.WithString("systemPrompt", mcp.Description("System prompt for the Claude agent (overrides personality default)")),
-		mcp.WithBoolean("persistentMode", mcp.Description("Enable bidirectional stream-json mode; automatically disables noSessionPersistence when true (default: false)")),
+		mcp.WithString("mode", mcp.Description(`Operating mode: "agent" (default, autonomous coding, new process per prompt) or "chat" (interactive, persistent process, saved sessions)`)),
 		mcp.WithBoolean("noIsolate", mcp.Description("Skip git worktree creation and bind-mount workspace directly (default: false)")),
 		mcp.WithBoolean("noFetch", mcp.Description("Skip git fetch origin before cloning the workspace (default: false)")),
 		mcp.WithNumber("port", mcp.Description("Override auto-selected host port for the instance MCP endpoint (0 or omitted = auto-select starting from 8080)")),

@@ -30,8 +30,7 @@ type ContainerClaudeConfig struct {
 	McpTimeout             int      `yaml:"mcpTimeout,omitempty"`
 	MaxMcpOutputTokens     int      `yaml:"maxMcpOutputTokens,omitempty"`
 	ActiveAgent            string   `yaml:"activeAgent,omitempty"`
-	PersistentMode         bool     `yaml:"persistentMode,omitempty"`
-	NoSessionPersistence   *bool    `yaml:"noSessionPersistence,omitempty"`
+	Mode                   string   `yaml:"mode,omitempty"`
 	IncludePartialMessages bool     `yaml:"includePartialMessages,omitempty"`
 	JsonSchema             string   `yaml:"jsonSchema,omitempty"`
 	SettingSources         string   `yaml:"settingSources,omitempty"`
@@ -81,8 +80,7 @@ func BuildContainerConfig(cfg *config.Config) *ContainerConfig {
 			McpTimeout:             cfg.Claude.McpTimeout,
 			MaxMcpOutputTokens:     cfg.Claude.MaxMcpOutputTokens,
 			ActiveAgent:            cfg.Claude.ActiveAgent,
-			PersistentMode:         cfg.Claude.PersistentMode,
-			NoSessionPersistence:   cfg.Claude.NoSessionPersistence,
+			Mode:                   cfg.Claude.Mode,
 			IncludePartialMessages: cfg.Claude.IncludePartialMessages,
 			JsonSchema:             cfg.Claude.JsonSchema,
 			SettingSources:         cfg.Claude.SettingSources,

@@ -340,37 +340,29 @@ func TestGenerateInstanceConfig_Overrides(t *testing.T) {
 			},
 		},
 		{
-			name: "persistentMode enables persistent mode and disables noSessionPersistence",
+			name: "mode chat overrides default agent mode",
 			opts: func() CreateOptions {
 				return CreateOptions{
 					Name: "test", Workspace: workspace,
-					PersistentMode: true,
+					Mode: "chat",
 				}
 			},
 			check: func(t *testing.T, cfg *Config) {
-				if !cfg.Claude.PersistentMode {
-					t.Error("expected persistentMode=true")
-				}
-				if cfg.Claude.NoSessionPersistence == nil || *cfg.Claude.NoSessionPersistence {
-					t.Error("expected noSessionPersistence=false when persistentMode is true")
+				if cfg.Claude.Mode != "chat" {
+					t.Errorf("expected mode=chat, got %q", cfg.Claude.Mode)
 				}
 			},
 		},
 		{
-			name: "persistentMode false leaves defaults untouched",
+			name: "mode empty leaves default agent mode",
 			opts: func() CreateOptions {
 				return CreateOptions{
 					Name: "test", Workspace: workspace,
-					PersistentMode: false,
 				}
 			},
 			check: func(t *testing.T, cfg *Config) {
-				if cfg.Claude.PersistentMode {
-					t.Error("expected persistentMode=false")
-				}
-				// Default noSessionPersistence should remain true.
-				if cfg.Claude.NoSessionPersistence == nil || !*cfg.Claude.NoSessionPersistence {
-					t.Error("expected noSessionPersistence=true by default")
+				if cfg.Claude.Mode != "agent" {
+					t.Errorf("expected mode=agent by default, got %q", cfg.Claude.Mode)
 				}
 			},
 		},

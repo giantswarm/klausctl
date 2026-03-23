@@ -161,11 +161,8 @@ func setClaudeEnvVars(env map[string]string, claude *config.ClaudeConfig) {
 	}
 	setEnvIfNotEmpty(env, "CLAUDE_JSON_SCHEMA", claude.JsonSchema)
 	setEnvIfNotEmpty(env, "CLAUDE_SETTING_SOURCES", claude.SettingSources)
-	if claude.PersistentMode {
-		env["CLAUDE_PERSISTENT_MODE"] = "true"
-	}
-	if claude.NoSessionPersistence != nil && *claude.NoSessionPersistence {
-		env["CLAUDE_NO_SESSION_PERSISTENCE"] = "true"
+	if claude.Mode != "" {
+		env["CLAUDE_MODE"] = claude.Mode
 	}
 
 	if len(claude.Tools) > 0 {
