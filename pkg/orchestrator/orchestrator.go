@@ -182,7 +182,7 @@ func setClaudeEnvVars(env map[string]string, claude *config.ClaudeConfig) {
 func BuildVolumes(cfg *config.Config, paths *config.Paths, env map[string]string, personalityDir string) ([]runtime.Volume, error) {
 	var vols []runtime.Volume
 
-	workspace := config.ExpandPath(cfg.Workspace)
+	workspace := config.ResolveWorkspacePath(cfg.Workspace, paths.ReposDir)
 	mountPath := workspace
 	if cfg.WorktreePath != "" {
 		mountPath = cfg.WorktreePath

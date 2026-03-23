@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	ws "github.com/giantswarm/klausctl/pkg/workspace"
 )
 
 // Paths holds the filesystem paths used by klausctl.
@@ -124,6 +126,16 @@ func ExpandPath(path string) string {
 		return filepath.Join(home, path[2:])
 	}
 	return path
+}
+
+// ResolveWorkspacePath resolves a workspace string to an absolute host path.
+// Repo identifiers (owner/repo) are resolved under reposDir; filesystem
+// paths are tilde-expanded via ExpandPath.
+func ResolveWorkspacePath(workspace, reposDir string) string {
+	if ws.IsRepoIdentifier(workspace) {
+		return filepath.Join(reposDir, workspace)
+	}
+	return ExpandPath(workspace)
 }
 
 // EnsureDir creates a directory and all parents if they don't exist.

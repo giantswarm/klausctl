@@ -83,8 +83,7 @@ func startInstance(cmd *cobra.Command, instanceName, workspaceOverride, configPa
 
 	applyWorkspaceOverride(cfg, workspaceOverride)
 
-	// Validate that the workspace directory exists.
-	workspace := config.ExpandPath(cfg.Workspace)
+	workspace := config.ResolveWorkspacePath(cfg.Workspace, paths.ReposDir)
 	if _, err := os.Stat(workspace); err != nil {
 		if os.IsNotExist(err) {
 			return fmt.Errorf("workspace directory does not exist: %s", workspace)
