@@ -150,6 +150,7 @@ func initBareRepo(t *testing.T) string {
 	run(t, "", "git", "clone", bare, clone)
 	run(t, clone, "git", "config", "user.email", "test@test.com")
 	run(t, clone, "git", "config", "user.name", "Test")
+	run(t, clone, "git", "config", "commit.gpgsign", "false")
 	run(t, clone, "git", "checkout", "-b", "main")
 	if err := os.WriteFile(filepath.Join(clone, "README.md"), []byte("hello"), 0o644); err != nil {
 		t.Fatal(err)
