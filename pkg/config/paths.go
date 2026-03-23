@@ -49,6 +49,10 @@ type Paths struct {
 	MusterPIDFile string
 	// MusterPortFile tracks the port of the managed muster process.
 	MusterPortFile string
+	// ReposDir is the managed repo cache directory (~/.config/klausctl/repos/).
+	ReposDir string
+	// WorkspacesFile is the path to the workspace registry (~/.config/klausctl/workspaces.yaml).
+	WorkspacesFile string
 }
 
 // DefaultPaths returns the default paths using XDG conventions.
@@ -89,6 +93,8 @@ func DefaultPaths() (*Paths, error) {
 		MusterMCPServersDir: filepath.Join(musterDir, "mcpservers"),
 		MusterPIDFile:       filepath.Join(base, "muster.pid"),
 		MusterPortFile:      filepath.Join(base, "muster.port"),
+		ReposDir:            filepath.Join(base, "repos"),
+		WorkspacesFile:      filepath.Join(base, "workspaces.yaml"),
 	}, nil
 }
 
@@ -152,6 +158,8 @@ func (p *Paths) ForInstance(name string) *Paths {
 		MusterMCPServersDir: p.MusterMCPServersDir,
 		MusterPIDFile:       p.MusterPIDFile,
 		MusterPortFile:      p.MusterPortFile,
+		ReposDir:            p.ReposDir,
+		WorkspacesFile:      p.WorkspacesFile,
 	}
 }
 
