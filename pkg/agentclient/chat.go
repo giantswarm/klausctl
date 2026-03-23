@@ -12,9 +12,12 @@ import (
 )
 
 // CompletionDelta is a single streaming delta from the completions endpoint.
+// When the channel is closed the stream has ended. If the stream was
+// interrupted by an I/O error (as opposed to a clean [DONE] or context
+// cancellation), Err is set on the final delta before the channel closes.
 type CompletionDelta struct {
-	Done    bool
 	Content string
+	Err     error
 }
 
 // chatCompletionRequest is the POST body for /v1/chat/completions.
@@ -31,7 +34,7 @@ type chatReqMessage struct {
 
 // StreamCompletion sends a prompt via POST /v1/chat/completions with
 // stream=true and returns a channel of deltas. The channel is closed when
-// the stream ends.
+// the stream ends (either cleanly via [DONE] or due to an error).
 func StreamCompletion(ctx context.Context, client *http.Client, baseURL, prompt string) (<-chan CompletionDelta, error) {
 	url := baseURL + "/v1/chat/completions"
 
@@ -52,6 +55,7 @@ func StreamCompletion(ctx context.Context, client *http.Client, baseURL, prompt 
 		return nil, fmt.Errorf("creating request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "text/event-stream")
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -79,7 +83,6 @@ func StreamCompletion(ctx context.Context, client *http.Client, baseURL, prompt 
 			}
 			payload := line[6:]
 			if payload == "[DONE]" {
-				ch <- CompletionDelta{Done: true}
 				return
 			}
 
@@ -96,6 +99,10 @@ func StreamCompletion(ctx context.Context, client *http.Client, baseURL, prompt 
 			if len(chunk.Choices) > 0 && chunk.Choices[0].Delta.Content != "" {
 				ch <- CompletionDelta{Content: chunk.Choices[0].Delta.Content}
 			}
+		}
+
+		if err := scanner.Err(); err != nil {
+			ch <- CompletionDelta{Err: fmt.Errorf("reading completions stream: %w", err)}
 		}
 	}()
 

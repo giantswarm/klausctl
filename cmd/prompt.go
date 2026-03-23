@@ -51,10 +51,9 @@ func init() {
 }
 
 type promptCLIResult struct {
-	Instance  string `json:"instance"`
-	Status    string `json:"status"`
-	SessionID string `json:"session_id,omitempty"`
-	Result    string `json:"result,omitempty"`
+	Instance string `json:"instance"`
+	Status   string `json:"status"`
+	Result   string `json:"result,omitempty"`
 }
 
 func runPrompt(cmd *cobra.Command, args []string) error {
@@ -96,7 +95,7 @@ func runPrompt(cmd *cobra.Command, args []string) error {
 	}
 
 	agentURL := fmt.Sprintf("http://localhost:%d", inst.Port)
-	httpClient := &http.Client{Timeout: 0}
+	httpClient := &http.Client{}
 
 	if promptBlocking {
 		return runPromptBlocking(ctx, out, httpClient, agentURL, instanceName)
@@ -114,8 +113,8 @@ func runPromptBlocking(ctx context.Context, out io.Writer, httpClient *http.Clie
 	}
 
 	for delta := range compCh {
-		if delta.Done {
-			break
+		if delta.Err != nil {
+			return fmt.Errorf("streaming from %q: %w", instanceName, delta.Err)
 		}
 		fmt.Fprint(out, delta.Content)
 	}
@@ -155,9 +154,6 @@ func renderPromptResult(out io.Writer, result promptCLIResult) error {
 
 	fmt.Fprintf(out, "Instance: %s\n", result.Instance)
 	fmt.Fprintf(out, "Status:   %s\n", colorStatus(result.Status))
-	if result.SessionID != "" {
-		fmt.Fprintf(out, "Session:  %s\n", result.SessionID)
-	}
 	if result.Result != "" {
 		fmt.Fprintf(out, "\n%s\n", result.Result)
 	}
@@ -182,17 +178,3 @@ func extractMCPText(result *mcp.CallToolResult) string {
 	return strings.Join(parts, "\n")
 }
 
-// parseAgentStatusField extracts the "status" field from a JSON tool result.
-func parseAgentStatusField(result *mcp.CallToolResult) string {
-	text := extractMCPText(result)
-	if text == "" {
-		return ""
-	}
-	var parsed struct {
-		Status string `json:"status"`
-	}
-	if err := json.Unmarshal([]byte(text), &parsed); err == nil && parsed.Status != "" {
-		return parsed.Status
-	}
-	return text
-}

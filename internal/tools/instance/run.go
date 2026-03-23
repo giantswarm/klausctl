@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"time"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	mcpserver "github.com/mark3labs/mcp-go/server"
@@ -58,7 +57,6 @@ type runResult struct {
 	Image     string `json:"image,omitempty"`
 	Workspace string `json:"workspace,omitempty"`
 	Port      int    `json:"port,omitempty"`
-	SessionID string `json:"session_id,omitempty"`
 	Result    string `json:"result,omitempty"`
 }
 
@@ -94,9 +92,9 @@ func handleRun(ctx context.Context, req mcp.CallToolRequest, sc *server.ServerCo
 	}
 
 	agentURL := fmt.Sprintf("http://localhost:%d", createRes.Port)
-	httpClient := &http.Client{Timeout: 0}
+	httpClient := &http.Client{}
 
-	if err := waitForHTTPReadyMCP(ctx, httpClient, agentURL); err != nil {
+	if err := agentclient.WaitForReady(ctx, httpClient, agentURL); err != nil {
 		return cleanupOnError(fmt.Errorf("waiting for instance %q to become ready: %v", name, err))
 	}
 
@@ -142,32 +140,3 @@ func handleRun(ctx context.Context, req mcp.CallToolRequest, sc *server.ServerCo
 	})
 }
 
-// waitForHTTPReadyMCP polls the agent's /status endpoint until it responds.
-func waitForHTTPReadyMCP(ctx context.Context, client *http.Client, baseURL string) error {
-	const maxWait = 2 * time.Minute
-	poll := 1 * time.Second
-	const maxPoll = 5 * time.Second
-
-	deadline := time.Now().Add(maxWait)
-
-	for {
-		if time.Now().After(deadline) {
-			return fmt.Errorf("timed out after %s waiting for HTTP endpoint", maxWait)
-		}
-
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(poll):
-		}
-
-		_, err := agentclient.FetchStatus(ctx, client, baseURL)
-		if err == nil {
-			return nil
-		}
-
-		if poll < maxPoll {
-			poll = min(poll*2, maxPoll)
-		}
-	}
-}

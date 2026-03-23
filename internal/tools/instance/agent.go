@@ -43,10 +43,9 @@ func registerResult(s *mcpserver.MCPServer, sc *server.ServerContext) {
 }
 
 type promptResult struct {
-	Instance  string `json:"instance"`
-	Status    string `json:"status"`
-	SessionID string `json:"session_id,omitempty"`
-	Result    string `json:"result,omitempty"`
+	Instance string `json:"instance"`
+	Status   string `json:"status"`
+	Result   string `json:"result,omitempty"`
 }
 
 func handlePrompt(ctx context.Context, req mcp.CallToolRequest, sc *server.ServerContext) (*mcp.CallToolResult, error) {
@@ -66,7 +65,7 @@ func handlePrompt(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 	}
 
 	agentURL := strings.TrimSuffix(baseURL, "/mcp")
-	httpClient := &http.Client{Timeout: 0}
+	httpClient := &http.Client{}
 
 	compCh, err := agentclient.StreamCompletion(ctx, httpClient, agentURL, message)
 	if err != nil {

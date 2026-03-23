@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"time"
 
 	"github.com/spf13/cobra"
 
@@ -158,9 +157,9 @@ func runRun(cmd *cobra.Command, args []string) error {
 	}
 
 	agentURL := fmt.Sprintf("http://localhost:%d", inst.Port)
-	httpClient := &http.Client{Timeout: 0}
+	httpClient := &http.Client{}
 
-	if err := waitForHTTPReady(ctx, httpClient, agentURL); err != nil {
+	if err := agentclient.WaitForReady(ctx, httpClient, agentURL); err != nil {
 		return fmt.Errorf("waiting for instance %q to become ready: %w", instanceName, err)
 	}
 
@@ -182,8 +181,8 @@ func runBlocked(ctx context.Context, out io.Writer, httpClient *http.Client, age
 	}
 
 	for delta := range compCh {
-		if delta.Done {
-			break
+		if delta.Err != nil {
+			return fmt.Errorf("streaming from %q: %w", instanceName, delta.Err)
 		}
 		fmt.Fprint(out, delta.Content)
 	}
@@ -223,43 +222,9 @@ func renderRunResult(out io.Writer, result promptCLIResult) error {
 
 	fmt.Fprintf(out, "Instance: %s\n", result.Instance)
 	fmt.Fprintf(out, "Status:   %s\n", colorStatus(result.Status))
-	if result.SessionID != "" {
-		fmt.Fprintf(out, "Session:  %s\n", result.SessionID)
-	}
 	if result.Result != "" {
 		fmt.Fprintf(out, "\n%s\n", result.Result)
 	}
 	return nil
 }
 
-// waitForHTTPReady polls the agent's /status endpoint until it responds
-// successfully or the context is cancelled. Uses lightweight HTTP GET
-// instead of full MCP session initialization.
-func waitForHTTPReady(ctx context.Context, client *http.Client, baseURL string) error {
-	const maxWait = 2 * time.Minute
-	poll := 1 * time.Second
-	const maxPoll = 5 * time.Second
-
-	deadline := time.Now().Add(maxWait)
-
-	for {
-		if time.Now().After(deadline) {
-			return fmt.Errorf("timed out after %s waiting for HTTP endpoint", maxWait)
-		}
-
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(poll):
-		}
-
-		_, err := agentclient.FetchStatus(ctx, client, baseURL)
-		if err == nil {
-			return nil
-		}
-
-		if poll < maxPoll {
-			poll = min(poll*2, maxPoll)
-		}
-	}
-}

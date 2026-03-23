@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 )
 
 // maxStatusResponseBytes limits the size of the agent status response
@@ -57,4 +58,36 @@ func FetchStatus(ctx context.Context, client *http.Client, baseURL string) (*Sta
 	}
 
 	return &status, nil
+}
+
+// WaitForReady polls the agent's /status endpoint until it responds
+// successfully or the context is cancelled. Uses exponential backoff
+// from 1s to 5s with a hard 2-minute deadline.
+func WaitForReady(ctx context.Context, client *http.Client, baseURL string) error {
+	const maxWait = 2 * time.Minute
+	poll := 1 * time.Second
+	const maxPoll = 5 * time.Second
+
+	deadline := time.Now().Add(maxWait)
+
+	for {
+		if time.Now().After(deadline) {
+			return fmt.Errorf("timed out after %s waiting for agent at %s", maxWait, baseURL)
+		}
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(poll):
+		}
+
+		_, err := FetchStatus(ctx, client, baseURL)
+		if err == nil {
+			return nil
+		}
+
+		if poll < maxPoll {
+			poll = min(poll*2, maxPoll)
+		}
+	}
 }
