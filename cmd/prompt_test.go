@@ -73,56 +73,6 @@ func TestExtractMCPText(t *testing.T) {
 	}
 }
 
-func TestParseAgentStatusField(t *testing.T) {
-	tests := []struct {
-		name   string
-		result *mcp.CallToolResult
-		want   string
-	}{
-		{
-			name:   "nil result",
-			result: nil,
-			want:   "",
-		},
-		{
-			name: "valid JSON with status field",
-			result: &mcp.CallToolResult{
-				Content: []mcp.Content{
-					mcp.TextContent{Type: "text", Text: `{"status":"completed","result":"done"}`},
-				},
-			},
-			want: "completed",
-		},
-		{
-			name: "non-JSON text returns raw text",
-			result: &mcp.CallToolResult{
-				Content: []mcp.Content{
-					mcp.TextContent{Type: "text", Text: "some plain text"},
-				},
-			},
-			want: "some plain text",
-		},
-		{
-			name: "JSON without status field returns raw text",
-			result: &mcp.CallToolResult{
-				Content: []mcp.Content{
-					mcp.TextContent{Type: "text", Text: `{"other":"field"}`},
-				},
-			},
-			want: `{"other":"field"}`,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := parseAgentStatusField(tt.result)
-			if got != tt.want {
-				t.Errorf("parseAgentStatusField() = %q, want %q", got, tt.want)
-			}
-		})
-	}
-}
-
 func TestColorStatus(t *testing.T) {
 	colorEnabled = false
 	t.Cleanup(func() { colorEnabled = detectColor() })

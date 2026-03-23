@@ -3,13 +3,14 @@ package instance
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
-	"time"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	mcpserver "github.com/mark3labs/mcp-go/server"
 
 	"github.com/giantswarm/klausctl/internal/server"
+	"github.com/giantswarm/klausctl/pkg/agentclient"
 )
 
 func registerRun(s *mcpserver.MCPServer, sc *server.ServerContext) {
@@ -56,7 +57,6 @@ type runResult struct {
 	Image     string `json:"image,omitempty"`
 	Workspace string `json:"workspace,omitempty"`
 	Port      int    `json:"port,omitempty"`
-	SessionID string `json:"session_id,omitempty"`
 	Result    string `json:"result,omitempty"`
 }
 
@@ -91,20 +91,24 @@ func handleRun(ctx context.Context, req mcp.CallToolRequest, sc *server.ServerCo
 		return mcp.NewToolResultError(stepErr.Error()), nil
 	}
 
-	// --- Wait for MCP readiness, then send the prompt ---
+	agentURL := fmt.Sprintf("http://localhost:%d", createRes.Port)
+	httpClient := &http.Client{}
 
-	baseURL := fmt.Sprintf("http://localhost:%d/mcp", createRes.Port)
-
-	if err := waitForMCPReadyMCP(ctx, name, baseURL, sc); err != nil {
+	if err := agentclient.WaitForReady(ctx, httpClient, agentURL); err != nil {
 		return cleanupOnError(fmt.Errorf("waiting for instance %q to become ready: %v", name, err))
 	}
 
-	toolResult, err := sc.MCPClient.Prompt(ctx, name, baseURL, message)
+	// Send the prompt via the chat completions API.
+	compCh, err := agentclient.StreamCompletion(ctx, httpClient, agentURL, message)
 	if err != nil {
 		return cleanupOnError(fmt.Errorf("sending prompt to %q: %v", name, err))
 	}
 
 	if !blocking {
+		go func() {
+			for range compCh {
+			}
+		}()
 		return server.JSONResult(runResult{
 			Instance:  name,
 			Status:    "started",
@@ -112,14 +116,17 @@ func handleRun(ctx context.Context, req mcp.CallToolRequest, sc *server.ServerCo
 			Image:     createRes.Image,
 			Workspace: createRes.Workspace,
 			Port:      createRes.Port,
-			SessionID: sc.MCPClient.SessionID(name),
-			Result:    extractText(toolResult),
 		})
 	}
 
-	agentRes, err := waitForResult(ctx, name, baseURL, sc)
+	// Drain the completions stream to let the agent finish.
+	for range compCh {
+	}
+
+	baseURL := fmt.Sprintf("http://localhost:%d/mcp", createRes.Port)
+	resultResp, err := sc.MCPClient.Result(ctx, name, baseURL, false)
 	if err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("waiting for result from %q: %v", name, err)), nil
+		return mcp.NewToolResultError(fmt.Sprintf("fetching result from %q: %v", name, err)), nil
 	}
 
 	return server.JSONResult(runResult{
@@ -129,38 +136,7 @@ func handleRun(ctx context.Context, req mcp.CallToolRequest, sc *server.ServerCo
 		Image:     createRes.Image,
 		Workspace: createRes.Workspace,
 		Port:      createRes.Port,
-		SessionID: sc.MCPClient.SessionID(name),
-		Result:    agentRes,
+		Result:    extractText(resultResp),
 	})
 }
 
-// waitForMCPReadyMCP polls the agent's MCP endpoint until it responds or
-// the context is cancelled / times out.
-func waitForMCPReadyMCP(ctx context.Context, name, baseURL string, sc *server.ServerContext) error {
-	poll := 2 * time.Second
-	const maxPoll = 10 * time.Second
-	const maxWait = 2 * time.Minute
-
-	deadline := time.Now().Add(maxWait)
-
-	for {
-		if time.Now().After(deadline) {
-			return fmt.Errorf("timed out after %s waiting for MCP endpoint", maxWait)
-		}
-
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(poll):
-		}
-
-		_, err := sc.MCPClient.Status(ctx, name, baseURL)
-		if err == nil {
-			return nil
-		}
-
-		if poll < maxPoll {
-			poll = min(poll*2, maxPoll)
-		}
-	}
-}
