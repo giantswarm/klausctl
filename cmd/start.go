@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -14,6 +15,7 @@ import (
 	"github.com/giantswarm/klausctl/pkg/orchestrator"
 	"github.com/giantswarm/klausctl/pkg/renderer"
 	"github.com/giantswarm/klausctl/pkg/runtime"
+	ws "github.com/giantswarm/klausctl/pkg/workspace"
 )
 
 var startWorkspace string
@@ -83,8 +85,14 @@ func startInstance(cmd *cobra.Command, instanceName, workspaceOverride, configPa
 
 	applyWorkspaceOverride(cfg, workspaceOverride)
 
-	// Validate that the workspace directory exists.
-	workspace := config.ExpandPath(cfg.Workspace)
+	// Validate that the workspace directory exists. For repo identifiers
+	// (owner/repo), resolve to the managed cache path.
+	workspace := cfg.Workspace
+	if ws.IsRepoIdentifier(workspace) {
+		workspace = filepath.Join(paths.ReposDir, workspace)
+	} else {
+		workspace = config.ExpandPath(workspace)
+	}
 	if _, err := os.Stat(workspace); err != nil {
 		if os.IsNotExist(err) {
 			return fmt.Errorf("workspace directory does not exist: %s", workspace)
