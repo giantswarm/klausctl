@@ -361,6 +361,90 @@ func TestLoadEntryWithoutTags(t *testing.T) {
 	}
 }
 
+func TestFilterEntries_Since(t *testing.T) {
+	now := time.Now()
+	entries := []*Entry{
+		{UUID: "old", StoppedAt: now.Add(-2 * time.Hour)},
+		{UUID: "new", StoppedAt: now},
+	}
+	result := FilterEntries(entries, Filter{Since: now.Add(-1 * time.Hour)})
+	if len(result) != 1 || result[0].UUID != "new" {
+		t.Errorf("expected only 'new', got %v", result)
+	}
+}
+
+func TestFilterEntries_Name(t *testing.T) {
+	entries := []*Entry{
+		{UUID: "1", Name: "dev-alpha"},
+		{UUID: "2", Name: "prod-beta"},
+		{UUID: "3", Name: "dev-gamma"},
+	}
+	result := FilterEntries(entries, Filter{Name: "dev"})
+	if len(result) != 2 {
+		t.Fatalf("expected 2 entries, got %d", len(result))
+	}
+}
+
+func TestFilterEntries_Tagged(t *testing.T) {
+	tagged := true
+	untagged := false
+	entries := []*Entry{
+		{UUID: "1", Tags: map[string]string{"env": "prod"}},
+		{UUID: "2"},
+		{UUID: "3", Tags: map[string]string{"outcome": "success"}},
+	}
+
+	onlyTagged := FilterEntries(entries, Filter{Tagged: &tagged})
+	if len(onlyTagged) != 2 {
+		t.Errorf("expected 2 tagged entries, got %d", len(onlyTagged))
+	}
+
+	onlyUntagged := FilterEntries(entries, Filter{Tagged: &untagged})
+	if len(onlyUntagged) != 1 || onlyUntagged[0].UUID != "2" {
+		t.Errorf("expected 1 untagged entry, got %v", onlyUntagged)
+	}
+}
+
+func TestFilterEntries_Outcome(t *testing.T) {
+	entries := []*Entry{
+		{UUID: "1", Tags: map[string]string{"outcome": "success"}},
+		{UUID: "2", Tags: map[string]string{"outcome": "failed"}},
+		{UUID: "3"},
+	}
+	result := FilterEntries(entries, Filter{Outcome: "success"})
+	if len(result) != 1 || result[0].UUID != "1" {
+		t.Errorf("expected only entry 1, got %v", result)
+	}
+}
+
+func TestFilterEntries_Combined(t *testing.T) {
+	now := time.Now()
+	tagged := true
+	entries := []*Entry{
+		{UUID: "1", Name: "dev-one", StoppedAt: now, Tags: map[string]string{"outcome": "success"}},
+		{UUID: "2", Name: "dev-two", StoppedAt: now.Add(-2 * time.Hour), Tags: map[string]string{"outcome": "success"}},
+		{UUID: "3", Name: "prod", StoppedAt: now, Tags: map[string]string{"outcome": "success"}},
+		{UUID: "4", Name: "dev-three", StoppedAt: now},
+	}
+	result := FilterEntries(entries, Filter{
+		Since:   now.Add(-1 * time.Hour),
+		Name:    "dev",
+		Tagged:  &tagged,
+		Outcome: "success",
+	})
+	if len(result) != 1 || result[0].UUID != "1" {
+		t.Errorf("expected only entry 1, got %v", result)
+	}
+}
+
+func TestFilterEntries_NoFilter(t *testing.T) {
+	entries := []*Entry{{UUID: "1"}, {UUID: "2"}}
+	result := FilterEntries(entries, Filter{})
+	if len(result) != 2 {
+		t.Errorf("expected 2 entries with no filter, got %d", len(result))
+	}
+}
+
 func mustMarshal(t *testing.T, v any) string {
 	t.Helper()
 	data, err := json.Marshal(v)

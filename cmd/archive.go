@@ -7,6 +7,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -16,6 +17,17 @@ import (
 
 var archiveOutput string
 var archiveShowFull bool
+
+// archive list flags
+var (
+	archiveListLimit    int
+	archiveListOffset   int
+	archiveListSince    string
+	archiveListName     string
+	archiveListTagged   bool
+	archiveListUntagged bool
+	archiveListOutcome  string
+)
 
 var archiveCmd = &cobra.Command{
 	Use:   "archive",
@@ -49,10 +61,45 @@ var archiveTagCmd = &cobra.Command{
 func init() {
 	archiveCmd.PersistentFlags().StringVarP(&archiveOutput, "output", "o", "text", "output format: text, json")
 	archiveShowCmd.Flags().BoolVar(&archiveShowFull, "full", false, "include the full messages array in the output")
+
+	archiveListCmd.Flags().IntVar(&archiveListLimit, "limit", 20, "max entries to return")
+	archiveListCmd.Flags().IntVar(&archiveListOffset, "offset", 0, "skip first N matched entries")
+	archiveListCmd.Flags().StringVar(&archiveListSince, "since", "", "only entries stopped after this RFC3339 date")
+	archiveListCmd.Flags().StringVar(&archiveListName, "name", "", "substring match on instance name")
+	archiveListCmd.Flags().BoolVar(&archiveListTagged, "tagged", false, "only entries with tags")
+	archiveListCmd.Flags().BoolVar(&archiveListUntagged, "untagged", false, "only entries without tags")
+	archiveListCmd.Flags().StringVar(&archiveListOutcome, "outcome", "", "filter by tags.outcome value")
+
 	archiveCmd.AddCommand(archiveListCmd)
 	archiveCmd.AddCommand(archiveShowCmd)
 	archiveCmd.AddCommand(archiveTagCmd)
 	rootCmd.AddCommand(archiveCmd)
+}
+
+func buildArchiveFilter(cmd *cobra.Command) (archive.Filter, error) {
+	if archiveListTagged && archiveListUntagged {
+		return archive.Filter{}, fmt.Errorf("--tagged and --untagged are mutually exclusive")
+	}
+
+	var f archive.Filter
+	if archiveListSince != "" {
+		t, err := time.Parse(time.RFC3339, archiveListSince)
+		if err != nil {
+			return archive.Filter{}, fmt.Errorf("invalid --since value: %w", err)
+		}
+		f.Since = t
+	}
+	f.Name = archiveListName
+	f.Outcome = archiveListOutcome
+	if cmd.Flags().Changed("tagged") {
+		v := archiveListTagged
+		f.Tagged = &v
+	}
+	if cmd.Flags().Changed("untagged") {
+		v := !archiveListUntagged // --untagged => Tagged=false
+		f.Tagged = &v
+	}
+	return f, nil
 }
 
 func runArchiveList(cmd *cobra.Command, _ []string) error {
@@ -64,6 +111,24 @@ func runArchiveList(cmd *cobra.Command, _ []string) error {
 	entries, err := archive.LoadAll(paths.ArchivesDir)
 	if err != nil {
 		return err
+	}
+
+	f, err := buildArchiveFilter(cmd)
+	if err != nil {
+		return err
+	}
+	entries = archive.FilterEntries(entries, f)
+
+	// Pagination.
+	if archiveListOffset < 0 {
+		archiveListOffset = 0
+	}
+	if archiveListOffset > len(entries) {
+		archiveListOffset = len(entries)
+	}
+	entries = entries[archiveListOffset:]
+	if archiveListLimit > 0 && archiveListLimit < len(entries) {
+		entries = entries[:archiveListLimit]
 	}
 
 	out := cmd.OutOrStdout()
