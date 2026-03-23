@@ -9,9 +9,11 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 
+	ws "github.com/giantswarm/klausctl/pkg/workspace"
 	"github.com/giantswarm/klausctl/pkg/worktree"
 )
 
@@ -82,20 +84,46 @@ func GenerateInstanceConfig(paths *Paths, opts CreateOptions) (*Config, error) {
 		return nil, err
 	}
 
-	workspace := ExpandPath(opts.Workspace)
-	info, err := os.Stat(workspace)
+	var workDir string
+	if ws.IsRepoIdentifier(opts.Workspace) {
+		parts := strings.SplitN(opts.Workspace, "/", 2)
+		owner, repo := parts[0], parts[1]
+
+		wsCfg, err := ws.Load(paths.WorkspacesFile)
+		if err != nil {
+			return nil, fmt.Errorf("loading workspace registry: %w", err)
+		}
+		if !ws.IsAllowed(wsCfg, owner, repo) {
+			return nil, fmt.Errorf("workspace %q is not registered; run 'klausctl workspace add-org %s' or 'klausctl workspace add-repo %s/%s' first", opts.Workspace, owner, owner, repo)
+		}
+
+		cachePath, err := ws.EnsureCached(paths.ReposDir, owner, repo, opts.NoFetch)
+		if err != nil {
+			return nil, fmt.Errorf("ensuring cached workspace: %w", err)
+		}
+		workDir = cachePath
+	} else {
+		workDir = ExpandPath(opts.Workspace)
+	}
+
+	info, err := os.Stat(workDir)
 	if err != nil {
 		return nil, fmt.Errorf("checking workspace directory: %w", err)
 	}
 	if !info.IsDir() {
-		return nil, fmt.Errorf("workspace path is not a directory: %s", workspace)
+		return nil, fmt.Errorf("workspace path is not a directory: %s", workDir)
 	}
 
 	cfg := DefaultConfig()
-	cfg.Workspace = workspace
+	if ws.IsRepoIdentifier(opts.Workspace) {
+		// Preserve the owner/repo identifier for display purposes.
+		cfg.Workspace = opts.Workspace
+	} else {
+		cfg.Workspace = workDir
+	}
 
 	// Create a local clone for isolation when the workspace is a git repo.
-	if !opts.NoIsolate && worktree.IsGitRepo(workspace) {
+	if !opts.NoIsolate && worktree.IsGitRepo(workDir) {
 		instanceDir := filepath.Join(paths.InstancesDir, opts.Name)
 		wtPath := filepath.Join(instanceDir, "workspace")
 
@@ -107,7 +135,7 @@ func GenerateInstanceConfig(paths *Paths, opts CreateOptions) (*Config, error) {
 			NoFetch:  opts.NoFetch,
 			Warnings: opts.Output,
 		}
-		if err := worktree.Create(workspace, wtPath, wtOpts); err != nil {
+		if err := worktree.Create(workDir, wtPath, wtOpts); err != nil {
 			return nil, fmt.Errorf("creating workspace clone: %w", err)
 		}
 
