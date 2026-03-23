@@ -24,6 +24,10 @@ type CreateOptions struct {
 	Plugins     []string
 	Port        int
 
+	// PersistentMode enables bidirectional stream-json mode. When true,
+	// NoSessionPersistence is automatically set to false.
+	PersistentMode bool
+
 	// NoIsolate disables git worktree creation even when the workspace is a
 	// git repository. When false (the default), a worktree is created
 	// automatically for git-backed workspaces.
@@ -227,6 +231,11 @@ func applyCreateOverrides(cfg *Config, opts CreateOptions) {
 		cfg.Git.HTTPSInsteadOfSSH = true
 	}
 
+	if opts.PersistentMode {
+		cfg.Claude.PersistentMode = true
+		f := false
+		cfg.Claude.NoSessionPersistence = &f
+	}
 	if opts.MaxBudgetUSD != nil {
 		cfg.Claude.MaxBudgetUSD = *opts.MaxBudgetUSD
 	}

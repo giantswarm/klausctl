@@ -24,6 +24,7 @@ func TestRunCommandHasAllCreateFlags(t *testing.T) {
 		"secret-file",
 		"mcpserver",
 		"source",
+		"persistent-mode",
 		"no-isolate",
 		"git-author",
 		"git-credential-helper",
