@@ -139,4 +139,3 @@ func handleRun(ctx context.Context, req mcp.CallToolRequest, sc *server.ServerCo
 		Result:    extractText(resultResp),
 	})
 }
-
