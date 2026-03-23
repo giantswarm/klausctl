@@ -29,6 +29,7 @@ var (
 	createSystemPrompt      string
 	createMaxBudget         float64
 	createSource            string
+	createPersistentMode    bool
 	createNoIsolate         bool
 	createNoFetch           bool
 	createGitAuthor         string
@@ -78,6 +79,7 @@ func init() {
 	createCmd.Flags().StringArrayVar(&createSecretFile, "secret-file", nil, "secret file /container/path=secret-name (repeatable)")
 	createCmd.Flags().StringArrayVar(&createMcpServer, "mcpserver", nil, "managed MCP server name (repeatable)")
 	createCmd.Flags().StringVar(&createSource, "source", "", "resolve artifact short names against a specific source")
+	createCmd.Flags().BoolVar(&createPersistentMode, "persistent-mode", false, "enable bidirectional stream-json mode (automatically disables noSessionPersistence)")
 	createCmd.Flags().BoolVar(&createNoIsolate, "no-isolate", false, "skip git worktree creation and bind-mount workspace directly")
 	createCmd.Flags().BoolVar(&createNoFetch, "no-fetch", false, "skip git fetch origin before cloning the workspace")
 	createCmd.Flags().StringVar(&createGitAuthor, "git-author", "", `git author identity "Name <email>"`)
@@ -113,6 +115,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		MaxBudget:       createMaxBudget,
 		MaxBudgetSet:    cmd.Flags().Changed("max-budget"),
 		Source:          createSource,
+		PersistentMode:  createPersistentMode,
 		NoIsolate:       createNoIsolate,
 		NoFetch:         createNoFetch,
 		GitAuthor:       createGitAuthor,

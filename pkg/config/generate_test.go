@@ -340,6 +340,41 @@ func TestGenerateInstanceConfig_Overrides(t *testing.T) {
 			},
 		},
 		{
+			name: "persistentMode enables persistent mode and disables noSessionPersistence",
+			opts: func() CreateOptions {
+				return CreateOptions{
+					Name: "test", Workspace: workspace,
+					PersistentMode: true,
+				}
+			},
+			check: func(t *testing.T, cfg *Config) {
+				if !cfg.Claude.PersistentMode {
+					t.Error("expected persistentMode=true")
+				}
+				if cfg.Claude.NoSessionPersistence == nil || *cfg.Claude.NoSessionPersistence {
+					t.Error("expected noSessionPersistence=false when persistentMode is true")
+				}
+			},
+		},
+		{
+			name: "persistentMode false leaves defaults untouched",
+			opts: func() CreateOptions {
+				return CreateOptions{
+					Name: "test", Workspace: workspace,
+					PersistentMode: false,
+				}
+			},
+			check: func(t *testing.T, cfg *Config) {
+				if cfg.Claude.PersistentMode {
+					t.Error("expected persistentMode=false")
+				}
+				// Default noSessionPersistence should remain true.
+				if cfg.Claude.NoSessionPersistence == nil || !*cfg.Claude.NoSessionPersistence {
+					t.Error("expected noSessionPersistence=true by default")
+				}
+			},
+		},
+		{
 			name: "all overrides combined",
 			opts: func() CreateOptions {
 				b := float64(5)

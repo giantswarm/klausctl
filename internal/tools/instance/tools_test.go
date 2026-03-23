@@ -558,6 +558,99 @@ func TestHandleCreateGitHttpsInsteadOfSsh(t *testing.T) {
 	}
 }
 
+func TestHandleCreatePersistentMode(t *testing.T) {
+	sc := testServerContext(t)
+
+	workspace := filepath.Join(t.TempDir(), "ws")
+	if err := os.MkdirAll(workspace, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	req := callToolRequest(map[string]any{
+		"name":           "persistent",
+		"workspace":      workspace,
+		"persistentMode": true,
+	})
+	result, err := handleCreate(context.Background(), req, sc)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	configPath := filepath.Join(sc.Paths.InstancesDir, "persistent", "config.yaml")
+	data, readErr := os.ReadFile(configPath)
+	if readErr != nil {
+		if result.IsError {
+			text := extractResultText(t, result)
+			if strings.Contains(text, "persistent") {
+				t.Fatalf("unexpected persistentMode error: %s", text)
+			}
+		}
+		return
+	}
+
+	var cfgMap map[string]any
+	if err := yaml.Unmarshal(data, &cfgMap); err != nil {
+		t.Fatalf("failed to parse config: %v", err)
+	}
+	claude, ok := cfgMap["claude"].(map[string]any)
+	if !ok {
+		t.Fatal("claude section not found in config")
+	}
+	if claude["persistentMode"] != true {
+		t.Errorf("expected persistentMode true, got %v", claude["persistentMode"])
+	}
+	if claude["noSessionPersistence"] != false {
+		t.Errorf("expected noSessionPersistence false when persistentMode is true, got %v", claude["noSessionPersistence"])
+	}
+}
+
+func TestHandleCreatePersistentModeDefaultFalse(t *testing.T) {
+	sc := testServerContext(t)
+
+	workspace := filepath.Join(t.TempDir(), "ws")
+	if err := os.MkdirAll(workspace, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	req := callToolRequest(map[string]any{
+		"name":      "nopersist",
+		"workspace": workspace,
+	})
+	result, err := handleCreate(context.Background(), req, sc)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	configPath := filepath.Join(sc.Paths.InstancesDir, "nopersist", "config.yaml")
+	data, readErr := os.ReadFile(configPath)
+	if readErr != nil {
+		if result.IsError {
+			text := extractResultText(t, result)
+			if strings.Contains(text, "persistent") {
+				t.Fatalf("unexpected persistentMode error: %s", text)
+			}
+		}
+		return
+	}
+
+	var cfgMap map[string]any
+	if err := yaml.Unmarshal(data, &cfgMap); err != nil {
+		t.Fatalf("failed to parse config: %v", err)
+	}
+	claude, ok := cfgMap["claude"].(map[string]any)
+	if !ok {
+		t.Fatal("claude section not found in config")
+	}
+	// persistentMode should not be present (omitempty) or be false.
+	if pm, exists := claude["persistentMode"]; exists && pm == true {
+		t.Errorf("expected persistentMode absent or false, got %v", pm)
+	}
+	// noSessionPersistence should default to true.
+	if nsp, exists := claude["noSessionPersistence"]; exists && nsp != true {
+		t.Errorf("expected noSessionPersistence true by default, got %v", nsp)
+	}
+}
+
 func TestHandleCreateAllGitParams(t *testing.T) {
 	sc := testServerContext(t)
 
