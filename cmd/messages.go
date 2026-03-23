@@ -263,9 +263,9 @@ type openAIMessage struct {
 
 // openAIContentBlock is a single block inside an OpenAI content array.
 type openAIContentBlock struct {
-	Type     string `json:"type"`
-	Text     string `json:"text,omitempty"`
-	Name     string `json:"name,omitempty"`
+	Type      string `json:"type"`
+	Text      string `json:"text,omitempty"`
+	Name      string `json:"name,omitempty"`
 	ToolUseID string `json:"tool_use_id,omitempty"`
 }
 
