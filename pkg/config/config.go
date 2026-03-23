@@ -153,10 +153,10 @@ type ClaudeConfig struct {
 	MaxMcpOutputTokens int `yaml:"maxMcpOutputTokens,omitempty"`
 	// ActiveAgent selects which agent runs as the top-level agent.
 	ActiveAgent string `yaml:"activeAgent,omitempty"`
-	// PersistentMode enables bidirectional stream-json mode.
-	PersistentMode bool `yaml:"persistentMode,omitempty"`
-	// NoSessionPersistence disables saving sessions to disk.
-	NoSessionPersistence *bool `yaml:"noSessionPersistence,omitempty"`
+	// Mode selects the operating mode: "agent" (default) for autonomous coding
+	// with a new process per prompt and no session persistence, or "chat" for
+	// interactive conversation with a persistent process and saved sessions.
+	Mode string `yaml:"mode,omitempty"`
 	// IncludePartialMessages enables streaming of partial messages.
 	IncludePartialMessages bool `yaml:"includePartialMessages,omitempty"`
 	// JsonSchema provides a JSON schema for structured output.
@@ -317,9 +317,8 @@ func (c *Config) applyDefaults() {
 	if c.Claude.PermissionMode == "" {
 		c.Claude.PermissionMode = "bypassPermissions"
 	}
-	if c.Claude.NoSessionPersistence == nil {
-		t := true
-		c.Claude.NoSessionPersistence = &t
+	if c.Claude.Mode == "" {
+		c.Claude.Mode = "agent"
 	}
 	if c.Claude.LoadAdditionalDirsMemory == nil {
 		t := true

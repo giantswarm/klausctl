@@ -31,7 +31,7 @@ var (
 	runSystemPrompt      string
 	runMaxBudget         float64
 	runSource            string
-	runPersistentMode    bool
+	runMode              string
 	runNoIsolate         bool
 	runNoFetch           bool
 	runGitAuthor         string
@@ -83,7 +83,7 @@ func init() {
 	runCmd.Flags().StringArrayVar(&runSecretFile, "secret-file", nil, "secret file /container/path=secret-name (repeatable)")
 	runCmd.Flags().StringArrayVar(&runMcpServer, "mcpserver", nil, "managed MCP server name (repeatable)")
 	runCmd.Flags().StringVar(&runSource, "source", "", "resolve artifact short names against a specific source")
-	runCmd.Flags().BoolVar(&runPersistentMode, "persistent-mode", false, "enable bidirectional stream-json mode (automatically disables noSessionPersistence)")
+	runCmd.Flags().StringVar(&runMode, "mode", "agent", `operating mode: "agent" (autonomous coding, new process per prompt) or "chat" (interactive, persistent process, saved sessions)`)
 	runCmd.Flags().BoolVar(&runNoIsolate, "no-isolate", false, "skip git worktree creation and bind-mount workspace directly")
 	runCmd.Flags().BoolVar(&runNoFetch, "no-fetch", false, "skip git fetch origin before cloning the workspace")
 	runCmd.Flags().StringVar(&runGitAuthor, "git-author", "", `git author identity "Name <email>"`)
@@ -127,7 +127,7 @@ func runRun(cmd *cobra.Command, args []string) error {
 		MaxBudget:       runMaxBudget,
 		MaxBudgetSet:    cmd.Flags().Changed("max-budget"),
 		Source:          runSource,
-		PersistentMode:  runPersistentMode,
+		Mode:            runMode,
 		NoIsolate:       runNoIsolate,
 		NoFetch:         runNoFetch,
 		GitAuthor:       runGitAuthor,

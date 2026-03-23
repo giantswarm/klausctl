@@ -558,7 +558,7 @@ func TestHandleCreateGitHttpsInsteadOfSsh(t *testing.T) {
 	}
 }
 
-func TestHandleCreatePersistentMode(t *testing.T) {
+func TestHandleCreateModeChat(t *testing.T) {
 	sc := testServerContext(t)
 
 	workspace := filepath.Join(t.TempDir(), "ws")
@@ -567,22 +567,22 @@ func TestHandleCreatePersistentMode(t *testing.T) {
 	}
 
 	req := callToolRequest(map[string]any{
-		"name":           "persistent",
-		"workspace":      workspace,
-		"persistentMode": true,
+		"name":      "chatmode",
+		"workspace": workspace,
+		"mode":      "chat",
 	})
 	result, err := handleCreate(context.Background(), req, sc)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	configPath := filepath.Join(sc.Paths.InstancesDir, "persistent", "config.yaml")
+	configPath := filepath.Join(sc.Paths.InstancesDir, "chatmode", "config.yaml")
 	data, readErr := os.ReadFile(configPath)
 	if readErr != nil {
 		if result.IsError {
 			text := extractResultText(t, result)
-			if strings.Contains(text, "persistent") {
-				t.Fatalf("unexpected persistentMode error: %s", text)
+			if strings.Contains(text, "mode") {
+				t.Fatalf("unexpected mode error: %s", text)
 			}
 		}
 		return
@@ -596,15 +596,12 @@ func TestHandleCreatePersistentMode(t *testing.T) {
 	if !ok {
 		t.Fatal("claude section not found in config")
 	}
-	if claude["persistentMode"] != true {
-		t.Errorf("expected persistentMode true, got %v", claude["persistentMode"])
-	}
-	if claude["noSessionPersistence"] != false {
-		t.Errorf("expected noSessionPersistence false when persistentMode is true, got %v", claude["noSessionPersistence"])
+	if claude["mode"] != "chat" {
+		t.Errorf("expected mode=chat, got %v", claude["mode"])
 	}
 }
 
-func TestHandleCreatePersistentModeDefaultFalse(t *testing.T) {
+func TestHandleCreateModeDefaultAgent(t *testing.T) {
 	sc := testServerContext(t)
 
 	workspace := filepath.Join(t.TempDir(), "ws")
@@ -613,7 +610,7 @@ func TestHandleCreatePersistentModeDefaultFalse(t *testing.T) {
 	}
 
 	req := callToolRequest(map[string]any{
-		"name":      "nopersist",
+		"name":      "agentmode",
 		"workspace": workspace,
 	})
 	result, err := handleCreate(context.Background(), req, sc)
@@ -621,13 +618,13 @@ func TestHandleCreatePersistentModeDefaultFalse(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	configPath := filepath.Join(sc.Paths.InstancesDir, "nopersist", "config.yaml")
+	configPath := filepath.Join(sc.Paths.InstancesDir, "agentmode", "config.yaml")
 	data, readErr := os.ReadFile(configPath)
 	if readErr != nil {
 		if result.IsError {
 			text := extractResultText(t, result)
-			if strings.Contains(text, "persistent") {
-				t.Fatalf("unexpected persistentMode error: %s", text)
+			if strings.Contains(text, "mode") {
+				t.Fatalf("unexpected mode error: %s", text)
 			}
 		}
 		return
@@ -641,13 +638,8 @@ func TestHandleCreatePersistentModeDefaultFalse(t *testing.T) {
 	if !ok {
 		t.Fatal("claude section not found in config")
 	}
-	// persistentMode should not be present (omitempty) or be false.
-	if pm, exists := claude["persistentMode"]; exists && pm == true {
-		t.Errorf("expected persistentMode absent or false, got %v", pm)
-	}
-	// noSessionPersistence should default to true.
-	if nsp, exists := claude["noSessionPersistence"]; exists && nsp != true {
-		t.Errorf("expected noSessionPersistence true by default, got %v", nsp)
+	if claude["mode"] != "agent" {
+		t.Errorf("expected mode=agent by default, got %v", claude["mode"])
 	}
 }
 

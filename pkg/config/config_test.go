@@ -80,8 +80,8 @@ func TestLoadAppliesDefaults(t *testing.T) {
 	if cfg.Claude.PermissionMode != "bypassPermissions" {
 		t.Errorf("default PermissionMode = %q, want %q", cfg.Claude.PermissionMode, "bypassPermissions")
 	}
-	if cfg.Claude.NoSessionPersistence == nil || !*cfg.Claude.NoSessionPersistence {
-		t.Error("default NoSessionPersistence should be true")
+	if cfg.Claude.Mode != "agent" {
+		t.Errorf("default Mode = %q, want %q", cfg.Claude.Mode, "agent")
 	}
 	if cfg.Claude.LoadAdditionalDirsMemory == nil || !*cfg.Claude.LoadAdditionalDirsMemory {
 		t.Error("default LoadAdditionalDirsMemory should be true")

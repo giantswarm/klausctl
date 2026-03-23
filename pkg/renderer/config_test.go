@@ -29,28 +29,26 @@ func TestBuildContainerConfig_FixedContainerValues(t *testing.T) {
 }
 
 func TestBuildContainerConfig_ClaudeSettings(t *testing.T) {
-	noSess := true
 	cfg := &config.Config{
 		Workspace: "/tmp/ws",
 		Port:      8080,
 		Claude: config.ClaudeConfig{
-			Model:                "opus",
-			SystemPrompt:         "You are helpful.",
-			AppendSystemPrompt:   "Be concise.",
-			PermissionMode:       "bypassPermissions",
-			Effort:               "high",
-			FallbackModel:        "sonnet",
-			MaxTurns:             50,
-			MaxBudgetUSD:         10.0,
-			StrictMcpConfig:      true,
-			McpTimeout:           30000,
-			MaxMcpOutputTokens:   8192,
-			ActiveAgent:          "reviewer",
-			PersistentMode:       true,
-			NoSessionPersistence: &noSess,
-			Tools:                []string{"read", "write"},
-			AllowedTools:         []string{"mcp__*"},
-			DisallowedTools:      []string{"bash"},
+			Model:              "opus",
+			SystemPrompt:       "You are helpful.",
+			AppendSystemPrompt: "Be concise.",
+			PermissionMode:     "bypassPermissions",
+			Effort:             "high",
+			FallbackModel:      "sonnet",
+			MaxTurns:           50,
+			MaxBudgetUSD:       10.0,
+			StrictMcpConfig:    true,
+			McpTimeout:         30000,
+			MaxMcpOutputTokens: 8192,
+			ActiveAgent:        "reviewer",
+			Mode:               "chat",
+			Tools:              []string{"read", "write"},
+			AllowedTools:       []string{"mcp__*"},
+			DisallowedTools:    []string{"bash"},
 		},
 	}
 
@@ -77,11 +75,8 @@ func TestBuildContainerConfig_ClaudeSettings(t *testing.T) {
 	if len(cc.Claude.Tools) != 2 {
 		t.Errorf("Claude.Tools length = %d, want 2", len(cc.Claude.Tools))
 	}
-	if !cc.Claude.PersistentMode {
-		t.Error("Claude.PersistentMode should be true")
-	}
-	if cc.Claude.NoSessionPersistence == nil || !*cc.Claude.NoSessionPersistence {
-		t.Error("Claude.NoSessionPersistence should be true")
+	if cc.Claude.Mode != "chat" {
+		t.Errorf("Claude.Mode = %q, want chat", cc.Claude.Mode)
 	}
 }
 
@@ -267,7 +262,6 @@ func TestRenderContainerConfig(t *testing.T) {
 }
 
 func TestRenderContainerConfig_MarshalRoundTrip(t *testing.T) {
-	noSess := false
 	cfg := &config.Config{
 		Workspace: "/tmp",
 		Port:      8080,
@@ -275,7 +269,7 @@ func TestRenderContainerConfig_MarshalRoundTrip(t *testing.T) {
 			Model:                  "opus",
 			Effort:                 "high",
 			IncludePartialMessages: true,
-			NoSessionPersistence:   &noSess,
+			Mode:                   "chat",
 			JsonSchema:             `{"type":"object"}`,
 		},
 		Agents: map[string]config.AgentConfig{
@@ -307,12 +301,8 @@ func TestRenderContainerConfig_MarshalRoundTrip(t *testing.T) {
 	if !roundTripped.Claude.IncludePartialMessages {
 		t.Error("IncludePartialMessages should be true after round-trip")
 	}
-	// Verify *bool pointer survives round-trip with false value.
-	if roundTripped.Claude.NoSessionPersistence == nil {
-		t.Fatal("NoSessionPersistence should not be nil after round-trip")
-	}
-	if *roundTripped.Claude.NoSessionPersistence {
-		t.Error("NoSessionPersistence should be false after round-trip")
+	if roundTripped.Claude.Mode != "chat" {
+		t.Errorf("Mode = %q after round-trip, want chat", roundTripped.Claude.Mode)
 	}
 	if len(roundTripped.Agents) != 1 {
 		t.Errorf("Agents length = %d after round-trip", len(roundTripped.Agents))
