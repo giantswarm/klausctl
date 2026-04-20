@@ -10,15 +10,20 @@ import (
 	klausoci "github.com/giantswarm/klaus-oci"
 
 	"github.com/giantswarm/klausctl/pkg/config"
+	"github.com/giantswarm/klausctl/pkg/ocicache"
 )
 
 const registryAuthEnvVar = "KLAUSCTL_REGISTRY_AUTH"
 
 // NewDefaultClient creates an OCI client configured with the standard
-// klausctl credential resolution: Docker/Podman config files plus the
-// KLAUSCTL_REGISTRY_AUTH environment variable.
+// klausctl credential resolution (Docker/Podman config files plus the
+// KLAUSCTL_REGISTRY_AUTH env var) and the persistent on-disk cache
+// managed by pkg/ocicache. Additional options may be supplied; they are
+// applied after the defaults and can override them.
 func NewDefaultClient(opts ...klausoci.ClientOption) *klausoci.Client {
-	return klausoci.NewClient(append([]klausoci.ClientOption{klausoci.WithRegistryAuthEnv(registryAuthEnvVar)}, opts...)...)
+	base := []klausoci.ClientOption{klausoci.WithRegistryAuthEnv(registryAuthEnvVar)}
+	base = append(base, ocicache.Options()...)
+	return klausoci.NewClient(append(base, opts...)...)
 }
 
 // ResolveCreateRefs resolves personality, toolchain, and plugin short names
