@@ -7,6 +7,7 @@ import (
 	"github.com/giantswarm/klausctl/internal/server"
 	artifacttools "github.com/giantswarm/klausctl/internal/tools/artifact"
 	cachetools "github.com/giantswarm/klausctl/internal/tools/cache"
+	gatewaytools "github.com/giantswarm/klausctl/internal/tools/gateway"
 	instancetools "github.com/giantswarm/klausctl/internal/tools/instance"
 	mustertools "github.com/giantswarm/klausctl/internal/tools/muster"
 	workspacetools "github.com/giantswarm/klausctl/internal/tools/workspace"
@@ -72,6 +73,7 @@ func runServe(_ *cobra.Command, _ []string) error {
 	artifacttools.RegisterTools(mcpSrv, serverCtx)
 	cachetools.RegisterTools(mcpSrv, serverCtx)
 	mustertools.RegisterTools(mcpSrv, serverCtx)
+	gatewaytools.RegisterTools(mcpSrv, serverCtx)
 	workspacetools.RegisterTools(mcpSrv, serverCtx)
 
 	return mcpserver.ServeStdio(mcpSrv)

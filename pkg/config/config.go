@@ -107,10 +107,31 @@ type Config struct {
 	// and merged into McpServers with a Bearer token header.
 	McpServerRefs []string `yaml:"mcpServerRefs,omitempty"`
 
+	// Requires declares runtime services this instance depends on. When set,
+	// `klausctl create` / `start` auto-starts those services before starting
+	// the instance container. See pkg/gatewaybridge for the gateway bridge.
+	Requires Requires `yaml:"requires,omitempty"`
+
 	// imageFromConfig tracks whether Image was explicitly set in the config
 	// file before defaults were applied. Used by personality merging to
 	// determine whether the personality's image should take effect.
 	imageFromConfig bool
+}
+
+// Requires declares the local services that must be running before the
+// instance can start. klausctl owns the lifecycle of each listed service.
+type Requires struct {
+	// Gateway configures the klaus-gateway dependency. When Enabled, the
+	// gatewaybridge is auto-started before the instance container.
+	Gateway GatewayRequirement `yaml:"gateway,omitempty"`
+}
+
+// GatewayRequirement is the klaus-gateway block of Requires.
+type GatewayRequirement struct {
+	// Enabled triggers auto-start of the klaus-gateway bridge.
+	Enabled bool `yaml:"enabled,omitempty"`
+	// WithAgentGateway also starts agentgateway in front of klaus-gateway.
+	WithAgentGateway bool `yaml:"withAgentgateway,omitempty"`
 }
 
 // ImageExplicitlySet reports whether the Image field was explicitly set in the
