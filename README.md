@@ -216,6 +216,17 @@ The configuration intentionally mirrors the Helm chart values structure so that 
                   gsoci.azurecr.io/giantswarm/klaus:latest
 ```
 
+## Local bridges
+
+klausctl can manage two local background services so containerized agents
+reach host-side tooling:
+
+- **Muster bridge** (`klausctl muster start|stop|status|restart`) -- aggregates
+  stdio MCP servers behind a single HTTP endpoint. See
+  [docs/musterbridge.md](docs/musterbridge.md).
+- **Gateway bridge** (`klausctl gateway start|stop|status`) -- manages a local
+  `klaus-gateway` process. See [docs/gatewaybridge.md](docs/gatewaybridge.md).
+
 ## Development
 
 ```bash
