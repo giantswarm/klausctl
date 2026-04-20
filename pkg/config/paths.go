@@ -76,6 +76,9 @@ type Paths struct {
 	ReposDir string
 	// WorkspacesFile is the path to the workspace registry (~/.config/klausctl/workspaces.yaml).
 	WorkspacesFile string
+	// AuthDir is the directory for host-keyed remote-gateway OAuth records
+	// (~/.config/klausctl/auth/), used by `klausctl auth login --remote=URL`.
+	AuthDir string
 }
 
 // DefaultPaths returns the default paths using XDG conventions.
@@ -127,6 +130,7 @@ func DefaultPaths() (*Paths, error) {
 		AgentGatewayPortFile:    filepath.Join(base, "agentgateway.port"),
 		ReposDir:                filepath.Join(base, "repos"),
 		WorkspacesFile:          filepath.Join(base, "workspaces.yaml"),
+		AuthDir:                 filepath.Join(base, "auth"),
 	}, nil
 }
 
@@ -210,6 +214,7 @@ func (p *Paths) ForInstance(name string) *Paths {
 		AgentGatewayPortFile:    p.AgentGatewayPortFile,
 		ReposDir:                p.ReposDir,
 		WorkspacesFile:          p.WorkspacesFile,
+		AuthDir:                 p.AuthDir,
 	}
 }
 

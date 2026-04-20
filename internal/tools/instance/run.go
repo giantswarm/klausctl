@@ -9,6 +9,7 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 	mcpserver "github.com/mark3labs/mcp-go/server"
 
+	"github.com/giantswarm/klausctl/internal/remotesurface"
 	"github.com/giantswarm/klausctl/internal/server"
 	"github.com/giantswarm/klausctl/pkg/agentclient"
 	"github.com/giantswarm/klausctl/pkg/mcpclient"
@@ -46,9 +47,32 @@ func registerRun(s *mcpserver.MCPServer, sc *server.ServerContext) {
 		mcp.WithBoolean("confirm", mcp.Description("Confirm replacement of an existing instance; required when a name collision is detected")),
 		mcp.WithBoolean("blocking", mcp.Description("Wait for the agent to complete and return the result (default: false)")),
 	)
+	addRemoteMCPInputs(&tool)
 	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		return handleRun(ctx, req, sc)
 	})
+}
+
+// addRemoteMCPInputs mutates an existing mcp.Tool to attach the
+// `remote` and `session` inputs declared in internal/remotesurface so
+// the MCP tool surface stays in lock-step with the CLI flags.
+func addRemoteMCPInputs(tool *mcp.Tool) {
+	for _, f := range remotesurface.Flags {
+		applyMCPInput(tool, f)
+	}
+}
+
+func applyMCPInput(tool *mcp.Tool, f remotesurface.Flag) {
+	var opt mcp.ToolOption
+	switch f.Kind {
+	case "bool":
+		opt = mcp.WithBoolean(f.MCPKey, mcp.Description(f.Description))
+	case "int":
+		opt = mcp.WithNumber(f.MCPKey, mcp.Description(f.Description))
+	default:
+		opt = mcp.WithString(f.MCPKey, mcp.Description(f.Description))
+	}
+	opt(tool)
 }
 
 type runResult struct {
@@ -68,6 +92,10 @@ func handleRun(ctx context.Context, req mcp.CallToolRequest, sc *server.ServerCo
 	}
 
 	blocking := req.GetBool("blocking", false)
+
+	if name := req.GetString("name", ""); name != "" && req.GetString("remote", "") != "" {
+		return handleRunRemote(ctx, req, sc, name, message, blocking)
+	}
 
 	// Create the instance using the shared create logic.
 	params, err := parseMCPCreateParams(req)
@@ -100,7 +128,10 @@ func handleRun(ctx context.Context, req mcp.CallToolRequest, sc *server.ServerCo
 	}
 
 	// Send the prompt via the chat completions API.
-	compCh, err := agentclient.StreamCompletion(ctx, httpClient, agentURL, message)
+	compCh, err := agentclient.StreamCompletion(ctx, httpClient, agentclient.CompletionRequest{
+		URL:    agentURL + "/v1/chat/completions",
+		Prompt: message,
+	})
 	if err != nil {
 		return cleanupOnError(fmt.Errorf("sending prompt to %q: %v", name, err))
 	}
@@ -138,5 +169,48 @@ func handleRun(ctx context.Context, req mcp.CallToolRequest, sc *server.ServerCo
 		Workspace: createRes.Workspace,
 		Port:      createRes.Port,
 		Result:    mcpclient.ExtractText(resultResp),
+	})
+}
+
+// handleRunRemote services klaus_run when the `remote` input is set: no
+// container is created and no local state is touched; the prompt flows
+// straight through to the named instance on the remote gateway.
+func handleRunRemote(ctx context.Context, req mcp.CallToolRequest, sc *server.ServerContext, name, message string, blocking bool) (*mcp.CallToolResult, error) {
+	call, err := remoteFromReq(ctx, req, sc, name)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	httpClient := &http.Client{}
+	compCh, err := call.streamRemotePrompt(ctx, httpClient, message)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("sending prompt to %q via %s: %v", name, call.Target.BaseURL, err)), nil
+	}
+
+	if !blocking {
+		go func() {
+			for range compCh {
+			}
+		}()
+		return server.JSONResult(runResult{
+			Instance:  name,
+			Status:    "started",
+			Workspace: call.Target.BaseURL,
+		})
+	}
+
+	var builder []byte
+	for delta := range compCh {
+		if delta.Err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("streaming from %q: %v", name, delta.Err)), nil
+		}
+		builder = append(builder, delta.Content...)
+	}
+
+	return server.JSONResult(runResult{
+		Instance:  name,
+		Status:    "completed",
+		Workspace: call.Target.BaseURL,
+		Result:    string(builder),
 	})
 }

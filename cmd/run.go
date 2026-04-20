@@ -44,6 +44,9 @@ var (
 	runMessage  string
 	runBlocking bool
 	runOutput   string
+
+	runRemote  string
+	runSession string
 )
 
 var runCmd = &cobra.Command{
@@ -96,6 +99,10 @@ func init() {
 	runCmd.Flags().StringVarP(&runMessage, "message", "m", "", "prompt message to send to the agent (required)")
 	runCmd.Flags().BoolVar(&runBlocking, "blocking", false, "wait for the agent to complete and return the result")
 	runCmd.Flags().StringVarP(&runOutput, "output", "o", "text", "output format: text, json")
+
+	runCmd.Flags().StringVar(&runRemote, remoteFlagName("remote"), "", remoteFlagDesc("remote"))
+	runCmd.Flags().StringVar(&runSession, remoteFlagName("session"), "", remoteFlagDesc("session"))
+
 	_ = runCmd.MarkFlagRequired("message")
 	rootCmd.AddCommand(runCmd)
 }
@@ -103,6 +110,10 @@ func init() {
 func runRun(cmd *cobra.Command, args []string) error {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
+
+	if runRemote != "" {
+		return runRunRemote(ctx, cmd, args)
+	}
 
 	workspace := ""
 	if len(args) > 1 {
@@ -175,7 +186,10 @@ func runRun(cmd *cobra.Command, args []string) error {
 // runBlocked sends the prompt via the chat completions streaming API and
 // prints content deltas as they arrive.
 func runBlocked(ctx context.Context, out io.Writer, httpClient *http.Client, agentURL, instanceName string) error {
-	compCh, err := agentclient.StreamCompletion(ctx, httpClient, agentURL, runMessage)
+	compCh, err := agentclient.StreamCompletion(ctx, httpClient, agentclient.CompletionRequest{
+		URL:    agentURL + "/v1/chat/completions",
+		Prompt: runMessage,
+	})
 	if err != nil {
 		return fmt.Errorf("sending prompt to %q: %w", instanceName, err)
 	}
@@ -197,7 +211,10 @@ func runBlocked(ctx context.Context, out io.Writer, httpClient *http.Client, age
 // runNonBlocking sends the prompt via the chat completions API without
 // waiting for the agent to finish.
 func runNonBlocking(ctx context.Context, out io.Writer, httpClient *http.Client, agentURL, instanceName string) error {
-	compCh, err := agentclient.StreamCompletion(ctx, httpClient, agentURL, runMessage)
+	compCh, err := agentclient.StreamCompletion(ctx, httpClient, agentclient.CompletionRequest{
+		URL:    agentURL + "/v1/chat/completions",
+		Prompt: runMessage,
+	})
 	if err != nil {
 		return fmt.Errorf("sending prompt to %q: %w", instanceName, err)
 	}
@@ -211,6 +228,55 @@ func runNonBlocking(ctx context.Context, out io.Writer, httpClient *http.Client,
 		Status:   "started",
 	}
 	return renderRunResult(out, result)
+}
+
+// runRunRemote sends the prompt to a remote klaus-gateway endpoint,
+// skipping the local create/container-wait path entirely.
+func runRunRemote(ctx context.Context, cmd *cobra.Command, args []string) error {
+	out := cmd.OutOrStdout()
+	instanceName := args[0]
+
+	paths, err := config.DefaultPaths()
+	if err != nil {
+		return err
+	}
+
+	target, store, rec, err := resolveRemoteTarget(ctx, runRemote, instanceName, runSession, paths)
+	if err != nil {
+		return err
+	}
+
+	fmt.Fprintf(out, "Sending prompt to %s (remote: %s)...\n", instanceName, target.BaseURL)
+
+	httpClient := &http.Client{}
+	compCh, err := streamRemoteCompletion(ctx, httpClient, &target, store, rec, runMessage)
+	if err != nil {
+		return fmt.Errorf("sending prompt to %q: %w", instanceName, err)
+	}
+
+	if !runBlocking {
+		go func() {
+			for range compCh {
+			}
+		}()
+		return renderRunResult(out, promptCLIResult{
+			Instance: instanceName,
+			Status:   "started",
+		})
+	}
+
+	for delta := range compCh {
+		if delta.Err != nil {
+			return fmt.Errorf("streaming from %q: %w", instanceName, delta.Err)
+		}
+		fmt.Fprint(out, delta.Content)
+	}
+	fmt.Fprintln(out)
+
+	return renderRunResult(out, promptCLIResult{
+		Instance: instanceName,
+		Status:   "completed",
+	})
 }
 
 func renderRunResult(out io.Writer, result promptCLIResult) error {
