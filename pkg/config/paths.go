@@ -51,6 +51,27 @@ type Paths struct {
 	MusterPIDFile string
 	// MusterPortFile tracks the port of the managed muster process.
 	MusterPortFile string
+	// GatewayConfigDir is the user-owned klaus-gateway config root
+	// (~/.config/klausctl/gateway/). Contains config.yaml, routes.bolt, and
+	// slack-secrets.yaml.
+	GatewayConfigDir string
+	// GatewayConfigFile is the user-owned gateway/config.yaml
+	// (~/.config/klausctl/gateway/config.yaml).
+	GatewayConfigFile string
+	// GatewayRoutesBoltFile is the klausctl-owned routes store passed to
+	// klaus-gateway as --bolt-path (~/.config/klausctl/gateway/routes.bolt).
+	GatewayRoutesBoltFile string
+	// GatewaySlackSecretsFile is the user-owned slack adapter secrets file
+	// (~/.config/klausctl/gateway/slack-secrets.yaml).
+	GatewaySlackSecretsFile string
+	// KlausGatewayPIDFile tracks the PID of the managed klaus-gateway process.
+	KlausGatewayPIDFile string
+	// KlausGatewayPortFile tracks the port of the managed klaus-gateway process.
+	KlausGatewayPortFile string
+	// AgentGatewayPIDFile tracks the PID of the managed agentgateway process.
+	AgentGatewayPIDFile string
+	// AgentGatewayPortFile tracks the port of the managed agentgateway process.
+	AgentGatewayPortFile string
 	// ReposDir is the managed repo cache directory (~/.config/klausctl/repos/).
 	ReposDir string
 	// WorkspacesFile is the path to the workspace registry (~/.config/klausctl/workspaces.yaml).
@@ -75,28 +96,37 @@ func DefaultPaths() (*Paths, error) {
 	}
 
 	musterDir := filepath.Join(base, "muster")
+	gatewayDir := filepath.Join(base, "gateway")
 
 	return &Paths{
-		ConfigDir:           base,
-		ConfigFile:          filepath.Join(defaultInstanceDir, "config.yaml"),
-		InstancesDir:        instancesDir,
-		InstanceDir:         defaultInstanceDir,
-		RenderedDir:         filepath.Join(defaultInstanceDir, "rendered"),
-		ExtensionsDir:       filepath.Join(defaultInstanceDir, "rendered", "extensions"),
-		PluginsDir:          filepath.Join(base, "plugins"),
-		PersonalitiesDir:    filepath.Join(base, "personalities"),
-		InstanceFile:        filepath.Join(defaultInstanceDir, "instance.json"),
-		ArchivesDir:         filepath.Join(base, "archives"),
-		TokensDir:           filepath.Join(base, "tokens"),
-		SecretsFile:         filepath.Join(base, "secrets.yaml"),
-		McpServersFile:      filepath.Join(base, "mcpservers.yaml"),
-		SourcesFile:         sourcesFile,
-		MusterConfigDir:     musterDir,
-		MusterMCPServersDir: filepath.Join(musterDir, "mcpservers"),
-		MusterPIDFile:       filepath.Join(base, "muster.pid"),
-		MusterPortFile:      filepath.Join(base, "muster.port"),
-		ReposDir:            filepath.Join(base, "repos"),
-		WorkspacesFile:      filepath.Join(base, "workspaces.yaml"),
+		ConfigDir:               base,
+		ConfigFile:              filepath.Join(defaultInstanceDir, "config.yaml"),
+		InstancesDir:            instancesDir,
+		InstanceDir:             defaultInstanceDir,
+		RenderedDir:             filepath.Join(defaultInstanceDir, "rendered"),
+		ExtensionsDir:           filepath.Join(defaultInstanceDir, "rendered", "extensions"),
+		PluginsDir:              filepath.Join(base, "plugins"),
+		PersonalitiesDir:        filepath.Join(base, "personalities"),
+		InstanceFile:            filepath.Join(defaultInstanceDir, "instance.json"),
+		ArchivesDir:             filepath.Join(base, "archives"),
+		TokensDir:               filepath.Join(base, "tokens"),
+		SecretsFile:             filepath.Join(base, "secrets.yaml"),
+		McpServersFile:          filepath.Join(base, "mcpservers.yaml"),
+		SourcesFile:             sourcesFile,
+		MusterConfigDir:         musterDir,
+		MusterMCPServersDir:     filepath.Join(musterDir, "mcpservers"),
+		MusterPIDFile:           filepath.Join(base, "muster.pid"),
+		MusterPortFile:          filepath.Join(base, "muster.port"),
+		GatewayConfigDir:        gatewayDir,
+		GatewayConfigFile:       filepath.Join(gatewayDir, "config.yaml"),
+		GatewayRoutesBoltFile:   filepath.Join(gatewayDir, "routes.bolt"),
+		GatewaySlackSecretsFile: filepath.Join(gatewayDir, "slack-secrets.yaml"),
+		KlausGatewayPIDFile:     filepath.Join(base, "klaus-gateway.pid"),
+		KlausGatewayPortFile:    filepath.Join(base, "klaus-gateway.port"),
+		AgentGatewayPIDFile:     filepath.Join(base, "agentgateway.pid"),
+		AgentGatewayPortFile:    filepath.Join(base, "agentgateway.port"),
+		ReposDir:                filepath.Join(base, "repos"),
+		WorkspacesFile:          filepath.Join(base, "workspaces.yaml"),
 	}, nil
 }
 
@@ -152,26 +182,34 @@ func (p *Paths) ForInstance(name string) *Paths {
 
 	instDir := filepath.Join(p.InstancesDir, instanceName)
 	return &Paths{
-		ConfigDir:           p.ConfigDir,
-		ConfigFile:          filepath.Join(instDir, "config.yaml"),
-		InstancesDir:        p.InstancesDir,
-		InstanceDir:         instDir,
-		RenderedDir:         filepath.Join(instDir, "rendered"),
-		ExtensionsDir:       filepath.Join(instDir, "rendered", "extensions"),
-		PluginsDir:          p.PluginsDir,
-		PersonalitiesDir:    p.PersonalitiesDir,
-		InstanceFile:        filepath.Join(instDir, "instance.json"),
-		ArchivesDir:         p.ArchivesDir,
-		TokensDir:           p.TokensDir,
-		SecretsFile:         p.SecretsFile,
-		McpServersFile:      p.McpServersFile,
-		SourcesFile:         p.SourcesFile,
-		MusterConfigDir:     p.MusterConfigDir,
-		MusterMCPServersDir: p.MusterMCPServersDir,
-		MusterPIDFile:       p.MusterPIDFile,
-		MusterPortFile:      p.MusterPortFile,
-		ReposDir:            p.ReposDir,
-		WorkspacesFile:      p.WorkspacesFile,
+		ConfigDir:               p.ConfigDir,
+		ConfigFile:              filepath.Join(instDir, "config.yaml"),
+		InstancesDir:            p.InstancesDir,
+		InstanceDir:             instDir,
+		RenderedDir:             filepath.Join(instDir, "rendered"),
+		ExtensionsDir:           filepath.Join(instDir, "rendered", "extensions"),
+		PluginsDir:              p.PluginsDir,
+		PersonalitiesDir:        p.PersonalitiesDir,
+		InstanceFile:            filepath.Join(instDir, "instance.json"),
+		ArchivesDir:             p.ArchivesDir,
+		TokensDir:               p.TokensDir,
+		SecretsFile:             p.SecretsFile,
+		McpServersFile:          p.McpServersFile,
+		SourcesFile:             p.SourcesFile,
+		MusterConfigDir:         p.MusterConfigDir,
+		MusterMCPServersDir:     p.MusterMCPServersDir,
+		MusterPIDFile:           p.MusterPIDFile,
+		MusterPortFile:          p.MusterPortFile,
+		GatewayConfigDir:        p.GatewayConfigDir,
+		GatewayConfigFile:       p.GatewayConfigFile,
+		GatewayRoutesBoltFile:   p.GatewayRoutesBoltFile,
+		GatewaySlackSecretsFile: p.GatewaySlackSecretsFile,
+		KlausGatewayPIDFile:     p.KlausGatewayPIDFile,
+		KlausGatewayPortFile:    p.KlausGatewayPortFile,
+		AgentGatewayPIDFile:     p.AgentGatewayPIDFile,
+		AgentGatewayPortFile:    p.AgentGatewayPortFile,
+		ReposDir:                p.ReposDir,
+		WorkspacesFile:          p.WorkspacesFile,
 	}
 }
 

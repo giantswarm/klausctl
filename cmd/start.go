@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/giantswarm/klausctl/pkg/config"
+	"github.com/giantswarm/klausctl/pkg/gatewaybridge"
 	"github.com/giantswarm/klausctl/pkg/instance"
 	"github.com/giantswarm/klausctl/pkg/orchestrator"
 	"github.com/giantswarm/klausctl/pkg/renderer"
@@ -169,6 +170,22 @@ func startInstance(cmd *cobra.Command, instanceName, workspaceOverride, configPa
 	image := orchestrator.ResolveDefaultImage(ctx, client, cfg.Image, out)
 	cfg.Image = image
 
+	// Auto-start klaus-gateway before the instance when the resolved spec
+	// declares `requires.gateway: true`. This runs before ResolveSecretRefs
+	// so the registered klaus-gateway entry in mcpservers.yaml can flow
+	// through the usual mcpServerRefs -> mcpServers path.
+	if cfg.Requires.Gateway.Enabled {
+		fmt.Fprintln(out, "Ensuring klaus-gateway bridge is running...")
+		if _, err := gatewaybridge.EnsureRunning(ctx, paths, gatewaybridge.Options{
+			WithAgentGateway: cfg.Requires.Gateway.WithAgentGateway,
+		}); err != nil {
+			return fmt.Errorf("auto-starting klaus-gateway bridge: %w", err)
+		}
+		if !containsString(cfg.McpServerRefs, gatewaybridge.BridgeName) {
+			cfg.McpServerRefs = append(cfg.McpServerRefs, gatewaybridge.BridgeName)
+		}
+	}
+
 	// Resolve secret references (mcpServerRefs -> mcpServers) before rendering.
 	if err := orchestrator.ResolveSecretRefs(cfg, paths); err != nil {
 		return err
@@ -273,4 +290,13 @@ func applyWorkspaceOverride(cfg *config.Config, workspaceOverride string) {
 		cfg.Workspace = workspaceOverride
 		cfg.WorktreePath = "" // override disables worktree isolation
 	}
+}
+
+func containsString(ss []string, s string) bool {
+	for _, v := range ss {
+		if v == s {
+			return true
+		}
+	}
+	return false
 }
