@@ -56,6 +56,63 @@ klausctl version              # Show version information
 
 `start`, `stop`, `status`, and `logs` currently default to `default` when `<name>` is omitted. This implicit default is deprecated; use `default` explicitly to avoid future breakage.
 
+## OCI registry cache
+
+klausctl keeps a persistent on-disk cache of OCI registry responses so that
+repeated invocations don't have to re-walk the catalog, re-list tags, or
+re-resolve references every time. The cache is driven by the shared
+[klaus-oci cache store](https://github.com/giantswarm/klaus-oci/issues/25)
+and is enabled by default.
+
+Location (first match wins):
+
+1. `--cache-dir <dir>` (global flag)
+2. `KLAUSCTL_CACHE_DIR=<dir>` (env var)
+3. `$XDG_CACHE_HOME/klausctl/oci` (XDG default)
+4. `~/.cache/klausctl/oci` (fallback when XDG is unset)
+
+The cache is safe to delete at any time; the next invocation will
+repopulate the entries it needs.
+
+### Commands
+
+```bash
+klausctl cache info              # show location, size, per-layer entry counts
+klausctl cache prune             # remove stale entries (safe default)
+klausctl cache prune --all       # wipe everything, including fresh entries and blobs
+klausctl cache refresh           # invalidate all index entries (blobs kept)
+klausctl cache refresh --registry gsoci.azurecr.io
+klausctl cache refresh --repo   gsoci.azurecr.io/giantswarm/klaus-plugins/gs-platform
+```
+
+All three commands support `--output json` for scripting.
+
+### Bypassing the cache
+
+Occasionally you want to skip the cache for a single command — e.g. to
+confirm a registry change is visible right now:
+
+```bash
+klausctl --no-cache create --personality coding my-instance
+KLAUSCTL_NO_CACHE=1 klausctl list
+```
+
+Neither `--no-cache` nor the env var are persistent; later invocations
+will use the cache again.
+
+### MCP tools
+
+`klausctl serve` exposes three tools so agents can manage the cache:
+
+- `klausctl_cache_info` — same data as `klausctl cache info --output json`.
+- `klausctl_cache_prune` — accepts a boolean `all` argument.
+- `klausctl_cache_refresh` — accepts optional `registry` / `repo`
+  strings (mutually exclusive).
+
+See [docs/cache-reproduction.md](docs/cache-reproduction.md) for a
+back-to-back reproduction that shows a second `klausctl create` skipping
+catalog/tag/reference traffic entirely.
+
 ## Configuration
 
 Config file at `~/.config/klausctl/instances/default/config.yaml`:
