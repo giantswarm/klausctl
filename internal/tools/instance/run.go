@@ -11,6 +11,7 @@ import (
 
 	"github.com/giantswarm/klausctl/internal/server"
 	"github.com/giantswarm/klausctl/pkg/agentclient"
+	"github.com/giantswarm/klausctl/pkg/mcpclient"
 )
 
 func registerRun(s *mcpserver.MCPServer, sc *server.ServerContext) {
@@ -136,6 +137,6 @@ func handleRun(ctx context.Context, req mcp.CallToolRequest, sc *server.ServerCo
 		Image:     createRes.Image,
 		Workspace: createRes.Workspace,
 		Port:      createRes.Port,
-		Result:    extractText(resultResp),
+		Result:    mcpclient.ExtractText(resultResp),
 	})
 }

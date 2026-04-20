@@ -204,6 +204,41 @@ func (e *Entry) ToListSummary() ListSummary {
 	}
 }
 
+// Filter defines criteria for filtering archive entries. Zero-value fields
+// are ignored (no filtering on that dimension).
+type Filter struct {
+	Since   time.Time // only entries stopped after this time
+	Name    string    // substring match on entry name
+	Tagged  *bool     // nil = no filter, true = only tagged, false = only untagged
+	Outcome string    // exact match on tags["outcome"]
+}
+
+// FilterEntries returns entries that match all non-zero filter criteria.
+func FilterEntries(entries []*Entry, f Filter) []*Entry {
+	result := make([]*Entry, 0, len(entries))
+	for _, e := range entries {
+		if !f.Since.IsZero() && !e.StoppedAt.After(f.Since) {
+			continue
+		}
+		if f.Name != "" && !strings.Contains(e.Name, f.Name) {
+			continue
+		}
+		if f.Tagged != nil {
+			hasTag := len(e.Tags) > 0
+			if *f.Tagged != hasTag {
+				continue
+			}
+		}
+		if f.Outcome != "" {
+			if e.Tags == nil || e.Tags["outcome"] != f.Outcome {
+				continue
+			}
+		}
+		result = append(result, e)
+	}
+	return result
+}
+
 // Tag loads an archive entry by UUID, merges the provided tags (overwriting
 // existing keys), saves the updated entry, and returns it.
 func Tag(archivesDir, uuid string, tags map[string]string) (*Entry, error) {

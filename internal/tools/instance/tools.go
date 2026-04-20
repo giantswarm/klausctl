@@ -525,7 +525,7 @@ func startExistingInstance(ctx context.Context, name string, sc *server.ServerCo
 		return nil, fmt.Errorf("loading config for %q: %w", name, err)
 	}
 
-	workspace := config.ExpandPath(cfg.Workspace)
+	workspace := config.ResolveWorkspacePath(cfg.Workspace, sc.Paths.ReposDir)
 	if _, err := os.Stat(workspace); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil, fmt.Errorf("workspace directory does not exist: %s", workspace)

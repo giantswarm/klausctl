@@ -3,9 +3,6 @@ package archive
 import (
 	"context"
 	"fmt"
-	"strings"
-
-	"github.com/mark3labs/mcp-go/mcp"
 
 	"github.com/giantswarm/klausctl/pkg/instance"
 	"github.com/giantswarm/klausctl/pkg/mcpclient"
@@ -32,7 +29,7 @@ func Capture(ctx context.Context, client *mcpclient.Client, inst *instance.Insta
 		return Save(archivesDir, entry)
 	}
 
-	resultJSON := extractText(toolResult)
+	resultJSON := mcpclient.ExtractText(toolResult)
 
 	entry, err := EntryFromResult(inst, resultJSON)
 	if err != nil {
@@ -40,18 +37,4 @@ func Capture(ctx context.Context, client *mcpclient.Client, inst *instance.Insta
 	}
 
 	return Save(archivesDir, entry)
-}
-
-// extractText returns the concatenated text content from an MCP tool result.
-func extractText(result *mcp.CallToolResult) string {
-	if result == nil {
-		return ""
-	}
-	var parts []string
-	for _, c := range result.Content {
-		if tc, ok := c.(mcp.TextContent); ok {
-			parts = append(parts, tc.Text)
-		}
-	}
-	return strings.Join(parts, "\n")
 }

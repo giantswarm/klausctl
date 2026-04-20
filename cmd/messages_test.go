@@ -11,49 +11,101 @@ import (
 
 func TestParseMessagesResponse(t *testing.T) {
 	tests := []struct {
-		name       string
-		result     *mcp.CallToolResult
-		wantStatus string
-		wantCount  int
+		name      string
+		result    *mcp.CallToolResult
+		wantCount int
+		wantTotal int
 	}{
 		{
-			name: "completed with messages",
+			name: "flat role/content format",
 			result: &mcp.CallToolResult{
 				Content: []mcp.Content{
 					mcp.TextContent{
 						Type: "text",
-						Text: `{"status":"completed","messages":[{"role":"user","content":"hello"},{"role":"assistant","content":"hi"}]}`,
+						Text: `{"messages":[{"role":"user","content":"hello"},{"role":"assistant","content":"hi"}],"total":2}`,
 					},
 				},
 			},
-			wantStatus: "completed",
-			wantCount:  2,
+			wantCount: 2,
+			wantTotal: 2,
 		},
 		{
-			name: "busy with messages",
+			name: "nested agent format with content blocks",
 			result: &mcp.CallToolResult{
 				Content: []mcp.Content{
 					mcp.TextContent{
 						Type: "text",
-						Text: `{"status":"busy","messages":[{"role":"user","content":"do something"}]}`,
+						Text: `{"messages":[{"type":"user","message":{"role":"user","content":[{"type":"text","text":"hello"}]}},{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"hi there"}]}}],"total":2}`,
 					},
 				},
 			},
-			wantStatus: "busy",
-			wantCount:  1,
+			wantCount: 2,
+			wantTotal: 2,
 		},
 		{
-			name: "idle with no messages",
+			name: "nested format skips system hook messages",
 			result: &mcp.CallToolResult{
 				Content: []mcp.Content{
 					mcp.TextContent{
 						Type: "text",
-						Text: `{"status":"idle","messages":[]}`,
+						Text: `{"messages":[{"type":"system","subtype":"hook_started"},{"type":"system","subtype":"init"},{"type":"user","message":{"role":"user","content":[{"type":"text","text":"hello"}]}}],"total":3}`,
 					},
 				},
 			},
-			wantStatus: "idle",
-			wantCount:  0,
+			wantCount: 1,
+			wantTotal: 3,
+		},
+		{
+			name: "nested format with tool_use blocks",
+			result: &mcp.CallToolResult{
+				Content: []mcp.Content{
+					mcp.TextContent{
+						Type: "text",
+						Text: `{"messages":[{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","name":"Bash"}]}}],"total":1}`,
+					},
+				},
+			},
+			wantCount: 1,
+			wantTotal: 1,
+		},
+		{
+			name: "result message type",
+			result: &mcp.CallToolResult{
+				Content: []mcp.Content{
+					mcp.TextContent{
+						Type: "text",
+						Text: `{"messages":[{"type":"result","result":"All done."}],"total":1}`,
+					},
+				},
+			},
+			wantCount: 1,
+			wantTotal: 1,
+		},
+		{
+			name: "format with metadata",
+			result: &mcp.CallToolResult{
+				Content: []mcp.Content{
+					mcp.TextContent{
+						Type: "text",
+						Text: `{"messages":[{"role":"user","content":"hello"}],"metadata":{"session_id":"abc","model":"claude-opus-4-6"},"total":5}`,
+					},
+				},
+			},
+			wantCount: 1,
+			wantTotal: 5,
+		},
+		{
+			name: "empty messages",
+			result: &mcp.CallToolResult{
+				Content: []mcp.Content{
+					mcp.TextContent{
+						Type: "text",
+						Text: `{"messages":[],"total":0}`,
+					},
+				},
+			},
+			wantCount: 0,
+			wantTotal: 0,
 		},
 		{
 			name: "error from IsError flag",
@@ -63,14 +115,14 @@ func TestParseMessagesResponse(t *testing.T) {
 				},
 				IsError: true,
 			},
-			wantStatus: "error",
-			wantCount:  0,
+			wantCount: 0,
+			wantTotal: 0,
 		},
 		{
-			name:       "nil result",
-			result:     nil,
-			wantStatus: "unknown",
-			wantCount:  0,
+			name:      "nil result",
+			result:    nil,
+			wantCount: 0,
+			wantTotal: 0,
 		},
 		{
 			name: "non-JSON fallback",
@@ -79,45 +131,127 @@ func TestParseMessagesResponse(t *testing.T) {
 					mcp.TextContent{Type: "text", Text: "plain text"},
 				},
 			},
-			wantStatus: "unknown",
-			wantCount:  0,
-		},
-		{
-			name: "raw format with messages",
-			result: &mcp.CallToolResult{
-				Content: []mcp.Content{
-					mcp.TextContent{
-						Type: "text",
-						Text: `{"status":"completed","total":3,"messages":[{"type":"user","text":"hello"},{"type":"assistant","subtype":"text","text":"hi"},{"type":"assistant","subtype":"tool_use","tool_name":"bash"}]}`,
-					},
-				},
-			},
-			wantStatus: "completed",
-			wantCount:  3,
-		},
-		{
-			name: "raw format busy",
-			result: &mcp.CallToolResult{
-				Content: []mcp.Content{
-					mcp.TextContent{
-						Type: "text",
-						Text: `{"status":"busy","total":5,"messages":[{"type":"user","text":"work"}]}`,
-					},
-				},
-			},
-			wantStatus: "busy",
-			wantCount:  1,
+			wantCount: 0,
+			wantTotal: 0,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := parseMessagesResponse(tt.result)
-			if got.Status != tt.wantStatus {
-				t.Errorf("Status = %q, want %q", got.Status, tt.wantStatus)
-			}
 			if len(got.Messages) != tt.wantCount {
 				t.Errorf("Messages count = %d, want %d", len(got.Messages), tt.wantCount)
+			}
+			if got.Total != tt.wantTotal {
+				t.Errorf("Total = %d, want %d", got.Total, tt.wantTotal)
+			}
+		})
+	}
+}
+
+func TestConvertRawMessage(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       string
+		wantOk      bool
+		wantRole    string
+		wantContent string
+	}{
+		{
+			name:        "flat role/content",
+			input:       `{"role":"user","content":"hello"}`,
+			wantOk:      true,
+			wantRole:    "user",
+			wantContent: "hello",
+		},
+		{
+			name:        "nested assistant with text block",
+			input:       `{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"hello world"}]}}`,
+			wantOk:      true,
+			wantRole:    "assistant",
+			wantContent: "hello world",
+		},
+		{
+			name:        "nested user with text block",
+			input:       `{"type":"user","message":{"role":"user","content":[{"type":"text","text":"do something"}]}}`,
+			wantOk:      true,
+			wantRole:    "user",
+			wantContent: "do something",
+		},
+		{
+			name:        "nested assistant with tool_use",
+			input:       `{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","name":"Bash"}]}}`,
+			wantOk:      true,
+			wantRole:    "assistant",
+			wantContent: "[tool_use: Bash]",
+		},
+		{
+			name:        "nested assistant with mixed content",
+			input:       `{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Let me check"},{"type":"tool_use","name":"Read"}]}}`,
+			wantOk:      true,
+			wantRole:    "assistant",
+			wantContent: "Let me check\n[tool_use: Read]",
+		},
+		{
+			name:        "nested assistant with string content",
+			input:       `{"type":"assistant","message":{"role":"assistant","content":"plain string"}}`,
+			wantOk:      true,
+			wantRole:    "assistant",
+			wantContent: "plain string",
+		},
+		{
+			name:   "system hook_started is skipped",
+			input:  `{"type":"system","subtype":"hook_started","hook_name":"SessionStart:startup"}`,
+			wantOk: false,
+		},
+		{
+			name:   "system init is skipped",
+			input:  `{"type":"system","subtype":"init","cwd":"/workspace"}`,
+			wantOk: false,
+		},
+		{
+			name:   "system hook_response is skipped",
+			input:  `{"type":"system","subtype":"hook_response","output":"ok"}`,
+			wantOk: false,
+		},
+		{
+			name:        "result message",
+			input:       `{"type":"result","result":"All tests passed."}`,
+			wantOk:      true,
+			wantRole:    "system",
+			wantContent: "All tests passed.",
+		},
+		{
+			name:   "result without text is skipped",
+			input:  `{"type":"result","result":""}`,
+			wantOk: false,
+		},
+		{
+			name:   "assistant with empty content is skipped",
+			input:  `{"type":"assistant","message":{"role":"assistant","content":[]}}`,
+			wantOk: false,
+		},
+		{
+			name:   "invalid json",
+			input:  `not json`,
+			wantOk: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			msg, ok := convertRawMessage(json.RawMessage(tt.input))
+			if ok != tt.wantOk {
+				t.Fatalf("ok = %v, want %v (msg=%+v)", ok, tt.wantOk, msg)
+			}
+			if !ok {
+				return
+			}
+			if msg.Role != tt.wantRole {
+				t.Errorf("Role = %q, want %q", msg.Role, tt.wantRole)
+			}
+			if msg.Content != tt.wantContent {
+				t.Errorf("Content = %q, want %q", msg.Content, tt.wantContent)
 			}
 		})
 	}
@@ -131,7 +265,7 @@ func TestRenderMessages_Text(t *testing.T) {
 		Content: []mcp.Content{
 			mcp.TextContent{
 				Type: "text",
-				Text: `{"status":"completed","messages":[{"role":"user","content":"hello world"},{"role":"assistant","content":"hi there"}]}`,
+				Text: `{"messages":[{"role":"user","content":"hello world"},{"role":"assistant","content":"hi there"}],"total":2}`,
 			},
 		},
 	}
@@ -146,7 +280,41 @@ func TestRenderMessages_Text(t *testing.T) {
 	output := buf.String()
 	for _, want := range []string{
 		"Instance: dev",
-		"Status:   completed",
+		"Messages: 2",
+		"[user]",
+		"hello world",
+		"[assistant]",
+		"hi there",
+	} {
+		if !strings.Contains(output, want) {
+			t.Errorf("output missing %q\ngot:\n%s", want, output)
+		}
+	}
+}
+
+func TestRenderMessages_NestedFormat(t *testing.T) {
+	colorEnabled = false
+	t.Cleanup(func() { colorEnabled = detectColor() })
+
+	result := &mcp.CallToolResult{
+		Content: []mcp.Content{
+			mcp.TextContent{
+				Type: "text",
+				Text: `{"messages":[{"type":"user","message":{"role":"user","content":[{"type":"text","text":"hello world"}]}},{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"hi there"}]}}],"total":2}`,
+			},
+		},
+	}
+
+	messagesOutput = "text"
+	var buf bytes.Buffer
+	err := renderMessages(&buf, "dev", result)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	for _, want := range []string{
+		"Instance: dev",
 		"Messages: 2",
 		"[user]",
 		"hello world",
@@ -167,7 +335,7 @@ func TestRenderMessages_JSON(t *testing.T) {
 		Content: []mcp.Content{
 			mcp.TextContent{
 				Type: "text",
-				Text: `{"status":"completed","messages":[{"role":"user","content":"hello"},{"role":"assistant","content":"world"}]}`,
+				Text: `{"messages":[{"role":"user","content":"hello"},{"role":"assistant","content":"world"}],"total":2}`,
 			},
 		},
 	}
@@ -186,9 +354,6 @@ func TestRenderMessages_JSON(t *testing.T) {
 	if decoded.Instance != "dev" {
 		t.Errorf("Instance = %q, want %q", decoded.Instance, "dev")
 	}
-	if decoded.Status != "completed" {
-		t.Errorf("Status = %q, want %q", decoded.Status, "completed")
-	}
 	if decoded.Count != 2 {
 		t.Errorf("Count = %d, want %d", decoded.Count, 2)
 	}
@@ -203,64 +368,6 @@ func TestRenderMessages_JSON(t *testing.T) {
 	}
 }
 
-func TestRenderMessages_RawFormat(t *testing.T) {
-	colorEnabled = false
-	t.Cleanup(func() { colorEnabled = detectColor() })
-
-	result := &mcp.CallToolResult{
-		Content: []mcp.Content{
-			mcp.TextContent{
-				Type: "text",
-				Text: `{"status":"completed","total":3,"messages":[{"type":"user","text":"hello world"},{"type":"assistant","subtype":"text","text":"hi there"},{"type":"assistant","subtype":"tool_use","tool_name":"read_file"}]}`,
-			},
-		},
-	}
-
-	messagesOutput = "text"
-	var buf bytes.Buffer
-	err := renderMessages(&buf, "dev", result)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	output := buf.String()
-	for _, want := range []string{
-		"Instance: dev",
-		"Status:   completed",
-		"Messages: 3",
-		"[user]",
-		"hello world",
-		"[assistant]",
-		"hi there",
-		"[tool_use: read_file]",
-	} {
-		if !strings.Contains(output, want) {
-			t.Errorf("output missing %q\ngot:\n%s", want, output)
-		}
-	}
-}
-
-func TestParseMessagesResponse_RawContent(t *testing.T) {
-	result := &mcp.CallToolResult{
-		Content: []mcp.Content{
-			mcp.TextContent{
-				Type: "text",
-				Text: `{"status":"completed","total":2,"messages":[{"type":"user","text":"hello"},{"type":"assistant","subtype":"text","text":"world"}]}`,
-			},
-		},
-	}
-	parsed := parseMessagesResponse(result)
-	if len(parsed.Messages) != 2 {
-		t.Fatalf("expected 2 messages, got %d", len(parsed.Messages))
-	}
-	if parsed.Messages[0].Role != "user" || parsed.Messages[0].Content != "hello" {
-		t.Errorf("Messages[0] = %+v, want user/hello", parsed.Messages[0])
-	}
-	if parsed.Messages[1].Role != "assistant" || parsed.Messages[1].Content != "world" {
-		t.Errorf("Messages[1] = %+v, want assistant/world", parsed.Messages[1])
-	}
-}
-
 func TestRenderMessages_Empty(t *testing.T) {
 	colorEnabled = false
 	t.Cleanup(func() { colorEnabled = detectColor() })
@@ -269,7 +376,7 @@ func TestRenderMessages_Empty(t *testing.T) {
 		Content: []mcp.Content{
 			mcp.TextContent{
 				Type: "text",
-				Text: `{"status":"idle","messages":[]}`,
+				Text: `{"messages":[],"total":0}`,
 			},
 		},
 	}
@@ -284,5 +391,31 @@ func TestRenderMessages_Empty(t *testing.T) {
 	output := buf.String()
 	if !strings.Contains(output, "Messages: 0") {
 		t.Errorf("expected 'Messages: 0' in output, got:\n%s", output)
+	}
+}
+
+func TestRenderMessages_TotalGreaterThanMessages(t *testing.T) {
+	colorEnabled = false
+	t.Cleanup(func() { colorEnabled = detectColor() })
+
+	result := &mcp.CallToolResult{
+		Content: []mcp.Content{
+			mcp.TextContent{
+				Type: "text",
+				Text: `{"messages":[{"role":"user","content":"hello"}],"total":42}`,
+			},
+		},
+	}
+
+	messagesOutput = "text"
+	var buf bytes.Buffer
+	err := renderMessages(&buf, "dev", result)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "Messages: 42") {
+		t.Errorf("expected 'Messages: 42' in output (using total), got:\n%s", output)
 	}
 }
