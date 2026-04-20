@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	authLoginRemote string
+	authLoginRemote  string
 	authLogoutRemote string
 )
 
