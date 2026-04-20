@@ -21,6 +21,9 @@ var (
 	promptMessage  string
 	promptBlocking bool
 	promptOutput   string
+
+	promptRemote  string
+	promptSession string
 )
 
 var promptCmd = &cobra.Command{
@@ -44,6 +47,10 @@ func init() {
 	promptCmd.Flags().StringVarP(&promptMessage, "message", "m", "", "prompt message to send to the agent (required)")
 	promptCmd.Flags().BoolVar(&promptBlocking, "blocking", false, "wait for the agent to complete and return the result")
 	promptCmd.Flags().StringVarP(&promptOutput, "output", "o", "text", "output format: text, json")
+
+	promptCmd.Flags().StringVar(&promptRemote, remoteFlagName("remote"), "", remoteFlagDesc("remote"))
+	promptCmd.Flags().StringVar(&promptSession, remoteFlagName("session"), "", remoteFlagDesc("session"))
+
 	_ = promptCmd.MarkFlagRequired("message")
 	rootCmd.AddCommand(promptCmd)
 }
@@ -72,6 +79,11 @@ func runPrompt(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+
+	if promptRemote != "" {
+		return runPromptRemote(ctx, out, paths, instanceName)
+	}
+
 	paths = paths.ForInstance(instanceName)
 
 	inst, err := instance.Load(paths)
@@ -105,7 +117,10 @@ func runPrompt(cmd *cobra.Command, args []string) error {
 // runPromptBlocking sends the prompt via the chat completions streaming API
 // and prints content deltas as they arrive.
 func runPromptBlocking(ctx context.Context, out io.Writer, httpClient *http.Client, agentURL, instanceName string) error {
-	compCh, err := agentclient.StreamCompletion(ctx, httpClient, agentURL, promptMessage)
+	compCh, err := agentclient.StreamCompletion(ctx, httpClient, agentclient.CompletionRequest{
+		URL:    agentURL + "/v1/chat/completions",
+		Prompt: promptMessage,
+	})
 	if err != nil {
 		return fmt.Errorf("sending prompt to %q: %w", instanceName, err)
 	}
@@ -127,7 +142,10 @@ func runPromptBlocking(ctx context.Context, out io.Writer, httpClient *http.Clie
 // runPromptNonBlocking sends the prompt via the completions API and returns
 // immediately.
 func runPromptNonBlocking(ctx context.Context, out io.Writer, httpClient *http.Client, agentURL, instanceName string) error {
-	compCh, err := agentclient.StreamCompletion(ctx, httpClient, agentURL, promptMessage)
+	compCh, err := agentclient.StreamCompletion(ctx, httpClient, agentclient.CompletionRequest{
+		URL:    agentURL + "/v1/chat/completions",
+		Prompt: promptMessage,
+	})
 	if err != nil {
 		return fmt.Errorf("sending prompt to %q: %w", instanceName, err)
 	}
@@ -141,6 +159,45 @@ func runPromptNonBlocking(ctx context.Context, out io.Writer, httpClient *http.C
 		Status:   "started",
 	}
 	return renderPromptResult(out, result)
+}
+
+// runPromptRemote sends a prompt to a remote klaus-gateway endpoint
+// without consulting the local runtime or instance state.
+func runPromptRemote(ctx context.Context, out io.Writer, paths *config.Paths, instanceName string) error {
+	target, store, rec, err := resolveRemoteTarget(ctx, promptRemote, instanceName, promptSession, paths)
+	if err != nil {
+		return err
+	}
+
+	httpClient := &http.Client{}
+	compCh, err := streamRemoteCompletion(ctx, httpClient, &target, store, rec, promptMessage)
+	if err != nil {
+		return fmt.Errorf("sending prompt to %q: %w", instanceName, err)
+	}
+
+	if !promptBlocking {
+		go func() {
+			for range compCh {
+			}
+		}()
+		return renderPromptResult(out, promptCLIResult{
+			Instance: instanceName,
+			Status:   "started",
+		})
+	}
+
+	for delta := range compCh {
+		if delta.Err != nil {
+			return fmt.Errorf("streaming from %q: %w", instanceName, delta.Err)
+		}
+		fmt.Fprint(out, delta.Content)
+	}
+	fmt.Fprintln(out)
+
+	return renderPromptResult(out, promptCLIResult{
+		Instance: instanceName,
+		Status:   "completed",
+	})
 }
 
 func renderPromptResult(out io.Writer, result promptCLIResult) error {

@@ -22,6 +22,9 @@ import (
 var (
 	messagesFollow bool
 	messagesOutput string
+
+	messagesRemote  string
+	messagesSession string
 )
 
 var messagesCmd = &cobra.Command{
@@ -43,6 +46,10 @@ Examples:
 func init() {
 	messagesCmd.Flags().BoolVarP(&messagesFollow, "follow", "f", false, "follow new messages in real time")
 	messagesCmd.Flags().StringVarP(&messagesOutput, "output", "o", "text", "output format: text, json")
+
+	messagesCmd.Flags().StringVar(&messagesRemote, remoteFlagName("remote"), "", remoteFlagDesc("remote"))
+	messagesCmd.Flags().StringVar(&messagesSession, remoteFlagName("session"), "", remoteFlagDesc("session"))
+
 	rootCmd.AddCommand(messagesCmd)
 }
 
@@ -92,6 +99,11 @@ func runMessages(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+
+	if messagesRemote != "" {
+		return runMessagesRemote(ctx, out, paths, instanceName)
+	}
+
 	paths = paths.ForInstance(instanceName)
 
 	inst, err := instance.Load(paths)
@@ -121,6 +133,29 @@ func runMessages(cmd *cobra.Command, args []string) error {
 		return fetchAndRenderMessages(ctx, out, client, instanceName, baseURL)
 	}
 
+	return followMessages(ctx, out, client, instanceName, baseURL)
+}
+
+// runMessagesRemote fetches conversation messages from a remote gateway,
+// bypassing local runtime state entirely.
+func runMessagesRemote(ctx context.Context, out io.Writer, paths *config.Paths, instanceName string) error {
+	target, _, _, err := resolveRemoteTarget(ctx, messagesRemote, instanceName, messagesSession, paths)
+	if err != nil {
+		return err
+	}
+
+	headers := target.Headers()
+	if target.BearerToken != "" {
+		headers["Authorization"] = "Bearer " + target.BearerToken
+	}
+
+	client := mcpclient.NewWithHeaders(buildVersion, headers)
+	defer client.Close()
+
+	baseURL := target.MCPURL()
+	if !messagesFollow {
+		return fetchAndRenderMessages(ctx, out, client, instanceName, baseURL)
+	}
 	return followMessages(ctx, out, client, instanceName, baseURL)
 }
 

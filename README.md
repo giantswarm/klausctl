@@ -38,6 +38,16 @@ klausctl logs default -f
 klausctl stop default
 ```
 
+To target a remote [klaus-gateway](https://github.com/giantswarm/klaus-gateway)
+instead of a local container, authenticate once and then pass `--remote=URL`
+to `run`, `prompt`, or `messages`. See [docs/remote.md](docs/remote.md) for
+details.
+
+```bash
+klausctl auth login --remote=https://gw.example.com
+klausctl run my-bot --remote=https://gw.example.com -m "summarise the week"
+```
+
 ## Usage
 
 ```

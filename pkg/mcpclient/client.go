@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	mcpclient "github.com/mark3labs/mcp-go/client"
+	"github.com/mark3labs/mcp-go/client/transport"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
@@ -18,6 +19,9 @@ type Client struct {
 	mu       sync.Mutex
 	sessions map[string]*mcpclient.Client
 	version  string
+	// headers, when non-empty, are applied to every outgoing MCP HTTP
+	// request (set via NewWithHeaders for the remote-gateway path).
+	headers map[string]string
 }
 
 // New creates a new Client. The version string is sent during MCP session
@@ -26,6 +30,21 @@ func New(version string) *Client {
 	return &Client{
 		sessions: make(map[string]*mcpclient.Client),
 		version:  version,
+	}
+}
+
+// NewWithHeaders returns a Client that attaches the given HTTP headers to
+// every MCP HTTP request. Use this for remote klaus-gateway sessions that
+// need the X-Klaus-* routing headers and/or Authorization bearer.
+func NewWithHeaders(version string, headers map[string]string) *Client {
+	copied := make(map[string]string, len(headers))
+	for k, v := range headers {
+		copied[k] = v
+	}
+	return &Client{
+		sessions: make(map[string]*mcpclient.Client),
+		version:  version,
+		headers:  copied,
 	}
 }
 
@@ -49,7 +68,12 @@ func (c *Client) getOrCreateSession(ctx context.Context, instanceName, baseURL s
 		c.mu.Unlock()
 	}
 
-	mc, err := mcpclient.NewStreamableHttpClient(baseURL)
+	var transportOpts []transport.StreamableHTTPCOption
+	if len(c.headers) > 0 {
+		transportOpts = append(transportOpts, transport.WithHTTPHeaders(c.headers))
+	}
+
+	mc, err := mcpclient.NewStreamableHttpClient(baseURL, transportOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("creating MCP client for %s: %w", baseURL, err)
 	}

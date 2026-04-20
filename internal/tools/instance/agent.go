@@ -26,6 +26,7 @@ func registerPrompt(s *mcpserver.MCPServer, sc *server.ServerContext) {
 		mcp.WithString("message", mcp.Required(), mcp.Description("Prompt message to send to the agent")),
 		mcp.WithBoolean("blocking", mcp.Description("Wait for the agent to complete and return the result (default: false)")),
 	)
+	addRemoteMCPInputs(&tool)
 	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		return handlePrompt(ctx, req, sc)
 	})
@@ -59,6 +60,10 @@ func handlePrompt(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 	}
 	blocking := req.GetBool("blocking", false)
 
+	if req.GetString("remote", "") != "" {
+		return handlePromptRemote(ctx, req, sc, name, message, blocking)
+	}
+
 	baseURL, err := agentBaseURL(ctx, name, sc)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
@@ -67,7 +72,10 @@ func handlePrompt(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 	agentURL := strings.TrimSuffix(baseURL, "/mcp")
 	httpClient := &http.Client{}
 
-	compCh, err := agentclient.StreamCompletion(ctx, httpClient, agentURL, message)
+	compCh, err := agentclient.StreamCompletion(ctx, httpClient, agentclient.CompletionRequest{
+		URL:    agentURL + "/v1/chat/completions",
+		Prompt: message,
+	})
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("sending prompt to %q: %v", name, err)), nil
 	}
@@ -95,6 +103,46 @@ func handlePrompt(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 		Instance: name,
 		Status:   "completed",
 		Result:   mcpclient.ExtractText(resultResp),
+	})
+}
+
+// handlePromptRemote services klaus_prompt when `remote` is set: the
+// prompt is forwarded to <remote>/v1/<name>/chat/completions with the
+// routing headers and bearer attached.
+func handlePromptRemote(ctx context.Context, req mcp.CallToolRequest, sc *server.ServerContext, name, message string, blocking bool) (*mcp.CallToolResult, error) {
+	call, err := remoteFromReq(ctx, req, sc, name)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	compCh, err := call.streamRemotePrompt(ctx, &http.Client{}, message)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("sending prompt to %q via %s: %v", name, call.Target.BaseURL, err)), nil
+	}
+
+	if !blocking {
+		go func() {
+			for range compCh {
+			}
+		}()
+		return server.JSONResult(promptResult{
+			Instance: name,
+			Status:   "started",
+		})
+	}
+
+	var builder []byte
+	for delta := range compCh {
+		if delta.Err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("streaming from %q: %v", name, delta.Err)), nil
+		}
+		builder = append(builder, delta.Content...)
+	}
+
+	return server.JSONResult(promptResult{
+		Instance: name,
+		Status:   "completed",
+		Result:   string(builder),
 	})
 }
 
@@ -173,6 +221,7 @@ func registerMessages(s *mcpserver.MCPServer, sc *server.ServerContext) {
 		mcp.WithString("types", mcp.Description("Comma-separated message types to include (e.g. 'user,assistant,tool')")),
 		mcp.WithBoolean("follow", mcp.Description("Poll for new messages until the agent completes (default: false)")),
 	)
+	addRemoteMCPInputs(&tool)
 	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		return handleMessages(ctx, req, sc)
 	})
@@ -187,19 +236,89 @@ func handleMessages(ctx context.Context, req mcp.CallToolRequest, sc *server.Ser
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 	follow := req.GetBool("follow", false)
+	opts := messagesOptsFromReq(req)
+
+	if req.GetString("remote", "") != "" {
+		return handleMessagesRemote(ctx, req, sc, name, follow, opts)
+	}
 
 	baseURL, err := agentBaseURL(ctx, name, sc)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	opts := messagesOptsFromReq(req)
-
 	if !follow {
 		return fetchMessages(ctx, name, baseURL, sc, opts)
 	}
 
 	return followMessagesUntilDone(ctx, name, baseURL, sc, opts)
+}
+
+// handleMessagesRemote routes the MCP messages tool call to a remote
+// klaus-gateway, wrapping mcpclient with the routing headers and bearer.
+func handleMessagesRemote(ctx context.Context, req mcp.CallToolRequest, sc *server.ServerContext, name string, follow bool, opts *mcpclient.MessagesOpts) (*mcp.CallToolResult, error) {
+	call, err := remoteFromReq(ctx, req, sc, name)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	client := mcpclient.NewWithHeaders("mcp", call.mcpHeaders())
+	defer client.Close()
+
+	baseURL := call.Target.MCPURL()
+	if !follow {
+		toolResult, err := client.Messages(ctx, name, baseURL, opts)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("fetching messages from %q via %s: %v", name, call.Target.BaseURL, err)), nil
+		}
+		if toolResult.IsError {
+			return toolResult, nil
+		}
+		return mcp.NewToolResultText(mcpclient.ExtractText(toolResult)), nil
+	}
+
+	return followRemoteMessages(ctx, name, baseURL, client, opts)
+}
+
+func followRemoteMessages(ctx context.Context, name, baseURL string, client *mcpclient.Client, opts *mcpclient.MessagesOpts) (*mcp.CallToolResult, error) {
+	const maxFollowDuration = 30 * time.Minute
+	ctx, cancel := context.WithTimeout(ctx, maxFollowDuration)
+	defer cancel()
+
+	poll := 2 * time.Second
+	const maxPoll = 10 * time.Second
+
+	var lastResult *mcp.CallToolResult
+
+	for {
+		toolResult, err := client.Messages(ctx, name, baseURL, opts)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("fetching messages from %q: %v", name, err)), nil
+		}
+		lastResult = mcp.NewToolResultText(mcpclient.ExtractText(toolResult))
+
+		statusResult, statusErr := client.Status(ctx, name, baseURL)
+		status := ""
+		if statusErr == nil {
+			status = mcpclient.ParseStatusField(statusResult)
+		}
+		if mcpclient.IsTerminalStatus(status) {
+			return lastResult, nil
+		}
+
+		select {
+		case <-ctx.Done():
+			if lastResult != nil {
+				return lastResult, nil
+			}
+			return mcp.NewToolResultError("timed out waiting for messages"), nil
+		case <-time.After(poll):
+		}
+
+		if poll < maxPoll {
+			poll = min(poll*2, maxPoll)
+		}
+	}
 }
 
 func messagesOptsFromReq(req mcp.CallToolRequest) *mcpclient.MessagesOpts {

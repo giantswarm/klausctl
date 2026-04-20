@@ -20,6 +20,18 @@ type CompletionDelta struct {
 	Err     error
 }
 
+// CompletionRequest describes a single /v1/chat/completions call. URL is
+// the full endpoint (the caller is responsible for composing the
+// instance-scoped path). Bearer and Headers are optional — Bearer becomes
+// an `Authorization: Bearer <token>` header and Headers are applied on
+// top of the default Content-Type/Accept pair.
+type CompletionRequest struct {
+	URL     string
+	Prompt  string
+	Bearer  string
+	Headers map[string]string
+}
+
 // chatCompletionRequest is the POST body for /v1/chat/completions.
 type chatCompletionRequest struct {
 	Model    string           `json:"model"`
@@ -32,16 +44,18 @@ type chatReqMessage struct {
 	Content string `json:"content"`
 }
 
-// StreamCompletion sends a prompt via POST /v1/chat/completions with
+// StreamCompletion sends a prompt via POST to the completions URL with
 // stream=true and returns a channel of deltas. The channel is closed when
 // the stream ends (either cleanly via [DONE] or due to an error).
-func StreamCompletion(ctx context.Context, client *http.Client, baseURL, prompt string) (<-chan CompletionDelta, error) {
-	url := baseURL + "/v1/chat/completions"
-
+//
+// The wire body is identical regardless of whether req.Bearer/Headers are
+// set — local (direct-to-agent) and remote (gateway) callers share the
+// same request shape so the server side sees no difference.
+func StreamCompletion(ctx context.Context, client *http.Client, req CompletionRequest) (<-chan CompletionDelta, error) {
 	body := chatCompletionRequest{
 		Model: "default",
 		Messages: []chatReqMessage{
-			{Role: "user", Content: prompt},
+			{Role: "user", Content: req.Prompt},
 		},
 		Stream: true,
 	}
@@ -50,14 +64,20 @@ func StreamCompletion(ctx context.Context, client *http.Client, baseURL, prompt 
 		return nil, fmt.Errorf("marshaling request: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(bodyBytes))
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, req.URL, bytes.NewReader(bodyBytes))
 	if err != nil {
 		return nil, fmt.Errorf("creating request: %w", err)
 	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "text/event-stream")
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Accept", "text/event-stream")
+	for k, v := range req.Headers {
+		httpReq.Header.Set(k, v)
+	}
+	if req.Bearer != "" {
+		httpReq.Header.Set("Authorization", "Bearer "+req.Bearer)
+	}
 
-	resp, err := client.Do(req)
+	resp, err := client.Do(httpReq)
 	if err != nil {
 		return nil, fmt.Errorf("connecting to completions stream: %w", err)
 	}
@@ -65,7 +85,10 @@ func StreamCompletion(ctx context.Context, client *http.Client, baseURL, prompt 
 	if resp.StatusCode != http.StatusOK {
 		errBody, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
 		resp.Body.Close()
-		return nil, fmt.Errorf("completions returned status %d: %s", resp.StatusCode, strings.TrimSpace(string(errBody)))
+		return nil, &HTTPError{
+			StatusCode: resp.StatusCode,
+			Body:       strings.TrimSpace(string(errBody)),
+		}
 	}
 
 	ch := make(chan CompletionDelta, 16)
@@ -107,4 +130,16 @@ func StreamCompletion(ctx context.Context, client *http.Client, baseURL, prompt 
 	}()
 
 	return ch, nil
+}
+
+// HTTPError is returned by StreamCompletion when the completions endpoint
+// responds with a non-200 status. Callers (notably the remote path) can
+// type-assert on this to trigger refresh-on-401.
+type HTTPError struct {
+	StatusCode int
+	Body       string
+}
+
+func (e *HTTPError) Error() string {
+	return fmt.Sprintf("completions returned status %d: %s", e.StatusCode, e.Body)
 }

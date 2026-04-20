@@ -7,6 +7,11 @@ spawns the process, tracks PID/port, health-checks `/healthz`, and registers
 the resulting MCP HTTP endpoint in `~/.config/klausctl/mcpservers.yaml` so
 containerized klaus instances can reach it via `host.docker.internal`.
 
+For the opposite direction -- a klausctl user reaching a remote gateway
+rather than spawning a local one -- see [docs/remote.md](remote.md). The
+`--remote=URL` flag on `run`/`prompt`/`messages` targets a remote
+`klaus-gateway` and skips the local bridge entirely.
+
 ## CLI
 
 ```
