@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Published container ports now bind to `127.0.0.1` by default instead of `0.0.0.0`, so klaus instances are no longer reachable from the LAN unless the caller explicitly opts in via the new `RunOptions.HostIP` field.
 
+### Fixed
+
+- Tests in `pkg/worktree`, `pkg/config`, and `internal/tools/instance` no longer fail on developer machines that have GPG-signed commits enforced globally or that have Docker/Podman installed. Worktree/config helpers explicitly disable `commit.gpgsign`/`tag.gpgsign` in their throwaway repos, and the MCP collision tests stub `PATH` so container-runtime auto-detection cannot pick up a real Docker binary.
+
 ### Changed
 
 - Lint cleanup: address all pre-existing `errcheck`, `gosec`, `goconst`, `staticcheck`, `ineffassign`, and `unused` findings reported by the repo's pre-commit `golangci-lint` configuration. No behavior changes; covers `_, _ =` prefixes for ignored writer return values, tightened default file/dir permissions (0o600/0o750), `// #nosec` justifications for trusted subprocess and file-path call sites, removal of redundant embedded field selectors, lowercased error string, and removal of one unused test helper.

@@ -22,6 +22,8 @@ func initBareRepo(t *testing.T) string {
 	run(t, "", "git", "clone", bare, clone)
 	run(t, clone, "git", "config", "user.email", "test@test.com")
 	run(t, clone, "git", "config", "user.name", "Test")
+	run(t, clone, "git", "config", "commit.gpgsign", "false")
+	run(t, clone, "git", "config", "tag.gpgsign", "false")
 	run(t, clone, "git", "checkout", "-b", "main")
 	if err := os.WriteFile(filepath.Join(clone, "README.md"), []byte("hello"), 0o600); err != nil {
 		t.Fatal(err)
@@ -40,6 +42,8 @@ func cloneRepo(t *testing.T, bare string) string {
 	run(t, "", "git", "clone", bare, clone)
 	run(t, clone, "git", "config", "user.email", "test@test.com")
 	run(t, clone, "git", "config", "user.name", "Test")
+	run(t, clone, "git", "config", "commit.gpgsign", "false")
+	run(t, clone, "git", "config", "tag.gpgsign", "false")
 	return clone
 }
 
@@ -308,6 +312,8 @@ func TestCreateNoFetch(t *testing.T) {
 	run(t, "", "git", "clone", bare, tmpClone)
 	run(t, tmpClone, "git", "config", "user.email", "test@test.com")
 	run(t, tmpClone, "git", "config", "user.name", "Test")
+	run(t, tmpClone, "git", "config", "commit.gpgsign", "false")
+	run(t, tmpClone, "git", "config", "tag.gpgsign", "false")
 	if err := os.WriteFile(filepath.Join(tmpClone, "new.txt"), []byte("new"), 0o600); err != nil {
 		t.Fatal(err)
 	}
