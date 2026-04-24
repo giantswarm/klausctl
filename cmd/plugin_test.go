@@ -23,10 +23,10 @@ func TestPluginCommandRegisteredOnRoot(t *testing.T) {
 func TestValidatePluginDirValid(t *testing.T) {
 	dir := t.TempDir()
 
-	if err := os.MkdirAll(filepath.Join(dir, "skills", "k8s"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(dir, "skills", "k8s"), 0o750); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "skills", "k8s", "SKILL.md"), []byte("# Skill"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "skills", "k8s", "SKILL.md"), []byte("# Skill"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -38,10 +38,10 @@ func TestValidatePluginDirValid(t *testing.T) {
 func TestValidatePluginDirWithAgents(t *testing.T) {
 	dir := t.TempDir()
 
-	if err := os.MkdirAll(filepath.Join(dir, "agents"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(dir, "agents"), 0o750); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "agents", "helper.md"), []byte("# Agent"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "agents", "helper.md"), []byte("# Agent"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -53,10 +53,10 @@ func TestValidatePluginDirWithAgents(t *testing.T) {
 func TestValidatePluginDirWithCommands(t *testing.T) {
 	dir := t.TempDir()
 
-	if err := os.MkdirAll(filepath.Join(dir, "commands"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(dir, "commands"), 0o750); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "commands", "customer-update.md"), []byte("# Command"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "commands", "customer-update.md"), []byte("# Command"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -68,7 +68,7 @@ func TestValidatePluginDirWithCommands(t *testing.T) {
 func TestValidatePluginDirWithMCPConfig(t *testing.T) {
 	dir := t.TempDir()
 
-	if err := os.WriteFile(filepath.Join(dir, ".mcp.json"), []byte(`{}`), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, ".mcp.json"), []byte(`{}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -99,7 +99,7 @@ func TestValidatePluginDirNotADirectory(t *testing.T) {
 
 func TestValidatePluginDirTextOutput(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(dir, "skills"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(dir, "skills"), 0o750); err != nil {
 		t.Fatal(err)
 	}
 
@@ -115,10 +115,10 @@ func TestValidatePluginDirTextOutput(t *testing.T) {
 
 func TestValidatePluginDirJSONOutput(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(dir, "skills"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(dir, "skills"), 0o750); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.MkdirAll(filepath.Join(dir, "agents"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(dir, "agents"), 0o750); err != nil {
 		t.Fatal(err)
 	}
 

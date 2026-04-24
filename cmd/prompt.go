@@ -129,9 +129,9 @@ func runPromptBlocking(ctx context.Context, out io.Writer, httpClient *http.Clie
 		if delta.Err != nil {
 			return fmt.Errorf("streaming from %q: %w", instanceName, delta.Err)
 		}
-		fmt.Fprint(out, delta.Content)
+		_, _ = fmt.Fprint(out, delta.Content)
 	}
-	fmt.Fprintln(out)
+	_, _ = fmt.Fprintln(out)
 
 	return renderPromptResult(out, promptCLIResult{
 		Instance: instanceName,
@@ -190,9 +190,9 @@ func runPromptRemote(ctx context.Context, out io.Writer, paths *config.Paths, in
 		if delta.Err != nil {
 			return fmt.Errorf("streaming from %q: %w", instanceName, delta.Err)
 		}
-		fmt.Fprint(out, delta.Content)
+		_, _ = fmt.Fprint(out, delta.Content)
 	}
-	fmt.Fprintln(out)
+	_, _ = fmt.Fprintln(out)
 
 	return renderPromptResult(out, promptCLIResult{
 		Instance: instanceName,
@@ -207,10 +207,10 @@ func renderPromptResult(out io.Writer, result promptCLIResult) error {
 		return enc.Encode(result)
 	}
 
-	fmt.Fprintf(out, "Instance: %s\n", result.Instance)
-	fmt.Fprintf(out, "Status:   %s\n", colorStatus(result.Status))
+	_, _ = fmt.Fprintf(out, "Instance: %s\n", result.Instance)
+	_, _ = fmt.Fprintf(out, "Status:   %s\n", colorStatus(result.Status))
 	if result.Result != "" {
-		fmt.Fprintf(out, "\n%s\n", result.Result)
+		_, _ = fmt.Fprintf(out, "\n%s\n", result.Result)
 	}
 	return nil
 }

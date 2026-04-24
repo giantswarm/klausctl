@@ -11,7 +11,7 @@ import (
 func TestDiscoverMetadata_RFC8414(t *testing.T) {
 	ClearMetadataCache()
 
-	meta := Metadata{
+	meta := Metadata{ // #nosec G101 -- constant identifier, not a credential
 		Issuer:                "https://dex.example.com",
 		AuthorizationEndpoint: "https://dex.example.com/auth",
 		TokenEndpoint:         "https://dex.example.com/token",
@@ -19,9 +19,9 @@ func TestDiscoverMetadata_RFC8414(t *testing.T) {
 	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/.well-known/oauth-authorization-server" {
+		if r.URL.Path == "/.well-known/oauth-authorization-server" { //nolint:goconst
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(meta)
+			_ = json.NewEncoder(w).Encode(meta)
 			return
 		}
 		w.WriteHeader(http.StatusNotFound)
@@ -43,7 +43,7 @@ func TestDiscoverMetadata_RFC8414(t *testing.T) {
 func TestDiscoverMetadata_OpenIDConnect(t *testing.T) {
 	ClearMetadataCache()
 
-	meta := Metadata{
+	meta := Metadata{ // #nosec G101 -- constant identifier, not a credential
 		Issuer:                "https://dex.example.com",
 		AuthorizationEndpoint: "https://dex.example.com/auth",
 		TokenEndpoint:         "https://dex.example.com/token",
@@ -52,7 +52,7 @@ func TestDiscoverMetadata_OpenIDConnect(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/openid-configuration" {
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(meta)
+			_ = json.NewEncoder(w).Encode(meta)
 			return
 		}
 		w.WriteHeader(http.StatusNotFound)
@@ -75,13 +75,13 @@ func TestDiscoverMetadata_PrefersRFC8414(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
 		case "/.well-known/oauth-authorization-server":
-			json.NewEncoder(w).Encode(Metadata{
+			_ = json.NewEncoder(w).Encode(Metadata{ // #nosec G101 -- constant identifier, not a credential
 				Issuer:                "rfc8414",
 				AuthorizationEndpoint: "https://dex.example.com/auth-rfc",
 				TokenEndpoint:         "https://dex.example.com/token-rfc",
 			})
 		case "/.well-known/openid-configuration":
-			json.NewEncoder(w).Encode(Metadata{
+			_ = json.NewEncoder(w).Encode(Metadata{ // #nosec G101 -- constant identifier, not a credential
 				Issuer:                "oidc",
 				AuthorizationEndpoint: "https://dex.example.com/auth-oidc",
 				TokenEndpoint:         "https://dex.example.com/token-oidc",
@@ -106,7 +106,7 @@ func TestDiscoverMetadata_MissingEndpoints(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(Metadata{Issuer: "https://dex.example.com"})
+		_ = json.NewEncoder(w).Encode(Metadata{Issuer: "https://dex.example.com"})
 	}))
 	defer server.Close()
 
@@ -137,7 +137,7 @@ func TestDiscoverMetadata_CachesResults(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		callCount++
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(Metadata{
+		_ = json.NewEncoder(w).Encode(Metadata{ // #nosec G101 -- constant identifier, not a credential
 			Issuer:                "https://dex.example.com",
 			AuthorizationEndpoint: "https://dex.example.com/auth",
 			TokenEndpoint:         "https://dex.example.com/token",
@@ -166,7 +166,7 @@ func TestDiscoverMetadata_TrailingSlash(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/oauth-authorization-server" {
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(Metadata{
+			_ = json.NewEncoder(w).Encode(Metadata{ // #nosec G101 -- constant identifier, not a credential
 				Issuer:                "https://dex.example.com",
 				AuthorizationEndpoint: "https://dex.example.com/auth",
 				TokenEndpoint:         "https://dex.example.com/token",
@@ -191,7 +191,7 @@ func TestDiscoverMetadata_InvalidJSON(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte("not json"))
+		_, _ = w.Write([]byte("not json"))
 	}))
 	defer server.Close()
 
@@ -204,7 +204,7 @@ func TestDiscoverMetadata_InvalidJSON(t *testing.T) {
 func TestFetchResourceMetadata_Success(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(ProtectedResourceMetadata{
+		_ = json.NewEncoder(w).Encode(ProtectedResourceMetadata{
 			Resource:             "https://mcp.example.com",
 			AuthorizationServers: []string{"https://auth.example.com"},
 			BearerMethods:        []string{"header"},
@@ -239,7 +239,7 @@ func TestFetchResourceMetadata_NotFound(t *testing.T) {
 func TestFetchResourceMetadata_InvalidJSON(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte("not json"))
+		_, _ = w.Write([]byte("not json"))
 	}))
 	defer server.Close()
 

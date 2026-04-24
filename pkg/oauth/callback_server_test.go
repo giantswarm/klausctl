@@ -20,12 +20,12 @@ func TestCallbackServer_SuccessfulCallback(t *testing.T) {
 
 	go func() {
 		url := fmt.Sprintf("%s?code=auth-code-456&state=%s", redirectURI, state)
-		resp, err := http.Get(url)
+		resp, err := http.Get(url) // #nosec G107 -- URL constructed from trusted, validated input
 		if err != nil {
 			t.Errorf("callback GET: %v", err)
 			return
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 		body, _ := io.ReadAll(resp.Body)
 		if resp.StatusCode != http.StatusOK {
 			t.Errorf("expected 200, got %d: %s", resp.StatusCode, body)
@@ -57,12 +57,12 @@ func TestCallbackServer_StateMismatch(t *testing.T) {
 
 	go func() {
 		url := fmt.Sprintf("%s?code=auth-code&state=wrong-state", redirectURI)
-		resp, err := http.Get(url)
+		resp, err := http.Get(url) // #nosec G107 -- URL constructed from trusted, validated input
 		if err != nil {
 			t.Errorf("callback GET: %v", err)
 			return
 		}
-		resp.Body.Close()
+		_ = resp.Body.Close()
 	}()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -84,12 +84,12 @@ func TestCallbackServer_OAuthError(t *testing.T) {
 
 	go func() {
 		url := fmt.Sprintf("%s?error=access_denied&error_description=user+denied+access", redirectURI)
-		resp, err := http.Get(url)
+		resp, err := http.Get(url) // #nosec G107 -- URL constructed from trusted, validated input
 		if err != nil {
 			t.Errorf("callback GET: %v", err)
 			return
 		}
-		resp.Body.Close()
+		_ = resp.Body.Close()
 	}()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -112,12 +112,12 @@ func TestCallbackServer_MissingCode(t *testing.T) {
 
 	go func() {
 		url := fmt.Sprintf("%s?state=%s", redirectURI, state)
-		resp, err := http.Get(url)
+		resp, err := http.Get(url) // #nosec G107 -- URL constructed from trusted, validated input
 		if err != nil {
 			t.Errorf("callback GET: %v", err)
 			return
 		}
-		resp.Body.Close()
+		_ = resp.Body.Close()
 	}()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -157,7 +157,7 @@ func TestCallbackServer_OnlyProcessesFirstCallback(t *testing.T) {
 
 	go func() {
 		url := fmt.Sprintf("%s?code=first-code&state=%s", redirectURI, state)
-		http.Get(url)
+		_, _ = http.Get(url) // #nosec G107 -- URL constructed from trusted, validated input
 	}()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -182,12 +182,12 @@ func TestCallbackServer_ErrorWithoutDescription(t *testing.T) {
 
 	go func() {
 		url := fmt.Sprintf("%s?error=server_error", redirectURI)
-		resp, err := http.Get(url)
+		resp, err := http.Get(url) // #nosec G107 -- URL constructed from trusted, validated input
 		if err != nil {
 			t.Errorf("callback GET: %v", err)
 			return
 		}
-		resp.Body.Close()
+		_ = resp.Body.Close()
 	}()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

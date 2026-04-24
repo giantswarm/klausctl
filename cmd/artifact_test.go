@@ -33,7 +33,7 @@ func TestListLocalArtifacts(t *testing.T) {
 	dir := t.TempDir()
 
 	pluginDir := filepath.Join(dir, "gs-base")
-	if err := os.MkdirAll(pluginDir, 0o755); err != nil {
+	if err := os.MkdirAll(pluginDir, 0o750); err != nil {
 		t.Fatal(err)
 	}
 	if err := klausoci.WriteCacheEntry(pluginDir, klausoci.CacheEntry{
@@ -52,7 +52,7 @@ func TestListLocalArtifacts(t *testing.T) {
 		t.Fatalf("expected 1 artifact, got %d", len(artifacts))
 	}
 
-	if artifacts[0].Name != "gs-base" {
+	if artifacts[0].Name != "gs-base" { //nolint:goconst
 		t.Errorf("Name = %q, want %q", artifacts[0].Name, "gs-base")
 	}
 	if artifacts[0].Digest != "sha256:abc123" {
@@ -85,7 +85,7 @@ func TestListLocalArtifactsMissingDir(t *testing.T) {
 func TestListLocalArtifactsSkipsNonDirs(t *testing.T) {
 	dir := t.TempDir()
 
-	if err := os.WriteFile(filepath.Join(dir, "not-a-dir.txt"), []byte("hello"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "not-a-dir.txt"), []byte("hello"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -101,7 +101,7 @@ func TestListLocalArtifactsSkipsNonDirs(t *testing.T) {
 func TestListLocalArtifactsSkipsNoCacheMetadata(t *testing.T) {
 	dir := t.TempDir()
 
-	if err := os.MkdirAll(filepath.Join(dir, "stale-plugin"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(dir, "stale-plugin"), 0o750); err != nil {
 		t.Fatal(err)
 	}
 
@@ -197,7 +197,7 @@ func TestPrintEmptyText(t *testing.T) {
 func TestPushArtifactText(t *testing.T) {
 	var buf bytes.Buffer
 	fakePush := func(_ context.Context, _ *klausoci.Client, _, _ string) (string, error) {
-		return "sha256:deadbeef12345678", nil
+		return "sha256:deadbeef12345678", nil //nolint:goconst
 	}
 
 	err := pushArtifact(context.Background(), "/tmp/src", "example.com/plugins/gs-base:v1.0.0", fakePush, &buf, "text", pushOpts{})

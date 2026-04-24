@@ -161,50 +161,50 @@ func runStatsSummary(cmd *cobra.Command, _ []string) error {
 }
 
 func renderSummaryText(out io.Writer, s *archive.SummaryStats) error {
-	fmt.Fprintf(out, "Total runs:      %-8d  First attempt:   %d/%d (%g%%)\n",
+	_, _ = fmt.Fprintf(out, "Total runs:      %-8d  First attempt:   %d/%d (%g%%)\n",
 		s.TotalRuns, s.FirstAttempt, s.TotalRuns, s.FirstAttemptPct)
-	fmt.Fprintf(out, "Success:         %d (%g%%)", s.Success, s.SuccessPct)
+	_, _ = fmt.Fprintf(out, "Success:         %d (%g%%)", s.Success, s.SuccessPct)
 	if s.ScopeTotal > 0 {
-		fmt.Fprintf(out, "  Scope adherence: %d/%d (%g%%)", s.ScopeAdherence, s.ScopeTotal, s.ScopeAdherencePct)
+		_, _ = fmt.Fprintf(out, "  Scope adherence: %d/%d (%g%%)", s.ScopeAdherence, s.ScopeTotal, s.ScopeAdherencePct)
 	}
-	fmt.Fprintln(out)
-	fmt.Fprintf(out, "Partial:         %d (%g%%)", s.Partial, s.PartialPct)
+	_, _ = fmt.Fprintln(out)
+	_, _ = fmt.Fprintf(out, "Partial:         %d (%g%%)", s.Partial, s.PartialPct)
 	if s.ReworkNone > 0 || s.ReworkMinor > 0 || s.ReworkMajor > 0 {
-		fmt.Fprintf(out, "  Rework: none %d, minor %d, major %d", s.ReworkNone, s.ReworkMinor, s.ReworkMajor)
+		_, _ = fmt.Fprintf(out, "  Rework: none %d, minor %d, major %d", s.ReworkNone, s.ReworkMinor, s.ReworkMajor)
 	}
-	fmt.Fprintln(out)
-	fmt.Fprintf(out, "Failure:         %d (%g%%)\n", s.Failure, s.FailurePct)
+	_, _ = fmt.Fprintln(out)
+	_, _ = fmt.Fprintf(out, "Failure:         %d (%g%%)\n", s.Failure, s.FailurePct)
 
-	fmt.Fprintln(out)
+	_, _ = fmt.Fprintln(out)
 	if s.TotalRuns > 0 {
-		fmt.Fprintf(out, "Cost:  $%.2f total, $%.2f avg", s.TotalCostUSD, s.AvgCostUSD)
+		_, _ = fmt.Fprintf(out, "Cost:  $%.2f total, $%.2f avg", s.TotalCostUSD, s.AvgCostUSD)
 		if s.MinCost != s.MaxCost {
-			fmt.Fprintf(out, ", $%.2f-$%.2f range", s.MinCost, s.MaxCost)
+			_, _ = fmt.Fprintf(out, ", $%.2f-$%.2f range", s.MinCost, s.MaxCost)
 		}
-		fmt.Fprintln(out)
-		fmt.Fprintf(out, "Msgs:  %d avg", s.AvgMessages)
+		_, _ = fmt.Fprintln(out)
+		_, _ = fmt.Fprintf(out, "Msgs:  %d avg", s.AvgMessages)
 		if s.MinMessages != s.MaxMessages {
-			fmt.Fprintf(out, ", %d-%d range", s.MinMessages, s.MaxMessages)
+			_, _ = fmt.Fprintf(out, ", %d-%d range", s.MinMessages, s.MaxMessages)
 		}
-		fmt.Fprintln(out)
+		_, _ = fmt.Fprintln(out)
 		if s.MedianDuration != "" {
-			fmt.Fprintf(out, "Time:  %s median", s.MedianDuration)
+			_, _ = fmt.Fprintf(out, "Time:  %s median", s.MedianDuration)
 			if s.MinDuration != s.MaxDuration {
-				fmt.Fprintf(out, ", %s-%s range", s.MinDuration, s.MaxDuration)
+				_, _ = fmt.Fprintf(out, ", %s-%s range", s.MinDuration, s.MaxDuration)
 			}
-			fmt.Fprintln(out)
+			_, _ = fmt.Fprintln(out)
 		}
 	}
 
 	if len(s.ComplexityBreakdown) > 0 {
-		fmt.Fprintln(out)
-		fmt.Fprintln(out, "Complexity:")
+		_, _ = fmt.Fprintln(out)
+		_, _ = fmt.Fprintln(out, "Complexity:")
 		for _, cg := range s.ComplexityBreakdown {
 			runWord := "runs"
 			if cg.Runs == 1 {
 				runWord = "run "
 			}
-			fmt.Fprintf(out, "  %-10s %d %s  $%.2f avg  %g%% success\n",
+			_, _ = fmt.Fprintf(out, "  %-10s %d %s  $%.2f avg  %g%% success\n",
 				cg.Level, cg.Runs, runWord, cg.AvgCost, cg.SuccessPct)
 		}
 	}
@@ -250,9 +250,9 @@ func runStatsSpend(cmd *cobra.Command, _ []string) error {
 }
 
 func renderSpendText(out io.Writer, groups []archive.SpendGroup) error {
-	fmt.Fprintf(out, "%-20s  %5s  %7s  %10s  %10s\n", "GROUP", "RUNS", "%TOTAL", "TOTAL", "AVG")
+	_, _ = fmt.Fprintf(out, "%-20s  %5s  %7s  %10s  %10s\n", "GROUP", "RUNS", "%TOTAL", "TOTAL", "AVG")
 	for _, g := range groups {
-		fmt.Fprintf(out, "%-20s  %5d  %6g%%  %10s  %10s\n",
+		_, _ = fmt.Fprintf(out, "%-20s  %5d  %6g%%  %10s  %10s\n",
 			truncate(g.Group, 20), g.Runs, g.PctOfTotal,
 			fmt.Sprintf("$%.2f", g.TotalCost),
 			fmt.Sprintf("$%.2f", g.AvgCost))
@@ -294,7 +294,7 @@ func runStatsTrends(cmd *cobra.Command, _ []string) error {
 }
 
 func renderTrendsText(out io.Writer, trends []archive.TrendWeek) error {
-	fmt.Fprintf(out, "%-12s  %5s  %8s  %5s  %10s  %10s  %8s  %7s  %9s\n",
+	_, _ = fmt.Fprintf(out, "%-12s  %5s  %8s  %5s  %10s  %10s  %8s  %7s  %9s\n",
 		"WEEK", "RUNS", "SUCCESS%", "1ST%", "AVG COST", "TOTAL COST", "AVG MSGS", "AVG DUR", "AVG CMPLX")
 	for _, tw := range trends {
 		cmplx := ""
@@ -305,7 +305,7 @@ func renderTrendsText(out io.Writer, trends []archive.TrendWeek) error {
 		if dur == "" {
 			dur = "-"
 		}
-		fmt.Fprintf(out, "%-12s  %5d  %7g%%  %4g%%  %10s  %10s  %8d  %7s  %9s\n",
+		_, _ = fmt.Fprintf(out, "%-12s  %5d  %7g%%  %4g%%  %10s  %10s  %8d  %7s  %9s\n",
 			tw.Week, tw.Runs, tw.SuccessPct, tw.FirstAttemptPct,
 			fmt.Sprintf("$%.2f", tw.AvgCostUSD),
 			fmt.Sprintf("$%.2f", tw.TotalCostUSD),
@@ -354,14 +354,14 @@ func runStatsList(cmd *cobra.Command, _ []string) error {
 }
 
 func renderListText(out io.Writer, list []archive.ListEntry) error {
-	fmt.Fprintf(out, "%-12s  %-26s  %-22s  %-14s  %-8s  %7s  %5s  %8s  %-10s\n",
+	_, _ = fmt.Fprintf(out, "%-12s  %-26s  %-22s  %-14s  %-8s  %7s  %5s  %8s  %-10s\n",
 		"DATE", "NAME", "REPO", "ISSUE", "OUTCOME", "COST", "MSGS", "DURATION", "COMPLEXITY")
 	for _, le := range list {
 		dur := le.Duration
 		if dur == "" {
 			dur = "-"
 		}
-		fmt.Fprintf(out, "%-12s  %-26s  %-22s  %-14s  %-8s  %7s  %5d  %8s  %-10s\n",
+		_, _ = fmt.Fprintf(out, "%-12s  %-26s  %-22s  %-14s  %-8s  %7s  %5d  %8s  %-10s\n",
 			le.Date, truncate(le.Name, 26), truncate(le.Repo, 22), truncate(le.Issue, 14),
 			le.Outcome, fmt.Sprintf("$%.2f", le.Cost), le.Messages, dur, le.Complexity)
 	}
@@ -403,7 +403,7 @@ func validateOutcome(outcome string) error {
 		return nil
 	}
 	switch outcome {
-	case "success", "partial", "failed":
+	case "success", "partial", "failed": //nolint:goconst
 		return nil
 	default:
 		return fmt.Errorf("invalid --outcome %q: use success, partial, or failed", outcome)

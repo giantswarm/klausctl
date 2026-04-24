@@ -110,7 +110,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		// Try to get uptime from the runtime, fall back to saved state.
 		cInfo, inspectErr := rt.Inspect(ctx, containerName)
 		if inspectErr != nil {
-			fmt.Fprintf(cmd.ErrOrStderr(), "%s could not inspect container: %v\n", yellow("Warning:"), inspectErr)
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "%s could not inspect container: %v\n", yellow("Warning:"), inspectErr)
 		}
 
 		switch {
@@ -131,7 +131,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 
 		agentResp, agentErr := agentclient.FetchStatus(agentCtx, httpClient, info.MCP)
 		if agentErr != nil {
-			fmt.Fprintf(cmd.ErrOrStderr(), "%s could not query agent status: %v\n", yellow("Warning:"), agentErr)
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "%s could not query agent status: %v\n", yellow("Warning:"), agentErr)
 		} else {
 			info.Agent = agentResp.Agent.Status
 			info.MessageCount = agentResp.Agent.MessageCount
@@ -146,37 +146,37 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	}
 
 	// Text output.
-	statusColor := status
+	var statusColor string
 	if status == "running" {
 		statusColor = green(status)
 	} else {
 		statusColor = yellow(status)
 	}
 
-	fmt.Fprintf(out, "Instance:    %s\n", inst.Name)
-	fmt.Fprintf(out, "Status:      %s\n", statusColor)
+	_, _ = fmt.Fprintf(out, "Instance:    %s\n", inst.Name)
+	_, _ = fmt.Fprintf(out, "Status:      %s\n", statusColor)
 	if inst.Personality != "" {
-		fmt.Fprintf(out, "Personality: %s\n", inst.Personality)
+		_, _ = fmt.Fprintf(out, "Personality: %s\n", inst.Personality)
 	}
-	fmt.Fprintf(out, "Container:   %s\n", containerName)
-	fmt.Fprintf(out, "Runtime:     %s\n", inst.Runtime)
-	fmt.Fprintf(out, "Image:       %s\n", inst.Image)
-	fmt.Fprintf(out, "Workspace:   %s\n", inst.Workspace)
+	_, _ = fmt.Fprintf(out, "Container:   %s\n", containerName)
+	_, _ = fmt.Fprintf(out, "Runtime:     %s\n", inst.Runtime)
+	_, _ = fmt.Fprintf(out, "Image:       %s\n", inst.Image)
+	_, _ = fmt.Fprintf(out, "Workspace:   %s\n", inst.Workspace)
 
 	if status == "running" {
-		fmt.Fprintf(out, "MCP:         %s\n", info.MCP)
+		_, _ = fmt.Fprintf(out, "MCP:         %s\n", info.MCP)
 		if info.Uptime != "" {
-			fmt.Fprintf(out, "Uptime:      %s\n", info.Uptime)
+			_, _ = fmt.Fprintf(out, "Uptime:      %s\n", info.Uptime)
 		}
 		if info.Agent != "" {
 			agentLine := info.Agent
 			if info.MessageCount > 0 {
 				agentLine = fmt.Sprintf("%s (%d messages)", info.Agent, info.MessageCount)
 			}
-			fmt.Fprintf(out, "Agent:       %s\n", agentLine)
+			_, _ = fmt.Fprintf(out, "Agent:       %s\n", agentLine)
 		}
 		if info.Session != "" {
-			fmt.Fprintf(out, "Session:     %s\n", info.Session)
+			_, _ = fmt.Fprintf(out, "Session:     %s\n", info.Session)
 		}
 	}
 

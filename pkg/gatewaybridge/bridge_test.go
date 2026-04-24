@@ -14,7 +14,7 @@ func testPaths(t *testing.T) *config.Paths {
 	t.Helper()
 	dir := t.TempDir()
 	gatewayDir := filepath.Join(dir, "gateway")
-	if err := os.MkdirAll(gatewayDir, 0o755); err != nil {
+	if err := os.MkdirAll(gatewayDir, 0o750); err != nil {
 		t.Fatal(err)
 	}
 	return &config.Paths{
@@ -49,7 +49,7 @@ func TestGetStatus_NotRunning(t *testing.T) {
 
 func TestGetStatus_StalePID(t *testing.T) {
 	paths := testPaths(t)
-	if err := os.WriteFile(paths.KlausGatewayPIDFile, []byte("999999999"), 0o644); err != nil {
+	if err := os.WriteFile(paths.KlausGatewayPIDFile, []byte("999999999"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	st := GetStatus(paths)
@@ -174,7 +174,7 @@ agentGateway:
   enabled: true
   port: 9200
 `)
-	if err := os.WriteFile(paths.GatewayConfigFile, content, 0o644); err != nil {
+	if err := os.WriteFile(paths.GatewayConfigFile, content, 0o600); err != nil {
 		t.Fatal(err)
 	}
 	cfg := loadGatewayConfig(paths.GatewayConfigFile)
@@ -250,7 +250,7 @@ func TestOwnership(t *testing.T) {
 
 	// User-owned files are never touched by klausctl: create them by hand
 	// and confirm cleanup does not remove them.
-	if err := os.WriteFile(paths.GatewayConfigFile, []byte("logLevel: info\n"), 0o644); err != nil {
+	if err := os.WriteFile(paths.GatewayConfigFile, []byte("logLevel: info\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(paths.GatewaySlackSecretsFile, []byte("token: placeholder\n"), 0o600); err != nil {

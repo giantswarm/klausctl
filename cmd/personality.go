@@ -199,15 +199,15 @@ func validatePersonalityDir(dir string, out io.Writer, outputFmt string) error {
 		})
 	}
 
-	fmt.Fprintf(out, "Valid personality directory: %s\n", dir)
+	_, _ = fmt.Fprintf(out, "Valid personality directory: %s\n", dir)
 	if spec.Description != "" {
-		fmt.Fprintf(out, "  Description: %s\n", spec.Description)
+		_, _ = fmt.Fprintf(out, "  Description: %s\n", spec.Description)
 	}
 	if spec.Toolchain.Repository != "" {
-		fmt.Fprintf(out, "  Image: %s\n", spec.Toolchain.Ref())
+		_, _ = fmt.Fprintf(out, "  Image: %s\n", spec.Toolchain.Ref())
 	}
 	if len(spec.Plugins) > 0 {
-		fmt.Fprintf(out, "  Plugins: %d\n", len(spec.Plugins))
+		_, _ = fmt.Fprintf(out, "  Plugins: %d\n", len(spec.Plugins))
 	}
 	return nil
 }
@@ -409,15 +409,15 @@ func runPersonalityDescribe(cmd *cobra.Command, args []string) error {
 
 	printArtifactMeta(out, metaFromPersonality(dp))
 
-	if dp.Personality.Toolchain.Repository != "" {
-		fmt.Fprintln(out)
-		fmt.Fprintf(out, "%-14s %s\n", "Toolchain:", dp.Personality.Toolchain.Ref())
+	if dp.Toolchain.Repository != "" {
+		_, _ = fmt.Fprintln(out)
+		_, _ = fmt.Fprintf(out, "%-14s %s\n", "Toolchain:", dp.Toolchain.Ref())
 	}
-	if len(dp.Personality.Plugins) > 0 {
-		fmt.Fprintln(out)
-		fmt.Fprintln(out, "Plugins:")
-		for _, p := range dp.Personality.Plugins {
-			fmt.Fprintf(out, "  - %s\n", p.Ref())
+	if len(dp.Plugins) > 0 {
+		_, _ = fmt.Fprintln(out)
+		_, _ = fmt.Fprintln(out, "Plugins:")
+		for _, p := range dp.Plugins {
+			_, _ = fmt.Fprintf(out, "  - %s\n", p.Ref())
 		}
 	}
 
@@ -434,17 +434,17 @@ func printResolvedDeps(out io.Writer, deps *klausoci.ResolvedDependencies) {
 		return
 	}
 	if deps.Toolchain != nil {
-		fmt.Fprintln(out)
-		fmt.Fprintln(out, "Resolved Toolchain:")
+		_, _ = fmt.Fprintln(out)
+		_, _ = fmt.Fprintln(out, "Resolved Toolchain:")
 		printIndentedMeta(out, metaFromToolchain(deps.Toolchain))
 	}
 	for i := range deps.Plugins {
-		fmt.Fprintln(out)
-		fmt.Fprintf(out, "Resolved Plugin [%s]:\n", deps.Plugins[i].Plugin.Name)
+		_, _ = fmt.Fprintln(out)
+		_, _ = fmt.Fprintf(out, "Resolved Plugin [%s]:\n", deps.Plugins[i].Name)
 		printIndentedMeta(out, metaFromPlugin(&deps.Plugins[i]))
 	}
 	for _, w := range deps.Warnings {
-		fmt.Fprintf(out, "\nWarning: %s\n", w)
+		_, _ = fmt.Fprintf(out, "\nWarning: %s\n", w)
 	}
 }
 

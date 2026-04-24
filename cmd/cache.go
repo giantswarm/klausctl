@@ -97,26 +97,26 @@ func writeCacheInfo(w io.Writer, info *ocicache.Info, format string) error {
 	if format == "json" {
 		return writeJSON(w, info)
 	}
-	fmt.Fprintf(w, "Cache directory: %s\n", displayDir(info.Dir))
+	_, _ = fmt.Fprintf(w, "Cache directory: %s\n", displayDir(info.Dir))
 	if info.Disabled {
-		fmt.Fprintln(w, "Status:          disabled (KLAUSCTL_NO_CACHE or --no-cache)")
+		_, _ = fmt.Fprintln(w, "Status:          disabled (KLAUSCTL_NO_CACHE or --no-cache)")
 		return nil
 	}
 	if !info.Exists {
-		fmt.Fprintln(w, "Status:          empty (not yet populated)")
+		_, _ = fmt.Fprintln(w, "Status:          empty (not yet populated)")
 		return nil
 	}
-	fmt.Fprintf(w, "Total size:      %s\n", humanBytes(info.TotalBytes))
+	_, _ = fmt.Fprintf(w, "Total size:      %s\n", humanBytes(info.TotalBytes))
 	if !info.NewestEntry.IsZero() {
-		fmt.Fprintf(w, "Last write:      %s\n", info.NewestEntry.Format(time.RFC3339))
+		_, _ = fmt.Fprintf(w, "Last write:      %s\n", info.NewestEntry.Format(time.RFC3339))
 	}
-	fmt.Fprintf(w, "Fresh TTL:       %s\n", info.FreshTTL)
-	fmt.Fprintf(w, "Stale TTL:       %s (catalog %s)\n", info.StaleTTL, info.CatalogStaleTTL)
-	fmt.Fprintln(w)
+	_, _ = fmt.Fprintf(w, "Fresh TTL:       %s\n", info.FreshTTL)
+	_, _ = fmt.Fprintf(w, "Stale TTL:       %s (catalog %s)\n", info.StaleTTL, info.CatalogStaleTTL)
+	_, _ = fmt.Fprintln(w)
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "LAYER\tENTRIES\tSIZE")
+	_, _ = fmt.Fprintln(tw, "LAYER\tENTRIES\tSIZE")
 	for _, l := range info.Layers {
-		fmt.Fprintf(tw, "%s\t%d\t%s\n", l.Name, l.Entries, humanBytes(l.Bytes))
+		_, _ = fmt.Fprintf(tw, "%s\t%d\t%s\n", l.Name, l.Entries, humanBytes(l.Bytes))
 	}
 	return tw.Flush()
 }
@@ -137,14 +137,14 @@ func writePruneResult(w io.Writer, res *ocicache.PruneResult, all bool, format s
 		return writeJSON(w, res)
 	}
 	if res.Dir == "" {
-		fmt.Fprintln(w, "Cache is disabled; nothing to prune.")
+		_, _ = fmt.Fprintln(w, "Cache is disabled; nothing to prune.")
 		return nil
 	}
 	scope := "stale"
 	if all {
 		scope = "all"
 	}
-	fmt.Fprintf(w, "Pruned %d %s entries (%s) from %s.\n",
+	_, _ = fmt.Fprintf(w, "Pruned %d %s entries (%s) from %s.\n",
 		res.FilesRemoved, scope, humanBytes(res.BytesRemoved), displayDir(res.Dir))
 	return nil
 }
@@ -175,12 +175,12 @@ func writeRefreshResult(w io.Writer, res *ocicache.RefreshResult, format string)
 		return writeJSON(w, res)
 	}
 	if res.Dir == "" {
-		fmt.Fprintln(w, "Cache is disabled; nothing to refresh.")
+		_, _ = fmt.Fprintln(w, "Cache is disabled; nothing to refresh.")
 		return nil
 	}
-	fmt.Fprintf(w, "Invalidated %d index entries (scope=%s) under %s.\n",
+	_, _ = fmt.Fprintf(w, "Invalidated %d index entries (scope=%s) under %s.\n",
 		res.FilesRemoved, res.Scope, displayDir(res.Dir))
-	fmt.Fprintln(w, "Entries will be refetched on the next klausctl call.")
+	_, _ = fmt.Fprintln(w, "Entries will be refetched on the next klausctl call.")
 	return nil
 }
 

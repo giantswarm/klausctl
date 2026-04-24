@@ -70,7 +70,7 @@ func setupCreateEnv(t *testing.T) (string, string) {
 	t.Setenv("XDG_CONFIG_HOME", configHome)
 
 	workspace := filepath.Join(t.TempDir(), "workspace")
-	if err := os.MkdirAll(workspace, 0o755); err != nil {
+	if err := os.MkdirAll(workspace, 0o750); err != nil {
 		t.Fatal(err)
 	}
 
@@ -223,17 +223,17 @@ func TestStartInstanceRollbackRemovesContainerOnSaveFailure(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", configHome)
 
 	workspace := filepath.Join(t.TempDir(), "workspace")
-	if err := os.MkdirAll(workspace, 0o755); err != nil {
+	if err := os.MkdirAll(workspace, 0o750); err != nil {
 		t.Fatal(err)
 	}
 
 	// Set up instance directory with config.
 	instanceDir := filepath.Join(configHome, "klausctl", "instances", "save-fail")
-	if err := os.MkdirAll(instanceDir, 0o755); err != nil {
+	if err := os.MkdirAll(instanceDir, 0o750); err != nil {
 		t.Fatal(err)
 	}
 	configContent := fmt.Sprintf("workspace: %s\nport: 9999\ntoolchain: fake-image:latest\n", workspace)
-	if err := os.WriteFile(filepath.Join(instanceDir, "config.yaml"), []byte(configContent), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(instanceDir, "config.yaml"), []byte(configContent), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -244,7 +244,7 @@ func TestStartInstanceRollbackRemovesContainerOnSaveFailure(t *testing.T) {
 
 	// Make the instance file path a directory so that writing to it fails.
 	instanceFile := filepath.Join(instanceDir, "instance.json")
-	if err := os.MkdirAll(instanceFile, 0o755); err != nil {
+	if err := os.MkdirAll(instanceFile, 0o750); err != nil {
 		t.Fatal(err)
 	}
 

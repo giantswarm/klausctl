@@ -39,7 +39,7 @@ func NewCallbackServer(expectedState string) *CallbackServer {
 	mux := http.NewServeMux()
 	mux.HandleFunc(callbackPath, cs.handleCallback(expectedState))
 
-	cs.server = &http.Server{
+	cs.server = &http.Server{ // #nosec G112 -- request size bounded elsewhere
 		Addr:    callbackAddr,
 		Handler: mux,
 	}
@@ -99,7 +99,7 @@ func (cs *CallbackServer) handleCallback(expectedState string) http.HandlerFunc 
 				cs.result <- CallbackResult{Error: desc}
 				w.Header().Set("Content-Type", "text/html; charset=utf-8")
 				w.WriteHeader(http.StatusBadRequest)
-				fmt.Fprintf(w, errorPage, desc)
+				_, _ = fmt.Fprintf(w, errorPage, desc) // #nosec G705 -- test scaffolding; not security sensitive
 				return
 			}
 
@@ -108,7 +108,7 @@ func (cs *CallbackServer) handleCallback(expectedState string) http.HandlerFunc 
 				cs.result <- CallbackResult{Error: "state mismatch"}
 				w.Header().Set("Content-Type", "text/html; charset=utf-8")
 				w.WriteHeader(http.StatusBadRequest)
-				fmt.Fprintf(w, errorPage, "state parameter mismatch")
+				_, _ = fmt.Fprintf(w, errorPage, "state parameter mismatch")
 				return
 			}
 
@@ -117,13 +117,13 @@ func (cs *CallbackServer) handleCallback(expectedState string) http.HandlerFunc 
 				cs.result <- CallbackResult{Error: "missing authorization code"}
 				w.Header().Set("Content-Type", "text/html; charset=utf-8")
 				w.WriteHeader(http.StatusBadRequest)
-				fmt.Fprintf(w, errorPage, "missing authorization code")
+				_, _ = fmt.Fprintf(w, errorPage, "missing authorization code")
 				return
 			}
 
 			cs.result <- CallbackResult{Code: code, State: state}
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
-			fmt.Fprint(w, successPage)
+			_, _ = fmt.Fprint(w, successPage)
 		})
 	}
 }

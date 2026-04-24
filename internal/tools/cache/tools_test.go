@@ -73,10 +73,10 @@ func TestHandlePrune_All(t *testing.T) {
 	t.Cleanup(ocicache.Reset)
 
 	entry := filepath.Join(dir, "refs", "x.json")
-	if err := os.MkdirAll(filepath.Dir(entry), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(entry), 0o750); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(entry, []byte(`{"key":"host/repo:tag"}`), 0o644); err != nil {
+	if err := os.WriteFile(entry, []byte(`{"key":"host/repo:tag"}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
 

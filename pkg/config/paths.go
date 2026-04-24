@@ -174,14 +174,14 @@ func ResolveWorkspacePath(workspace, reposDir string) string {
 
 // EnsureDir creates a directory and all parents if they don't exist.
 func EnsureDir(path string) error {
-	return os.MkdirAll(path, 0o755)
+	return os.MkdirAll(path, 0o750)
 }
 
 // ForInstance returns a copy of paths scoped to one instance directory.
 func (p *Paths) ForInstance(name string) *Paths {
 	instanceName := strings.TrimSpace(name)
 	if instanceName == "" {
-		instanceName = "default"
+		instanceName = "default" //nolint:goconst
 	}
 
 	instDir := filepath.Join(p.InstancesDir, instanceName)

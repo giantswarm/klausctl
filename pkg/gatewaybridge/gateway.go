@@ -70,7 +70,7 @@ func startKlausGateway(ctx context.Context, paths *config.Paths, opts Options, c
 		args = append(args, fmt.Sprintf("--agentgateway-url=%s", agentGatewayURL))
 	}
 
-	cmd := exec.CommandContext(ctx, bin, args...)
+	cmd := exec.CommandContext(ctx, bin, args...) // #nosec G204,G702 -- bridge subprocess with controlled args
 	setSysProcAttr(cmd)
 	cmd.Stdout = nil
 	cmd.Stderr = nil
@@ -140,7 +140,7 @@ func modePath(pidFile string) string {
 }
 
 func writeMode(pidFile, mode string) error {
-	return os.WriteFile(modePath(pidFile), []byte(mode), 0o644)
+	return os.WriteFile(modePath(pidFile), []byte(mode), 0o600)
 }
 
 func modeLabel(pidFile string) string {

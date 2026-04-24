@@ -66,14 +66,14 @@ func runList(cmd *cobra.Command, _ []string) error {
 	}
 
 	if len(entries) == 0 {
-		fmt.Fprintln(cmd.OutOrStdout(), "No instances found. Use 'klausctl create <name>' to create one.")
+		_, _ = fmt.Fprintln(cmd.OutOrStdout(), "No instances found. Use 'klausctl create <name>' to create one.")
 		return nil
 	}
 
 	w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "NAME\tSTATUS\tTOOLCHAIN\tPERSONALITY\tWORKSPACE\tPORT\tUPTIME")
+	_, _ = fmt.Fprintln(w, "NAME\tSTATUS\tTOOLCHAIN\tPERSONALITY\tWORKSPACE\tPORT\tUPTIME")
 	for _, e := range entries {
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%d\t%s\n",
+		_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%d\t%s\n",
 			e.Name,
 			e.Status,
 			valueOrDash(e.Toolchain),

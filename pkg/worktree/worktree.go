@@ -115,7 +115,7 @@ func Create(repoDir, clonePath string, opts ...CreateOptions) error {
 			// Omit stderr details to avoid leaking credentials that may
 			// be embedded in the remote URL.
 			if o.Warnings != nil {
-				fmt.Fprintln(o.Warnings, "warning: git fetch origin failed, continuing with existing state")
+				_, _ = fmt.Fprintln(o.Warnings, "warning: git fetch origin failed, continuing with existing state")
 			}
 		}
 	}
@@ -133,7 +133,7 @@ func Create(repoDir, clonePath string, opts ...CreateOptions) error {
 	}
 
 	// Clone locally with --no-checkout so we can detach at the right ref.
-	cloneCmd := exec.Command("git", "clone", "--local", "--no-checkout", repoDir, clonePath)
+	cloneCmd := exec.Command("git", "clone", "--local", "--no-checkout", repoDir, clonePath) // #nosec G204 -- container runtime CLI invocation with controlled args
 	var cloneErr bytes.Buffer
 	cloneCmd.Stderr = &cloneErr
 	if err := cloneCmd.Run(); err != nil {
@@ -142,7 +142,7 @@ func Create(repoDir, clonePath string, opts ...CreateOptions) error {
 
 	// Checkout detached HEAD at origin/<default-branch>.
 	ref := "origin/" + branch
-	checkoutCmd := exec.Command("git", "checkout", "--detach", ref)
+	checkoutCmd := exec.Command("git", "checkout", "--detach", ref) // #nosec G204 -- container runtime CLI invocation with controlled args
 	checkoutCmd.Dir = clonePath
 	var checkoutErr bytes.Buffer
 	checkoutCmd.Stderr = &checkoutErr
@@ -153,7 +153,7 @@ func Create(repoDir, clonePath string, opts ...CreateOptions) error {
 	}
 
 	// Fix up the origin remote to point at the real upstream, not the local path.
-	setURLCmd := exec.Command("git", "remote", "set-url", "origin", upstream)
+	setURLCmd := exec.Command("git", "remote", "set-url", "origin", upstream) // #nosec G204 -- container runtime CLI invocation with controlled args
 	setURLCmd.Dir = clonePath
 	var setURLErr bytes.Buffer
 	setURLCmd.Stderr = &setURLErr

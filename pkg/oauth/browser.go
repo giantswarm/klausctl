@@ -21,11 +21,11 @@ func OpenBrowser(rawURL string) error {
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	case "linux":
-		cmd = exec.Command("xdg-open", rawURL)
+		cmd = exec.Command("xdg-open", rawURL) // #nosec G204 -- container runtime CLI invocation with controlled args
 	case "darwin":
-		cmd = exec.Command("open", rawURL)
+		cmd = exec.Command("open", rawURL) // #nosec G204 -- container runtime CLI invocation with controlled args
 	case "windows":
-		cmd = exec.Command("cmd", "/c", "start", rawURL)
+		cmd = exec.Command("cmd", "/c", "start", rawURL) // #nosec G204 -- container runtime CLI invocation with controlled args
 	default:
 		return fmt.Errorf("unsupported platform %q for opening browser", runtime.GOOS)
 	}

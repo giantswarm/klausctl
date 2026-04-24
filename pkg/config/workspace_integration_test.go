@@ -20,7 +20,7 @@ func TestGenerateInstanceConfig_RepoIdentifier(t *testing.T) {
 
 	// Write a workspace registry that allows the org.
 	wsFile := filepath.Join(base, "workspaces.yaml")
-	if err := os.WriteFile(wsFile, []byte("organizations:\n  - testorg\n"), 0o644); err != nil {
+	if err := os.WriteFile(wsFile, []byte("organizations:\n  - testorg\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -77,7 +77,7 @@ func TestGenerateInstanceConfig_RepoIdentifierNotRegistered(t *testing.T) {
 
 	// Write a workspace registry that only allows "allowed-org".
 	wsFile := filepath.Join(base, "workspaces.yaml")
-	if err := os.WriteFile(wsFile, []byte("organizations:\n  - allowed-org\n"), 0o644); err != nil {
+	if err := os.WriteFile(wsFile, []byte("organizations:\n  - allowed-org\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 

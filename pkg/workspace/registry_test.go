@@ -130,7 +130,7 @@ func TestSaveCreatesParentDirs(t *testing.T) {
 // run executes a git command and fails the test on error.
 func run(t *testing.T, dir string, name string, args ...string) {
 	t.Helper()
-	cmd := exec.Command(name, args...)
+	cmd := exec.Command(name, args...) // #nosec G204 -- container runtime CLI invocation with controlled args
 	if dir != "" {
 		cmd.Dir = dir
 	}
@@ -152,7 +152,7 @@ func initBareRepo(t *testing.T) string {
 	run(t, clone, "git", "config", "user.name", "Test")
 	run(t, clone, "git", "config", "commit.gpgsign", "false")
 	run(t, clone, "git", "checkout", "-b", "main")
-	if err := os.WriteFile(filepath.Join(clone, "README.md"), []byte("hello"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(clone, "README.md"), []byte("hello"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	run(t, clone, "git", "add", ".")
@@ -175,7 +175,7 @@ func TestEnsureCachedClonesRepo(t *testing.T) {
 	// EnsureCached would do with a real GitHub URL. Then test fetch.
 	ownerDir := filepath.Join(reposDir, "testowner")
 	cacheDir := filepath.Join(ownerDir, "testrepo")
-	if err := os.MkdirAll(ownerDir, 0o755); err != nil {
+	if err := os.MkdirAll(ownerDir, 0o750); err != nil {
 		t.Fatal(err)
 	}
 
@@ -223,18 +223,18 @@ func TestListCached(t *testing.T) {
 	for _, id := range []string{"owner1/repo1", "owner2/repo2"} {
 		parts := strings.SplitN(id, "/", 2)
 		repoPath := filepath.Join(reposDir, parts[0], parts[1])
-		if err := os.MkdirAll(filepath.Join(repoPath, ".git"), 0o755); err != nil {
+		if err := os.MkdirAll(filepath.Join(repoPath, ".git"), 0o750); err != nil {
 			t.Fatal(err)
 		}
 	}
 
 	// Create a directory without .git (should be skipped).
-	if err := os.MkdirAll(filepath.Join(reposDir, "owner3", "norepo"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(reposDir, "owner3", "norepo"), 0o750); err != nil {
 		t.Fatal(err)
 	}
 
 	// Create a file in the owner dir (should be skipped).
-	if err := os.WriteFile(filepath.Join(reposDir, "stray-file"), []byte("x"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(reposDir, "stray-file"), []byte("x"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 

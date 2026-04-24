@@ -275,10 +275,10 @@ func TestTag_NewTags(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Tag() error: %v", err)
 	}
-	if updated.Tags["env"] != "prod" {
+	if updated.Tags["env"] != "prod" { //nolint:goconst
 		t.Errorf("Tags[env] = %q, want %q", updated.Tags["env"], "prod")
 	}
-	if updated.Tags["team"] != "platform" {
+	if updated.Tags["team"] != "platform" { //nolint:goconst
 		t.Errorf("Tags[team] = %q, want %q", updated.Tags["team"], "platform")
 	}
 
@@ -348,7 +348,7 @@ func TestLoadEntryWithoutTags(t *testing.T) {
 
 	// Write an entry JSON without a tags field (backward compatibility).
 	raw := `{"uuid":"no-tags","name":"old","status":"completed"}`
-	if err := os.WriteFile(filepath.Join(dir, "no-tags.json"), []byte(raw), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "no-tags.json"), []byte(raw), 0o600); err != nil {
 		t.Fatalf("writing file: %v", err)
 	}
 

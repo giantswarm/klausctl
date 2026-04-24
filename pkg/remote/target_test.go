@@ -147,7 +147,7 @@ func TestResolveUserIDFallsBackToEnv(t *testing.T) {
 func TestResolveUserIDUnknownWhenNothingSet(t *testing.T) {
 	t.Setenv("USER", "")
 	t.Setenv("LOGNAME", "")
-	if got := ResolveUserID(""); got != "unknown" {
+	if got := ResolveUserID(""); got != "unknown" { //nolint:goconst
 		t.Errorf("ResolveUserID with nothing set = %q, want %q", got, "unknown")
 	}
 }

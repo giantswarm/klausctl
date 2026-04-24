@@ -90,7 +90,7 @@ func Start(ctx context.Context, paths *config.Paths, opts Options) (*Status, err
 	cfg := loadGatewayConfig(paths.GatewayConfigFile)
 
 	// Ensure the routes.bolt parent directory exists (klausctl-owned).
-	if err := os.MkdirAll(paths.GatewayConfigDir, 0o755); err != nil {
+	if err := os.MkdirAll(paths.GatewayConfigDir, 0o750); err != nil {
 		return nil, fmt.Errorf("creating gateway config dir: %w", err)
 	}
 

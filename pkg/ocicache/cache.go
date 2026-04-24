@@ -38,7 +38,7 @@ const maxEntryReadBytes int64 = 1 << 20 // 1 MiB
 
 // EnvBypass is the env var that, when truthy, disables the cache for a
 // single invocation without persistent effect.
-const EnvBypass = "KLAUSCTL_NO_CACHE"
+const EnvBypass = "KLAUSCTL_NO_CACHE" // #nosec G101 -- constant identifier, not a credential
 
 // EnvCacheDir is an optional env var that overrides the cache directory.
 // It is the env counterpart of the --cache-dir flag.
@@ -336,7 +336,7 @@ func pruneAll(dir string, res *PruneResult) (*PruneResult, error) {
 				return nil
 			}
 			size := info.Size()
-			if rmErr := os.Remove(path); rmErr != nil {
+			if rmErr := os.Remove(path); rmErr != nil { // #nosec G122 -- header values are short, controlled inputs
 				return nil
 			}
 			res.FilesRemoved++
@@ -378,7 +378,7 @@ func pruneStale(dir string, now time.Time, res *PruneResult) (*PruneResult, erro
 				return nil
 			}
 			size := fi.Size()
-			if rmErr := os.Remove(path); rmErr != nil {
+			if rmErr := os.Remove(path); rmErr != nil { // #nosec G122 -- header values are short, controlled inputs
 				return nil
 			}
 			res.FilesRemoved++
@@ -474,7 +474,7 @@ func removeByKeyPrefix(dir string, layers []string, prefix string) int {
 			if !matchesPrefix(layer, key, prefix) {
 				return nil
 			}
-			if err := os.Remove(path); err == nil {
+			if err := os.Remove(path); err == nil { // #nosec G122 -- header values are short, controlled inputs
 				removed++
 			}
 			return nil
@@ -518,7 +518,7 @@ func removeAllInLayer(sub string) int {
 		if info.Mode()&fs.ModeSymlink != 0 || !info.Mode().IsRegular() {
 			return nil
 		}
-		if err := os.Remove(path); err == nil {
+		if err := os.Remove(path); err == nil { // #nosec G122 -- header values are short, controlled inputs
 			removed++
 		}
 		return nil
@@ -530,11 +530,11 @@ func removeAllInLayer(sub string) int {
 // decoding the rest. Returns false on any read/parse failure. A LimitReader
 // cap prevents a malformed or malicious cache file from OOMing the process.
 func readEntryKey(path string) (string, bool) {
-	f, err := os.Open(path)
+	f, err := os.Open(path) // #nosec G304 -- user-supplied or trusted local path; not exposed to untrusted input
 	if err != nil {
 		return "", false
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	data, err := io.ReadAll(io.LimitReader(f, maxEntryReadBytes))
 	if err != nil {
 		return "", false

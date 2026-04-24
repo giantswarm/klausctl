@@ -174,7 +174,7 @@ func runRun(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("waiting for instance %q to become ready: %w", instanceName, err)
 	}
 
-	fmt.Fprintf(out, "\nSending prompt to %s...\n", instanceName)
+	_, _ = fmt.Fprintf(out, "\nSending prompt to %s...\n", instanceName)
 
 	if runBlocking {
 		return runBlocked(ctx, out, httpClient, agentURL, instanceName)
@@ -198,9 +198,9 @@ func runBlocked(ctx context.Context, out io.Writer, httpClient *http.Client, age
 		if delta.Err != nil {
 			return fmt.Errorf("streaming from %q: %w", instanceName, delta.Err)
 		}
-		fmt.Fprint(out, delta.Content)
+		_, _ = fmt.Fprint(out, delta.Content)
 	}
-	fmt.Fprintln(out)
+	_, _ = fmt.Fprintln(out)
 
 	return renderRunResult(out, promptCLIResult{
 		Instance: instanceName,
@@ -246,7 +246,7 @@ func runRunRemote(ctx context.Context, cmd *cobra.Command, args []string) error 
 		return err
 	}
 
-	fmt.Fprintf(out, "Sending prompt to %s (remote: %s)...\n", instanceName, target.BaseURL)
+	_, _ = fmt.Fprintf(out, "Sending prompt to %s (remote: %s)...\n", instanceName, target.BaseURL)
 
 	httpClient := &http.Client{}
 	compCh, err := streamRemoteCompletion(ctx, httpClient, &target, store, rec, runMessage)
@@ -269,9 +269,9 @@ func runRunRemote(ctx context.Context, cmd *cobra.Command, args []string) error 
 		if delta.Err != nil {
 			return fmt.Errorf("streaming from %q: %w", instanceName, delta.Err)
 		}
-		fmt.Fprint(out, delta.Content)
+		_, _ = fmt.Fprint(out, delta.Content)
 	}
-	fmt.Fprintln(out)
+	_, _ = fmt.Fprintln(out)
 
 	return renderRunResult(out, promptCLIResult{
 		Instance: instanceName,
@@ -280,16 +280,16 @@ func runRunRemote(ctx context.Context, cmd *cobra.Command, args []string) error 
 }
 
 func renderRunResult(out io.Writer, result promptCLIResult) error {
-	if runOutput == "json" {
+	if runOutput == "json" { //nolint:goconst
 		enc := json.NewEncoder(out)
 		enc.SetIndent("", "  ")
 		return enc.Encode(result)
 	}
 
-	fmt.Fprintf(out, "Instance: %s\n", result.Instance)
-	fmt.Fprintf(out, "Status:   %s\n", colorStatus(result.Status))
+	_, _ = fmt.Fprintf(out, "Instance: %s\n", result.Instance)
+	_, _ = fmt.Fprintf(out, "Status:   %s\n", colorStatus(result.Status))
 	if result.Result != "" {
-		fmt.Fprintf(out, "\n%s\n", result.Result)
+		_, _ = fmt.Fprintf(out, "\n%s\n", result.Result)
 	}
 	return nil
 }

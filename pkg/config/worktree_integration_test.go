@@ -10,7 +10,7 @@ import (
 
 func gitRun(t *testing.T, dir string, args ...string) {
 	t.Helper()
-	cmd := exec.Command("git", args...)
+	cmd := exec.Command("git", args...) // #nosec G204 -- container runtime CLI invocation with controlled args
 	if dir != "" {
 		cmd.Dir = dir
 	}
@@ -32,7 +32,7 @@ func setupGitWorkspace(t *testing.T) (bare, clone string) {
 	gitRun(t, clone, "config", "user.email", "test@test.com")
 	gitRun(t, clone, "config", "user.name", "Test")
 	gitRun(t, clone, "checkout", "-b", "main")
-	if err := os.WriteFile(filepath.Join(clone, "README.md"), []byte("hello"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(clone, "README.md"), []byte("hello"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	gitRun(t, clone, "add", ".")
@@ -74,7 +74,7 @@ func TestGenerateInstanceConfig_CreatesWorktreeForGitRepo(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reading README in worktree: %v", err)
 	}
-	if string(readme) != "hello" {
+	if string(readme) != "hello" { //nolint:goconst
 		t.Fatalf("unexpected README content: %q", readme)
 	}
 
@@ -126,7 +126,7 @@ func TestGenerateInstanceConfig_NoIsolateSkipsWorktree(t *testing.T) {
 func TestGenerateInstanceConfig_NonGitWorkspaceSkipsWorktree(t *testing.T) {
 	base := t.TempDir()
 	workspace := filepath.Join(base, "workspace")
-	if err := os.MkdirAll(workspace, 0o755); err != nil {
+	if err := os.MkdirAll(workspace, 0o750); err != nil {
 		t.Fatal(err)
 	}
 

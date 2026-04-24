@@ -14,7 +14,7 @@ func TestAuthStoreRoundtrip(t *testing.T) {
 	dir := t.TempDir()
 	store := NewAuthStore(filepath.Join(dir, "auth"))
 
-	rec := AuthRecord{
+	rec := AuthRecord{ // #nosec G101 -- constant identifier, not a credential
 		ServerURL:     "https://gw.example.com",
 		Issuer:        "https://auth.example.com",
 		AccessToken:   "at-123",

@@ -37,7 +37,7 @@ func startAgentGateway(ctx context.Context, paths *config.Paths, opts Options, c
 		fmt.Sprintf("--listen-address=:%d", port),
 	}
 
-	cmd := exec.CommandContext(ctx, bin, args...)
+	cmd := exec.CommandContext(ctx, bin, args...) // #nosec G204,G702 -- bridge subprocess with controlled args
 	setSysProcAttr(cmd)
 	cmd.Stdout = nil
 	cmd.Stderr = nil

@@ -93,28 +93,28 @@ func runWorkspaceList(cmd *cobra.Command, _ []string) error {
 
 	out := cmd.OutOrStdout()
 
-	fmt.Fprintln(out, "Organizations:")
+	_, _ = fmt.Fprintln(out, "Organizations:")
 	if len(cfg.Organizations) == 0 {
-		fmt.Fprintln(out, "  No organizations registered.")
+		_, _ = fmt.Fprintln(out, "  No organizations registered.")
 	} else {
 		for _, org := range cfg.Organizations {
-			fmt.Fprintf(out, "  %s\n", org)
+			_, _ = fmt.Fprintf(out, "  %s\n", org)
 		}
 	}
 
-	fmt.Fprintln(out)
+	_, _ = fmt.Fprintln(out)
 
 	cached, err := workspace.ListCached(paths.ReposDir)
 	if err != nil {
 		return err
 	}
 
-	fmt.Fprintln(out, "Cached repos:")
+	_, _ = fmt.Fprintln(out, "Cached repos:")
 	if len(cached) == 0 {
-		fmt.Fprintln(out, "  No cached repos.")
+		_, _ = fmt.Fprintln(out, "  No cached repos.")
 	} else {
 		for _, r := range cached {
-			fmt.Fprintf(out, "  %s\n", r.Identifier)
+			_, _ = fmt.Fprintf(out, "  %s\n", r.Identifier)
 		}
 	}
 
@@ -136,7 +136,7 @@ func runWorkspaceAddOrg(cmd *cobra.Command, args []string) error {
 
 	for _, existing := range cfg.Organizations {
 		if strings.EqualFold(existing, org) {
-			fmt.Fprintf(cmd.OutOrStdout(), "Organization %q is already registered.\n", org)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Organization %q is already registered.\n", org)
 			return nil
 		}
 	}
@@ -146,7 +146,7 @@ func runWorkspaceAddOrg(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Fprintf(cmd.OutOrStdout(), "Added organization: %s\n", org)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Added organization: %s\n", org)
 	return nil
 }
 
@@ -169,7 +169,7 @@ func runWorkspaceAddRepo(cmd *cobra.Command, args []string) error {
 
 	for _, existing := range cfg.Repos {
 		if strings.EqualFold(existing.Name, identifier) {
-			fmt.Fprintf(cmd.OutOrStdout(), "Repository %q is already registered.\n", identifier)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Repository %q is already registered.\n", identifier)
 			return nil
 		}
 	}
@@ -179,7 +179,7 @@ func runWorkspaceAddRepo(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Fprintf(cmd.OutOrStdout(), "Added repository: %s\n", identifier)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Added repository: %s\n", identifier)
 	return nil
 }
 
@@ -203,7 +203,7 @@ func runWorkspaceRemove(cmd *cobra.Command, args []string) error {
 				if err := workspace.Save(paths.WorkspacesFile, cfg); err != nil {
 					return err
 				}
-				fmt.Fprintf(cmd.OutOrStdout(), "Removed: %s\n", identifier)
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Removed: %s\n", identifier)
 				return nil
 			}
 		}
@@ -216,7 +216,7 @@ func runWorkspaceRemove(cmd *cobra.Command, args []string) error {
 			if err := workspace.Save(paths.WorkspacesFile, cfg); err != nil {
 				return err
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "Removed: %s\n", identifier)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Removed: %s\n", identifier)
 			return nil
 		}
 	}
@@ -239,7 +239,7 @@ func runWorkspaceFetch(cmd *cobra.Command, args []string) error {
 		parts := strings.SplitN(identifier, "/", 2)
 		owner, repo := parts[0], parts[1]
 
-		fmt.Fprintf(out, "Fetching %s/%s...\n", owner, repo)
+		_, _ = fmt.Fprintf(out, "Fetching %s/%s...\n", owner, repo)
 		_, err := workspace.EnsureCached(paths.ReposDir, owner, repo, false)
 		return err
 	}
@@ -250,7 +250,7 @@ func runWorkspaceFetch(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(cfg.Repos) == 0 {
-		fmt.Fprintln(out, "No repos registered in workspace config.")
+		_, _ = fmt.Fprintln(out, "No repos registered in workspace config.")
 		return nil
 	}
 
@@ -259,7 +259,7 @@ func runWorkspaceFetch(cmd *cobra.Command, args []string) error {
 		if len(repoParts) != 2 {
 			continue
 		}
-		fmt.Fprintf(out, "Fetching %s...\n", r.Name)
+		_, _ = fmt.Fprintf(out, "Fetching %s...\n", r.Name)
 		if _, err := workspace.EnsureCached(paths.ReposDir, repoParts[0], repoParts[1], false); err != nil {
 			return err
 		}

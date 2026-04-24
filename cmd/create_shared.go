@@ -108,7 +108,7 @@ func cliCreateInstance(ctx context.Context, cmd *cobra.Command, params CLICreate
 	}
 
 	if params.Source != "" {
-		fmt.Fprintf(cmd.OutOrStdout(), "Using source %q for artifact resolution\n", params.Source)
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Using source %q for artifact resolution\n", params.Source)
 	}
 
 	personality, toolchain, plugins, err := orchestrator.ResolveCreateRefs(ctx, resolver, params.Personality, params.Toolchain, params.Plugins)
@@ -221,7 +221,7 @@ func cliCreateInstance(ctx context.Context, cmd *cobra.Command, params CLICreate
 	if err != nil {
 		return "", fmt.Errorf("serializing config: %w", err)
 	}
-	if err := os.WriteFile(instancePaths.ConfigFile, data, 0o644); err != nil {
+	if err := os.WriteFile(instancePaths.ConfigFile, data, 0o600); err != nil {
 		return "", fmt.Errorf("writing instance config: %w", err)
 	}
 

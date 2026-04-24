@@ -172,13 +172,13 @@ func renderResultOutput(out io.Writer, result resultCLIResult) error {
 		return enc.Encode(result)
 	}
 
-	fmt.Fprintf(out, "Instance: %s\n", result.Instance)
-	fmt.Fprintf(out, "Status:   %s\n", colorStatus(result.Status))
-	fmt.Fprintf(out, "Messages: %d\n", result.MessageCount)
-	if result.Status == "busy" {
-		fmt.Fprintf(out, "\nAgent is still processing the prompt.\nRun 'klausctl result %s' again to check for updates.\n", result.Instance)
+	_, _ = fmt.Fprintf(out, "Instance: %s\n", result.Instance)
+	_, _ = fmt.Fprintf(out, "Status:   %s\n", colorStatus(result.Status))
+	_, _ = fmt.Fprintf(out, "Messages: %d\n", result.MessageCount)
+	if result.Status == "busy" { //nolint:goconst
+		_, _ = fmt.Fprintf(out, "\nAgent is still processing the prompt.\nRun 'klausctl result %s' again to check for updates.\n", result.Instance)
 	} else if result.Result != "" {
-		fmt.Fprintf(out, "\n%s\n", result.Result)
+		_, _ = fmt.Fprintf(out, "\n%s\n", result.Result)
 	}
 	return nil
 }

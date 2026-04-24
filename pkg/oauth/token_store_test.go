@@ -11,7 +11,7 @@ func TestTokenStoreRoundTrip(t *testing.T) {
 	dir := t.TempDir()
 	store := NewTokenStore(dir)
 
-	serverURL := "https://muster.example.com/mcp"
+	serverURL := "https://muster.example.com/mcp" //nolint:goconst
 	issuerURL := "https://dex.example.com"
 	token := Token{
 		AccessToken:  "test-access-token",

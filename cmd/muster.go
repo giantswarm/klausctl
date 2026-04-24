@@ -73,14 +73,14 @@ func runMusterStart(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	fmt.Fprintln(out, "Starting muster bridge...")
+	_, _ = fmt.Fprintln(out, "Starting muster bridge...")
 	st, err := musterbridge.Start(ctx, paths)
 	if err != nil {
 		return err
 	}
 
-	fmt.Fprintln(out)
-	fmt.Fprintln(out, green("Muster bridge running."))
+	_, _ = fmt.Fprintln(out)
+	_, _ = fmt.Fprintln(out, green("Muster bridge running."))
 	printBridgeStatus(out, st)
 	return nil
 }
@@ -97,7 +97,7 @@ func runMusterStop(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	fmt.Fprintln(out, green("Muster bridge stopped."))
+	_, _ = fmt.Fprintln(out, green("Muster bridge stopped."))
 	return nil
 }
 
@@ -111,11 +111,11 @@ func runMusterStatus(cmd *cobra.Command, _ []string) error {
 
 	st := musterbridge.GetStatus(paths)
 	if !st.Running {
-		fmt.Fprintln(out, "Muster bridge: not running")
+		_, _ = fmt.Fprintln(out, "Muster bridge: not running")
 		return nil
 	}
 
-	fmt.Fprintln(out, "Muster bridge:", green("running"))
+	_, _ = fmt.Fprintln(out, "Muster bridge:", green("running"))
 	printBridgeStatus(out, st)
 	return nil
 }
@@ -131,26 +131,26 @@ func runMusterRestart(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	fmt.Fprintln(out, "Restarting muster bridge...")
+	_, _ = fmt.Fprintln(out, "Restarting muster bridge...")
 	st, err := musterbridge.Restart(ctx, paths)
 	if err != nil {
 		return err
 	}
 
-	fmt.Fprintln(out)
-	fmt.Fprintln(out, green("Muster bridge running."))
+	_, _ = fmt.Fprintln(out)
+	_, _ = fmt.Fprintln(out, green("Muster bridge running."))
 	printBridgeStatus(out, st)
 	return nil
 }
 
 func printBridgeStatus(out io.Writer, st *musterbridge.Status) {
-	fmt.Fprintf(out, "  PID:  %d\n", st.PID)
-	fmt.Fprintf(out, "  Port: %d\n", st.Port)
-	fmt.Fprintf(out, "  URL:  %s\n", st.URL)
+	_, _ = fmt.Fprintf(out, "  PID:  %d\n", st.PID)
+	_, _ = fmt.Fprintf(out, "  Port: %d\n", st.Port)
+	_, _ = fmt.Fprintf(out, "  URL:  %s\n", st.URL)
 	if len(st.MCPServers) > 0 {
-		fmt.Fprintln(out, "  Managed MCP servers:")
+		_, _ = fmt.Fprintln(out, "  Managed MCP servers:")
 		for _, s := range st.MCPServers {
-			fmt.Fprintf(out, "    - %s\n", s.Name)
+			_, _ = fmt.Fprintf(out, "    - %s\n", s.Name)
 		}
 	}
 }

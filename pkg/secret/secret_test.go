@@ -122,7 +122,7 @@ func TestValidateName(t *testing.T) {
 
 func TestLoadBadPermissions(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "secrets.yaml")
-	if err := os.WriteFile(path, []byte("key: value\n"), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte("key: value\n"), 0o644); err != nil { // #nosec G306 -- test fixture for bad-permissions detection
 		t.Fatal(err)
 	}
 

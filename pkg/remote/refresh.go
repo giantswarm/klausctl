@@ -75,7 +75,7 @@ func Refresh(ctx context.Context, httpClient *http.Client, rec AuthRecord) (Auth
 	if err != nil {
 		return rec, fmt.Errorf("refresh request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 

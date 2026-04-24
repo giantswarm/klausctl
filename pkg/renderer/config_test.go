@@ -222,7 +222,7 @@ func TestRenderContainerConfig(t *testing.T) {
 	}
 
 	configPath := filepath.Join(paths.RenderedDir, "config.yaml")
-	data, err := os.ReadFile(configPath)
+	data, err := os.ReadFile(configPath) // #nosec G304 -- user-supplied or trusted local path; not exposed to untrusted input
 	if err != nil {
 		t.Fatalf("config.yaml not created: %v", err)
 	}

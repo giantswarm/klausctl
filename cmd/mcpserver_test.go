@@ -21,7 +21,7 @@ func TestAuthLabel_Secret(t *testing.T) {
 	}
 
 	got := authLabel(def, store)
-	if got != "secret" {
+	if got != "secret" { //nolint:goconst
 		t.Errorf("authLabel = %q, want secret", got)
 	}
 }
@@ -41,7 +41,7 @@ func TestAuthLabel_NoAuth(t *testing.T) {
 func TestAuthLabel_ValidOAuth(t *testing.T) {
 	dir := t.TempDir()
 	store := oauth.NewTokenStore(dir)
-	serverURL := "https://muster.example.com/mcp"
+	serverURL := "https://muster.example.com/mcp" //nolint:goconst
 
 	if err := store.StoreToken(serverURL, "https://dex.example.com", oauth.Token{
 		AccessToken: "valid-token",

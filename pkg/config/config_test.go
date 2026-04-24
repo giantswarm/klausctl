@@ -22,7 +22,7 @@ claude:
   maxTurns: 10
   maxBudgetUsd: 5.0
 `
-	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(cfgPath, []byte(content), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -62,7 +62,7 @@ func TestLoadAppliesDefaults(t *testing.T) {
 	cfgPath := filepath.Join(dir, "config.yaml")
 
 	content := `workspace: /tmp/test`
-	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(cfgPath, []byte(content), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -275,7 +275,7 @@ func TestLoadPersonalityField(t *testing.T) {
 workspace: /tmp/test
 personality: gsoci.azurecr.io/giantswarm/klaus-personalities/sre:v1.0.0
 `
-	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(cfgPath, []byte(content), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -297,7 +297,7 @@ func TestImageExplicitlySetTrue(t *testing.T) {
 workspace: /tmp/test
 image: gsoci.azurecr.io/giantswarm/klaus-toolchains/go:1.0.0
 `
-	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(cfgPath, []byte(content), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -316,7 +316,7 @@ func TestImageExplicitlySetFalse(t *testing.T) {
 	cfgPath := filepath.Join(dir, "config.yaml")
 
 	content := `workspace: /tmp/test`
-	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(cfgPath, []byte(content), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -373,7 +373,7 @@ git:
   credentialHelper: gh
   httpsInsteadOfSsh: true
 `
-	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(cfgPath, []byte(content), 0o600); err != nil {
 		t.Fatal(err)
 	}
 

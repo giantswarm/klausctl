@@ -189,7 +189,7 @@ func TestHasMusterConfig(t *testing.T) {
 
 	t.Run("empty directory", func(t *testing.T) {
 		dir := filepath.Join(t.TempDir(), "mcpservers")
-		if err := os.MkdirAll(dir, 0o755); err != nil {
+		if err := os.MkdirAll(dir, 0o750); err != nil {
 			t.Fatal(err)
 		}
 		paths := &Paths{MusterMCPServersDir: dir}
@@ -204,10 +204,10 @@ func TestHasMusterConfig(t *testing.T) {
 
 	t.Run("directory with non-yaml files", func(t *testing.T) {
 		dir := filepath.Join(t.TempDir(), "mcpservers")
-		if err := os.MkdirAll(dir, 0o755); err != nil {
+		if err := os.MkdirAll(dir, 0o750); err != nil {
 			t.Fatal(err)
 		}
-		if err := os.WriteFile(filepath.Join(dir, "readme.txt"), []byte("not yaml"), 0o644); err != nil {
+		if err := os.WriteFile(filepath.Join(dir, "readme.txt"), []byte("not yaml"), 0o600); err != nil {
 			t.Fatal(err)
 		}
 		paths := &Paths{MusterMCPServersDir: dir}
@@ -222,10 +222,10 @@ func TestHasMusterConfig(t *testing.T) {
 
 	t.Run("directory with yaml file", func(t *testing.T) {
 		dir := filepath.Join(t.TempDir(), "mcpservers")
-		if err := os.MkdirAll(dir, 0o755); err != nil {
+		if err := os.MkdirAll(dir, 0o750); err != nil {
 			t.Fatal(err)
 		}
-		if err := os.WriteFile(filepath.Join(dir, "pro.yaml"), []byte("kind: MCPServer\n"), 0o644); err != nil {
+		if err := os.WriteFile(filepath.Join(dir, "pro.yaml"), []byte("kind: MCPServer\n"), 0o600); err != nil {
 			t.Fatal(err)
 		}
 		paths := &Paths{MusterMCPServersDir: dir}
@@ -240,10 +240,10 @@ func TestHasMusterConfig(t *testing.T) {
 
 	t.Run("directory with yml file", func(t *testing.T) {
 		dir := filepath.Join(t.TempDir(), "mcpservers")
-		if err := os.MkdirAll(dir, 0o755); err != nil {
+		if err := os.MkdirAll(dir, 0o750); err != nil {
 			t.Fatal(err)
 		}
-		if err := os.WriteFile(filepath.Join(dir, "klausctl.yml"), []byte("kind: MCPServer\n"), 0o644); err != nil {
+		if err := os.WriteFile(filepath.Join(dir, "klausctl.yml"), []byte("kind: MCPServer\n"), 0o600); err != nil {
 			t.Fatal(err)
 		}
 		paths := &Paths{MusterMCPServersDir: dir}
@@ -259,7 +259,7 @@ func TestHasMusterConfig(t *testing.T) {
 	t.Run("subdirectories ignored", func(t *testing.T) {
 		dir := filepath.Join(t.TempDir(), "mcpservers")
 		subdir := filepath.Join(dir, "subdir.yaml")
-		if err := os.MkdirAll(subdir, 0o755); err != nil {
+		if err := os.MkdirAll(subdir, 0o750); err != nil {
 			t.Fatal(err)
 		}
 		paths := &Paths{MusterMCPServersDir: dir}

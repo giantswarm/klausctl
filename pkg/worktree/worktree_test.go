@@ -23,7 +23,7 @@ func initBareRepo(t *testing.T) string {
 	run(t, clone, "git", "config", "user.email", "test@test.com")
 	run(t, clone, "git", "config", "user.name", "Test")
 	run(t, clone, "git", "checkout", "-b", "main")
-	if err := os.WriteFile(filepath.Join(clone, "README.md"), []byte("hello"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(clone, "README.md"), []byte("hello"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	run(t, clone, "git", "add", ".")
@@ -45,7 +45,7 @@ func cloneRepo(t *testing.T, bare string) string {
 
 func run(t *testing.T, dir string, name string, args ...string) {
 	t.Helper()
-	cmd := exec.Command(name, args...)
+	cmd := exec.Command(name, args...) // #nosec G204 -- container runtime CLI invocation with controlled args
 	if dir != "" {
 		cmd.Dir = dir
 	}
@@ -77,7 +77,7 @@ func TestDefaultBranch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DefaultBranch() error: %v", err)
 	}
-	if branch != "main" {
+	if branch != "main" { //nolint:goconst
 		t.Fatalf("expected default branch 'main', got %q", branch)
 	}
 }
@@ -94,11 +94,11 @@ func TestCreateAndRemove(t *testing.T) {
 
 	// Verify the clone directory exists and has the README.
 	readme := filepath.Join(clonedPath, "README.md")
-	data, err := os.ReadFile(readme)
+	data, err := os.ReadFile(readme) // #nosec G304 -- user-supplied or trusted local path; not exposed to untrusted input
 	if err != nil {
 		t.Fatalf("reading README in clone: %v", err)
 	}
-	if string(data) != "hello" {
+	if string(data) != "hello" { //nolint:goconst
 		t.Fatalf("unexpected README content: %q", data)
 	}
 
@@ -153,7 +153,7 @@ func TestCreateProducesSelfContainedGitDir(t *testing.T) {
 		{"remote", "-v"},
 		{"status"},
 	} {
-		cmd := exec.Command("git", args...)
+		cmd := exec.Command("git", args...) // #nosec G204 -- container runtime CLI invocation with controlled args
 		cmd.Dir = clonedPath
 		out, err := cmd.CombinedOutput()
 		if err != nil {
@@ -178,7 +178,7 @@ func TestCreateMultipleClones(t *testing.T) {
 
 	// Both should have the README.
 	for _, c := range []string{c1, c2} {
-		if _, err := os.ReadFile(filepath.Join(c, "README.md")); err != nil {
+		if _, err := os.ReadFile(filepath.Join(c, "README.md")); err != nil { // #nosec G304 -- user-supplied or trusted local path; not exposed to untrusted input
 			t.Fatalf("missing README in %s: %v", c, err)
 		}
 	}
@@ -223,7 +223,7 @@ func TestConcurrentCreate(t *testing.T) {
 
 	// Every clone must have the README and a valid git remote pointing upstream.
 	for i, c := range clonePaths {
-		data, err := os.ReadFile(filepath.Join(c, "README.md"))
+		data, err := os.ReadFile(filepath.Join(c, "README.md")) // #nosec G304 -- user-supplied or trusted local path; not exposed to untrusted input
 		if err != nil {
 			t.Fatalf("c%d: missing README: %v", i, err)
 		}
@@ -264,7 +264,7 @@ func TestCreateDeleteCreateCycle(t *testing.T) {
 			t.Fatalf("cycle %d: Create() error: %v", i, err)
 		}
 
-		data, err := os.ReadFile(filepath.Join(clonedPath, "README.md"))
+		data, err := os.ReadFile(filepath.Join(clonedPath, "README.md")) // #nosec G304 -- user-supplied or trusted local path; not exposed to untrusted input
 		if err != nil {
 			t.Fatalf("cycle %d: reading README: %v", i, err)
 		}
@@ -308,7 +308,7 @@ func TestCreateNoFetch(t *testing.T) {
 	run(t, "", "git", "clone", bare, tmpClone)
 	run(t, tmpClone, "git", "config", "user.email", "test@test.com")
 	run(t, tmpClone, "git", "config", "user.name", "Test")
-	if err := os.WriteFile(filepath.Join(tmpClone, "new.txt"), []byte("new"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpClone, "new.txt"), []byte("new"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	run(t, tmpClone, "git", "add", ".")
@@ -327,7 +327,7 @@ func TestCreateNoFetch(t *testing.T) {
 	}
 
 	// The original README should still be present.
-	if _, err := os.ReadFile(filepath.Join(clonedPath, "README.md")); err != nil {
+	if _, err := os.ReadFile(filepath.Join(clonedPath, "README.md")); err != nil { // #nosec G304 -- user-supplied or trusted local path; not exposed to untrusted input
 		t.Fatalf("missing README in clone: %v", err)
 	}
 }
@@ -347,7 +347,7 @@ func TestCreateFetchUpdatesRemoteRefs(t *testing.T) {
 	}
 
 	// Verify the README is present and git operations work.
-	if _, err := os.ReadFile(filepath.Join(clonedPath, "README.md")); err != nil {
+	if _, err := os.ReadFile(filepath.Join(clonedPath, "README.md")); err != nil { // #nosec G304 -- user-supplied or trusted local path; not exposed to untrusted input
 		t.Fatalf("missing README in clone: %v", err)
 	}
 
@@ -381,7 +381,7 @@ func TestCreateFetchFailureWarnsButContinues(t *testing.T) {
 	}
 
 	// The clone should still have the README from the original state.
-	if _, err := os.ReadFile(filepath.Join(clonedPath, "README.md")); err != nil {
+	if _, err := os.ReadFile(filepath.Join(clonedPath, "README.md")); err != nil { // #nosec G304 -- user-supplied or trusted local path; not exposed to untrusted input
 		t.Fatalf("missing README in clone: %v", err)
 	}
 }
@@ -397,7 +397,7 @@ func TestRemoveWithModifiedFiles(t *testing.T) {
 	}
 
 	// Modify a tracked file.
-	if err := os.WriteFile(filepath.Join(clonedPath, "README.md"), []byte("modified"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(clonedPath, "README.md"), []byte("modified"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 

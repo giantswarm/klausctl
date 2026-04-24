@@ -84,7 +84,7 @@ func StreamCompletion(ctx context.Context, client *http.Client, req CompletionRe
 
 	if resp.StatusCode != http.StatusOK {
 		errBody, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		return nil, &HTTPError{
 			StatusCode: resp.StatusCode,
 			Body:       strings.TrimSpace(string(errBody)),
@@ -93,7 +93,7 @@ func StreamCompletion(ctx context.Context, client *http.Client, req CompletionRe
 
 	ch := make(chan CompletionDelta, 16)
 	go func() {
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 		defer close(ch)
 
 		scanner := bufio.NewScanner(resp.Body)

@@ -34,7 +34,7 @@ func NewTokenStore(dir string) *TokenStore {
 // Returns nil if no token is stored.
 func (s *TokenStore) GetToken(serverURL string) *StoredToken {
 	path := s.pathFor(serverURL)
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- user-supplied or trusted local path; not exposed to untrusted input
 	if err != nil {
 		return nil
 	}

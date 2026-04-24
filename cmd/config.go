@@ -86,13 +86,13 @@ func runConfigInit(cmd *cobra.Command, _ []string) error {
 	}
 
 	defaultCfg := defaultConfigTemplate()
-	if err := os.WriteFile(path, []byte(defaultCfg), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(defaultCfg), 0o600); err != nil {
 		return fmt.Errorf("writing config file: %w", err)
 	}
 
 	out := cmd.OutOrStdout()
-	fmt.Fprintf(out, "Config file created: %s\n", path)
-	fmt.Fprintln(out, "Edit the file to configure your workspace and preferences.")
+	_, _ = fmt.Fprintf(out, "Config file created: %s\n", path)
+	_, _ = fmt.Fprintln(out, "Edit the file to configure your workspace and preferences.")
 	return nil
 }
 
@@ -111,11 +111,11 @@ func runConfigShow(cmd *cobra.Command, _ []string) error {
 		if err != nil {
 			return fmt.Errorf("marshaling config: %w", err)
 		}
-		fmt.Fprint(cmd.OutOrStdout(), string(data))
+		_, _ = fmt.Fprint(cmd.OutOrStdout(), string(data))
 		return nil
 	}
 
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- user-supplied or trusted local path; not exposed to untrusted input
 	if err != nil {
 		if os.IsNotExist(err) {
 			return fmt.Errorf("config file not found: %s\nRun 'klausctl config init' to create one", path)
@@ -123,7 +123,7 @@ func runConfigShow(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("reading config: %w", err)
 	}
 
-	fmt.Fprint(cmd.OutOrStdout(), string(data))
+	_, _ = fmt.Fprint(cmd.OutOrStdout(), string(data))
 	return nil
 }
 
@@ -132,7 +132,7 @@ func runConfigPath(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintln(cmd.OutOrStdout(), path)
+	_, _ = fmt.Fprintln(cmd.OutOrStdout(), path)
 	return nil
 }
 
@@ -149,7 +149,7 @@ func runConfigValidate(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("config validation failed: %w", err)
 	}
 
-	fmt.Fprintf(out, "Config file is valid: %s\n", path)
+	_, _ = fmt.Fprintf(out, "Config file is valid: %s\n", path)
 	return nil
 }
 

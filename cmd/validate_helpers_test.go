@@ -65,7 +65,7 @@ func testValidateDirNotExist(t *testing.T, fn validateFunc) {
 func testValidateDirNotADirectory(t *testing.T, fn validateFunc) {
 	t.Helper()
 	f := filepath.Join(t.TempDir(), "file.txt")
-	if err := os.WriteFile(f, []byte("not a dir"), 0o644); err != nil {
+	if err := os.WriteFile(f, []byte("not a dir"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	err := fn(f, io.Discard, "text")

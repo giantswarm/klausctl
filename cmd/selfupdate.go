@@ -38,12 +38,12 @@ func runSelfUpdate(cmd *cobra.Command, _ []string) error {
 	out := cmd.OutOrStdout()
 
 	currentVersion := rootCmd.Version
-	if currentVersion == "" || currentVersion == "dev" {
+	if currentVersion == "" || currentVersion == "dev" { //nolint:goconst
 		return fmt.Errorf("cannot self-update a development version")
 	}
 
-	fmt.Fprintf(out, "Current version: %s\n", currentVersion)
-	fmt.Fprintln(out, "Checking for updates...")
+	_, _ = fmt.Fprintf(out, "Current version: %s\n", currentVersion)
+	_, _ = fmt.Fprintln(out, "Checking for updates...")
 
 	updater, err := selfupdate.NewUpdater(selfupdate.Config{})
 	if err != nil {
@@ -59,23 +59,23 @@ func runSelfUpdate(cmd *cobra.Command, _ []string) error {
 	}
 
 	if !latest.GreaterThan(currentVersion) {
-		fmt.Fprintln(out, "Current version is the latest.")
+		_, _ = fmt.Fprintln(out, "Current version is the latest.")
 		return nil
 	}
 
-	fmt.Fprintf(out, "Found newer version: %s (published at %s)\n", latest.Version(), latest.PublishedAt)
+	_, _ = fmt.Fprintf(out, "Found newer version: %s (published at %s)\n", latest.Version(), latest.PublishedAt)
 	printReleaseNotes(out, latest.ReleaseNotes)
 
 	if !selfUpdateYes {
-		fmt.Fprintf(out, "\nUpdate to version %s? [y/N] ", latest.Version())
+		_, _ = fmt.Fprintf(out, "\nUpdate to version %s? [y/N] ", latest.Version())
 		reader := bufio.NewReader(cmd.InOrStdin())
 		answer, err := reader.ReadString('\n')
 		if err != nil {
 			return fmt.Errorf("reading confirmation: %w", err)
 		}
 		answer = strings.TrimSpace(strings.ToLower(answer))
-		if answer != "y" && answer != "yes" {
-			fmt.Fprintln(out, "Update cancelled.")
+		if answer != "y" && answer != "yes" { //nolint:goconst
+			_, _ = fmt.Fprintln(out, "Update cancelled.")
 			return nil
 		}
 	}
@@ -85,13 +85,13 @@ func runSelfUpdate(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("could not locate executable path: %w", err)
 	}
 
-	fmt.Fprintf(out, "Updating %s to version %s...\n", exe, latest.Version())
+	_, _ = fmt.Fprintf(out, "Updating %s to version %s...\n", exe, latest.Version())
 
 	if err := updater.UpdateTo(context.Background(), latest, exe); err != nil {
 		return fmt.Errorf("update failed: %w", err)
 	}
 
-	fmt.Fprintf(out, "Successfully updated to version %s\n", latest.Version())
+	_, _ = fmt.Fprintf(out, "Successfully updated to version %s\n", latest.Version())
 	return nil
 }
 
@@ -102,12 +102,12 @@ func printReleaseNotes(out io.Writer, notes string) {
 	}
 	lines := strings.Split(notes, "\n")
 	if len(lines) <= maxReleaseNotesLines {
-		fmt.Fprintf(out, "Release notes:\n%s\n", notes)
+		_, _ = fmt.Fprintf(out, "Release notes:\n%s\n", notes)
 		return
 	}
-	fmt.Fprintln(out, "Release notes:")
+	_, _ = fmt.Fprintln(out, "Release notes:")
 	for _, line := range lines[:maxReleaseNotesLines] {
-		fmt.Fprintln(out, line)
+		_, _ = fmt.Fprintln(out, line)
 	}
-	fmt.Fprintf(out, "... (%d more lines)\n", len(lines)-maxReleaseNotesLines)
+	_, _ = fmt.Fprintf(out, "... (%d more lines)\n", len(lines)-maxReleaseNotesLines)
 }

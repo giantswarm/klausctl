@@ -18,10 +18,10 @@ func TestCacheInfo_JSON(t *testing.T) {
 
 	// Populate a single index entry so Exists=true and Layers non-zero.
 	entry := filepath.Join(dir, "refs", "x.json")
-	if err := os.MkdirAll(filepath.Dir(entry), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(entry), 0o750); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(entry, []byte(`{"key":"host/repo:tag"}`), 0o644); err != nil {
+	if err := os.WriteFile(entry, []byte(`{"key":"host/repo:tag"}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -29,7 +29,7 @@ func TestCacheInfo_JSON(t *testing.T) {
 	cacheInfoCmd.SetOut(&buf)
 	cacheInfoCmd.SetErr(&buf)
 	cacheInfoFormat = "json"
-	t.Cleanup(func() { cacheInfoFormat = "text" })
+	t.Cleanup(func() { cacheInfoFormat = "text" }) //nolint:goconst
 
 	if err := runCacheInfo(cacheInfoCmd, nil); err != nil {
 		t.Fatalf("runCacheInfo: %v", err)
@@ -70,10 +70,10 @@ func TestCachePrune_All(t *testing.T) {
 	t.Cleanup(ocicache.Reset)
 
 	entry := filepath.Join(dir, "refs", "x.json")
-	if err := os.MkdirAll(filepath.Dir(entry), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(entry), 0o750); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(entry, []byte(`{"key":"host/repo:tag"}`), 0o644); err != nil {
+	if err := os.WriteFile(entry, []byte(`{"key":"host/repo:tag"}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -125,13 +125,13 @@ func TestCacheRefresh_ScopedByRepo(t *testing.T) {
 
 	target := filepath.Join(dir, "refs", "match.json")
 	keep := filepath.Join(dir, "refs", "keep.json")
-	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(target), 0o750); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(target, []byte(`{"key":"host/repo:tag"}`), 0o644); err != nil {
+	if err := os.WriteFile(target, []byte(`{"key":"host/repo:tag"}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(keep, []byte(`{"key":"host/other:tag"}`), 0o644); err != nil {
+	if err := os.WriteFile(keep, []byte(`{"key":"host/other:tag"}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
 

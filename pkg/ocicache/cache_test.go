@@ -15,14 +15,14 @@ import (
 // Tests use it to stage index entries with known freshness.
 func writeIndex(t *testing.T, path string, v any, age time.Duration) {
 	t.Helper()
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
 	data, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
 	}
-	if err := os.WriteFile(path, data, 0o644); err != nil {
+	if err := os.WriteFile(path, data, 0o600); err != nil {
 		t.Fatalf("write: %v", err)
 	}
 	mt := time.Now().Add(-age)
@@ -198,10 +198,10 @@ func TestPrune_AllOnlyTouchesKnownLayers(t *testing.T) {
 	// outside the klaus-oci layout. Unknown siblings are left alone.
 	dir := withCacheDir(t)
 	foreign := filepath.Join(dir, "not-a-layer", "do-not-delete.txt")
-	if err := os.MkdirAll(filepath.Dir(foreign), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(foreign), 0o750); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(foreign, []byte("keep me"), 0o644); err != nil {
+	if err := os.WriteFile(foreign, []byte("keep me"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	writeIndex(t, filepath.Join(dir, "refs", "a.json"),

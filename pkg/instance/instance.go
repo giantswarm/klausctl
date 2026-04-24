@@ -66,7 +66,7 @@ func (i *Instance) Save(paths *config.Paths) error {
 		return fmt.Errorf("marshaling instance: %w", err)
 	}
 
-	return os.WriteFile(paths.InstanceFile, append(data, '\n'), 0o644)
+	return os.WriteFile(paths.InstanceFile, append(data, '\n'), 0o600)
 }
 
 // LoadAll reads instance state files from all per-instance directories.
@@ -86,7 +86,7 @@ func LoadAll(paths *config.Paths) ([]*Instance, error) {
 		}
 
 		instanceFile := filepath.Join(paths.InstancesDir, entry.Name(), "instance.json")
-		data, err := os.ReadFile(instanceFile)
+		data, err := os.ReadFile(instanceFile) // #nosec G304 -- user-supplied or trusted local path; not exposed to untrusted input
 		if err != nil {
 			if errors.Is(err, os.ErrNotExist) {
 				continue

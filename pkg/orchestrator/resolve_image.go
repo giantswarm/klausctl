@@ -41,7 +41,7 @@ func ResolveDefaultImage(ctx context.Context, client *klausoci.Client, image str
 
 	resolved, err := client.ResolveLatestVersion(ctx, config.DefaultImageRepository)
 	if err != nil {
-		fmt.Fprintf(w, "Warning: could not resolve latest klaus image tag: %v; falling back to :latest\n", err)
+		_, _ = fmt.Fprintf(w, "Warning: could not resolve latest klaus image tag: %v; falling back to :latest\n", err)
 		return config.DefaultImageFallback
 	}
 

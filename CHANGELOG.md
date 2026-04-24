@@ -9,8 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- Published container ports now bind to `127.0.0.1` by default instead of `0.0.0.0`, so klaus instances are no longer reachable from the LAN unless the caller explicitly opts in via the new `RunOptions.HostIP` field.
+
 ### Changed
 
+- Lint cleanup: address all pre-existing `errcheck`, `gosec`, `goconst`, `staticcheck`, `ineffassign`, and `unused` findings reported by the repo's pre-commit `golangci-lint` configuration. No behavior changes; covers `_, _ =` prefixes for ignored writer return values, tightened default file/dir permissions (0o600/0o750), `// #nosec` justifications for trusted subprocess and file-path call sites, removal of redundant embedded field selectors, lowercased error string, and removal of one unused test helper.
 - `klaus_messages` MCP tool is now a passthrough proxy -- it forwards the agent's OpenAI-compatible `{messages, metadata, total}` response directly without format conversion. ([#167](https://github.com/giantswarm/klausctl/issues/167))
 - `klaus_messages` accepts new `offset` and `types` parameters, forwarded to the agent's `messages` tool for pagination and filtering.
 - `klausctl messages` CLI parses the new OpenAI-compatible envelope directly.

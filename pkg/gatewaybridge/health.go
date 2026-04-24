@@ -28,7 +28,7 @@ func waitHealthy(ctx context.Context, port int) error {
 
 		resp, err := client.Get(url)
 		if err == nil {
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			if resp.StatusCode < 500 {
 				return nil
 			}
@@ -47,6 +47,6 @@ func healthyNow(port int) bool {
 	if err != nil {
 		return false
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	return resp.StatusCode < 500
 }

@@ -23,15 +23,15 @@ func TestCreateFailsOnExplicitPortCollision(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", configHome)
 
 	workspace := filepath.Join(t.TempDir(), "workspace")
-	if err := os.MkdirAll(workspace, 0o755); err != nil {
+	if err := os.MkdirAll(workspace, 0o750); err != nil {
 		t.Fatal(err)
 	}
 
 	conflictDir := filepath.Join(configHome, "klausctl", "instances", "other")
-	if err := os.MkdirAll(conflictDir, 0o755); err != nil {
+	if err := os.MkdirAll(conflictDir, 0o750); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(conflictDir, "config.yaml"), []byte("workspace: /tmp\nport: 5050\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(conflictDir, "config.yaml"), []byte("workspace: /tmp\nport: 5050\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -58,12 +58,12 @@ func TestListJSONOutputIncludesContractFields(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", configHome)
 
 	instanceDir := filepath.Join(configHome, "klausctl", "instances", "dev")
-	if err := os.MkdirAll(instanceDir, 0o755); err != nil {
+	if err := os.MkdirAll(instanceDir, 0o750); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(instanceDir, "config.yaml"), []byte(
 		"workspace: /tmp/dev\nport: 8181\ntoolchain: gsoci.azurecr.io/giantswarm/klaus-toolchains/go:latest\n",
-	), 0o644); err != nil {
+	), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -104,10 +104,10 @@ func TestDeleteRemovesInstanceDirectoryWithYes(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", configHome)
 
 	instanceDir := filepath.Join(configHome, "klausctl", "instances", "dev")
-	if err := os.MkdirAll(instanceDir, 0o755); err != nil {
+	if err := os.MkdirAll(instanceDir, 0o750); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(instanceDir, "config.yaml"), []byte("workspace: /tmp/dev\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(instanceDir, "config.yaml"), []byte("workspace: /tmp/dev\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -318,7 +318,7 @@ func TestCreateWithNoGenerateSuffixPreservesExactName(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", configHome)
 
 	workspace := filepath.Join(t.TempDir(), "workspace")
-	if err := os.MkdirAll(workspace, 0o755); err != nil {
+	if err := os.MkdirAll(workspace, 0o750); err != nil {
 		t.Fatal(err)
 	}
 
@@ -361,7 +361,7 @@ func TestCreateWithGenerateSuffixAppendsRandomSuffix(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", configHome)
 
 	workspace := filepath.Join(t.TempDir(), "workspace")
-	if err := os.MkdirAll(workspace, 0o755); err != nil {
+	if err := os.MkdirAll(workspace, 0o750); err != nil {
 		t.Fatal(err)
 	}
 
@@ -409,16 +409,16 @@ func TestCreateCollisionStoppedAbortWithoutYes(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", configHome)
 
 	workspace := filepath.Join(t.TempDir(), "workspace")
-	if err := os.MkdirAll(workspace, 0o755); err != nil {
+	if err := os.MkdirAll(workspace, 0o750); err != nil {
 		t.Fatal(err)
 	}
 
 	// Create a pre-existing stopped instance (directory exists, no instance.json).
 	instanceDir := filepath.Join(configHome, "klausctl", "instances", "existing")
-	if err := os.MkdirAll(instanceDir, 0o755); err != nil {
+	if err := os.MkdirAll(instanceDir, 0o750); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(instanceDir, "config.yaml"), []byte("workspace: /tmp\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(instanceDir, "config.yaml"), []byte("workspace: /tmp\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -453,20 +453,20 @@ func TestCreateCollisionStoppedAutoConfirmWithYes(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", configHome)
 
 	workspace := filepath.Join(t.TempDir(), "workspace")
-	if err := os.MkdirAll(workspace, 0o755); err != nil {
+	if err := os.MkdirAll(workspace, 0o750); err != nil {
 		t.Fatal(err)
 	}
 
 	// Create a pre-existing stopped instance with a marker file.
 	instanceDir := filepath.Join(configHome, "klausctl", "instances", "existing")
-	if err := os.MkdirAll(instanceDir, 0o755); err != nil {
+	if err := os.MkdirAll(instanceDir, 0o750); err != nil {
 		t.Fatal(err)
 	}
 	markerFile := filepath.Join(instanceDir, "old-marker.txt")
-	if err := os.WriteFile(markerFile, []byte("old"), 0o644); err != nil {
+	if err := os.WriteFile(markerFile, []byte("old"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(instanceDir, "config.yaml"), []byte("workspace: /tmp\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(instanceDir, "config.yaml"), []byte("workspace: /tmp\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
