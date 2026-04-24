@@ -57,6 +57,11 @@ type RunOptions struct {
 	Volumes []Volume
 	// Ports maps host ports to container ports.
 	Ports map[int]int
+	// HostIP is the host interface address that published ports bind to.
+	// Defaults to "127.0.0.1" when empty so containers are only reachable
+	// from the local host. Set to "0.0.0.0" to expose ports on all
+	// interfaces (matches Docker's historic default).
+	HostIP string
 	// ExtraHosts adds custom host-to-IP mappings (--add-host).
 	// Each entry is "hostname:ip" (e.g. "host.docker.internal:host-gateway").
 	ExtraHosts []string

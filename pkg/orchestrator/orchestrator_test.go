@@ -158,7 +158,7 @@ func TestBuildVolumes_WorkspaceMount(t *testing.T) {
 
 	found := false
 	for _, v := range vols {
-		if v.ContainerPath == "/workspace" {
+		if v.ContainerPath == "/workspace" { //nolint:goconst
 			found = true
 			if v.HostPath != workspace {
 				t.Errorf("expected workspace host path %q, got %q", workspace, v.HostPath)
@@ -185,7 +185,7 @@ func TestBuildVolumes_ContainerConfigMount(t *testing.T) {
 
 	found := false
 	for _, v := range vols {
-		if v.ContainerPath == "/etc/klaus/config.yaml" {
+		if v.ContainerPath == "/etc/klaus/config.yaml" { //nolint:goconst
 			found = true
 			if !v.ReadOnly {
 				t.Error("expected config mount to be read-only")
@@ -219,7 +219,7 @@ func TestBuildVolumes_McpConfigMount(t *testing.T) {
 
 	found := false
 	for _, v := range vols {
-		if v.ContainerPath == "/etc/klaus/mcp-config.json" {
+		if v.ContainerPath == "/etc/klaus/mcp-config.json" { //nolint:goconst
 			found = true
 			if !v.ReadOnly {
 				t.Error("expected mcp-config mount to be read-only")
