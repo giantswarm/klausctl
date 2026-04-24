@@ -128,7 +128,7 @@ func runGatewayStart(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	fmt.Fprintln(out, "Starting klaus-gateway bridge...")
+	_, _ = fmt.Fprintln(out, "Starting klaus-gateway bridge...")
 	st, err := gatewaybridge.Start(ctx, paths, gatewaybridge.Options{
 		WithAgentGateway: gatewayStartWithAgentGateway,
 		Port:             gatewayStartPort,
@@ -141,8 +141,8 @@ func runGatewayStart(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	fmt.Fprintln(out)
-	fmt.Fprintln(out, green("klaus-gateway bridge running."))
+	_, _ = fmt.Fprintln(out)
+	_, _ = fmt.Fprintln(out, green("klaus-gateway bridge running."))
 	printGatewayStatus(out, st)
 	return nil
 }
@@ -162,7 +162,7 @@ func runGatewayStop(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	fmt.Fprintln(out, green("klaus-gateway bridge stopped."))
+	_, _ = fmt.Fprintln(out, green("klaus-gateway bridge stopped."))
 	return nil
 }
 
@@ -183,38 +183,38 @@ func runGatewayStatus(cmd *cobra.Command, _ []string) error {
 	}
 
 	if !st.Running {
-		fmt.Fprintln(out, "klaus-gateway bridge: not running")
+		_, _ = fmt.Fprintln(out, "klaus-gateway bridge: not running")
 		return nil
 	}
-	fmt.Fprintln(out, "klaus-gateway bridge:", green("running"))
+	_, _ = fmt.Fprintln(out, "klaus-gateway bridge:", green("running"))
 	printGatewayStatus(out, st)
 	return nil
 }
 
 func printGatewayStatus(out io.Writer, st *gatewaybridge.Status) {
-	fmt.Fprintf(out, "  PID:      %d\n", st.PID)
-	fmt.Fprintf(out, "  Port:     %d\n", st.Port)
-	fmt.Fprintf(out, "  URL:      %s\n", st.URL)
+	_, _ = fmt.Fprintf(out, "  PID:      %d\n", st.PID)
+	_, _ = fmt.Fprintf(out, "  Port:     %d\n", st.Port)
+	_, _ = fmt.Fprintf(out, "  URL:      %s\n", st.URL)
 	if st.Mode != "" {
-		fmt.Fprintf(out, "  Mode:     %s\n", st.Mode)
+		_, _ = fmt.Fprintf(out, "  Mode:     %s\n", st.Mode)
 	}
-	healthLabel := "yes"
+	healthLabel := "yes" //nolint:goconst
 	if !st.Healthy {
 		healthLabel = yellow("no")
 	}
-	fmt.Fprintf(out, "  Healthy:  %s\n", healthLabel)
+	_, _ = fmt.Fprintf(out, "  Healthy:  %s\n", healthLabel)
 	if len(st.Adapters) > 0 {
-		fmt.Fprintf(out, "  Adapters: %s\n", strings.Join(st.Adapters, ", "))
+		_, _ = fmt.Fprintf(out, "  Adapters: %s\n", strings.Join(st.Adapters, ", "))
 	}
 	if st.WithAgentGateway && st.AgentGateway != nil {
-		fmt.Fprintln(out, "  agentgateway:")
-		fmt.Fprintf(out, "    PID:     %d\n", st.AgentGateway.PID)
-		fmt.Fprintf(out, "    Port:    %d\n", st.AgentGateway.Port)
-		fmt.Fprintf(out, "    URL:     %s\n", st.AgentGateway.URL)
+		_, _ = fmt.Fprintln(out, "  agentgateway:")
+		_, _ = fmt.Fprintf(out, "    PID:     %d\n", st.AgentGateway.PID)
+		_, _ = fmt.Fprintf(out, "    Port:    %d\n", st.AgentGateway.Port)
+		_, _ = fmt.Fprintf(out, "    URL:     %s\n", st.AgentGateway.URL)
 		aghealth := "yes"
 		if !st.AgentGateway.Healthy {
 			aghealth = yellow("no")
 		}
-		fmt.Fprintf(out, "    Healthy: %s\n", aghealth)
+		_, _ = fmt.Fprintf(out, "    Healthy: %s\n", aghealth)
 	}
 }

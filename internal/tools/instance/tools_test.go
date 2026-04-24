@@ -69,7 +69,7 @@ func TestHandleStatusStoppedInstance(t *testing.T) {
 	sc := testServerContext(t)
 
 	instanceDir := filepath.Join(sc.Paths.InstancesDir, "stopped-inst")
-	if err := os.MkdirAll(instanceDir, 0o755); err != nil {
+	if err := os.MkdirAll(instanceDir, 0o750); err != nil {
 		t.Fatal(err)
 	}
 
@@ -80,7 +80,7 @@ func TestHandleStatusStoppedInstance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(instanceDir, "config.yaml"), data, 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(instanceDir, "config.yaml"), data, 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -131,16 +131,16 @@ func TestHandleCreatePortConflict(t *testing.T) {
 	sc := testServerContext(t)
 
 	workspace := filepath.Join(t.TempDir(), "ws")
-	if err := os.MkdirAll(workspace, 0o755); err != nil {
+	if err := os.MkdirAll(workspace, 0o750); err != nil {
 		t.Fatal(err)
 	}
 
 	// Seed an existing instance with port 9090.
 	conflictDir := filepath.Join(sc.Paths.InstancesDir, "other")
-	if err := os.MkdirAll(conflictDir, 0o755); err != nil {
+	if err := os.MkdirAll(conflictDir, 0o750); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(conflictDir, "config.yaml"), []byte("workspace: /tmp\nport: 9090\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(conflictDir, "config.yaml"), []byte("workspace: /tmp\nport: 9090\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -165,7 +165,7 @@ func TestHandleCreateCustomPort(t *testing.T) {
 	sc := testServerContext(t)
 
 	workspace := filepath.Join(t.TempDir(), "ws")
-	if err := os.MkdirAll(workspace, 0o755); err != nil {
+	if err := os.MkdirAll(workspace, 0o750); err != nil {
 		t.Fatal(err)
 	}
 
@@ -183,7 +183,7 @@ func TestHandleCreateCustomPort(t *testing.T) {
 	// the config file should be written before that stage. Verify port was
 	// correctly wired through.
 	configPath := filepath.Join(sc.Paths.InstancesDir, "portcustom", "config.yaml")
-	data, readErr := os.ReadFile(configPath)
+	data, readErr := os.ReadFile(configPath) // #nosec G304 -- user-supplied or trusted local path; not exposed to untrusted input
 	if readErr != nil {
 		// Config was not written; verify at minimum that the error is not a port error.
 		if result.IsError {
@@ -210,7 +210,7 @@ func TestHandleCreatePortOutOfRange(t *testing.T) {
 	sc := testServerContext(t)
 
 	workspace := filepath.Join(t.TempDir(), "ws")
-	if err := os.MkdirAll(workspace, 0o755); err != nil {
+	if err := os.MkdirAll(workspace, 0o750); err != nil {
 		t.Fatal(err)
 	}
 
@@ -258,15 +258,15 @@ func TestHandleCreateDuplicateInstance(t *testing.T) {
 	sc := testServerContext(t)
 
 	workspace := filepath.Join(t.TempDir(), "ws")
-	if err := os.MkdirAll(workspace, 0o755); err != nil {
+	if err := os.MkdirAll(workspace, 0o750); err != nil {
 		t.Fatal(err)
 	}
 
 	instanceDir := filepath.Join(sc.Paths.InstancesDir, "existing")
-	if err := os.MkdirAll(instanceDir, 0o755); err != nil {
+	if err := os.MkdirAll(instanceDir, 0o750); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(instanceDir, "config.yaml"), []byte("workspace: /tmp\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(instanceDir, "config.yaml"), []byte("workspace: /tmp\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -291,15 +291,15 @@ func TestHandleCreateMCPCollisionStoppedWithoutConfirm(t *testing.T) {
 	sc := testServerContext(t)
 
 	workspace := filepath.Join(t.TempDir(), "ws")
-	if err := os.MkdirAll(workspace, 0o755); err != nil {
+	if err := os.MkdirAll(workspace, 0o750); err != nil {
 		t.Fatal(err)
 	}
 
 	instanceDir := filepath.Join(sc.Paths.InstancesDir, "stopped")
-	if err := os.MkdirAll(instanceDir, 0o755); err != nil {
+	if err := os.MkdirAll(instanceDir, 0o750); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(instanceDir, "config.yaml"), []byte("workspace: /tmp\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(instanceDir, "config.yaml"), []byte("workspace: /tmp\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -324,19 +324,19 @@ func TestHandleCreateMCPCollisionStoppedWithConfirm(t *testing.T) {
 	sc := testServerContext(t)
 
 	workspace := filepath.Join(t.TempDir(), "ws")
-	if err := os.MkdirAll(workspace, 0o755); err != nil {
+	if err := os.MkdirAll(workspace, 0o750); err != nil {
 		t.Fatal(err)
 	}
 
 	instanceDir := filepath.Join(sc.Paths.InstancesDir, "stopped")
-	if err := os.MkdirAll(instanceDir, 0o755); err != nil {
+	if err := os.MkdirAll(instanceDir, 0o750); err != nil {
 		t.Fatal(err)
 	}
 	markerFile := filepath.Join(instanceDir, "old-marker.txt")
-	if err := os.WriteFile(markerFile, []byte("old"), 0o644); err != nil {
+	if err := os.WriteFile(markerFile, []byte("old"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(instanceDir, "config.yaml"), []byte("workspace: /tmp\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(instanceDir, "config.yaml"), []byte("workspace: /tmp\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -369,17 +369,17 @@ func TestHandleCreateMCPCollisionSuffixAvoidsCollision(t *testing.T) {
 	sc := testServerContext(t)
 
 	workspace := filepath.Join(t.TempDir(), "ws")
-	if err := os.MkdirAll(workspace, 0o755); err != nil {
+	if err := os.MkdirAll(workspace, 0o750); err != nil {
 		t.Fatal(err)
 	}
 
 	// Create "myinst" directory — with suffix generation enabled, the
 	// generated name "myinst-XXXX" won't collide.
 	instanceDir := filepath.Join(sc.Paths.InstancesDir, "myinst")
-	if err := os.MkdirAll(instanceDir, 0o755); err != nil {
+	if err := os.MkdirAll(instanceDir, 0o750); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(instanceDir, "config.yaml"), []byte("workspace: /tmp\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(instanceDir, "config.yaml"), []byte("workspace: /tmp\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -405,7 +405,7 @@ func TestHandleCreateGitAuthor(t *testing.T) {
 	sc := testServerContext(t)
 
 	workspace := filepath.Join(t.TempDir(), "ws")
-	if err := os.MkdirAll(workspace, 0o755); err != nil {
+	if err := os.MkdirAll(workspace, 0o750); err != nil {
 		t.Fatal(err)
 	}
 
@@ -420,7 +420,7 @@ func TestHandleCreateGitAuthor(t *testing.T) {
 	}
 
 	configPath := filepath.Join(sc.Paths.InstancesDir, "gitauthor", "config.yaml")
-	data, readErr := os.ReadFile(configPath)
+	data, readErr := os.ReadFile(configPath) // #nosec G304 -- user-supplied or trusted local path; not exposed to untrusted input
 	if readErr != nil {
 		if result.IsError {
 			text := extractResultText(t, result)
@@ -451,7 +451,7 @@ func TestHandleCreateGitAuthorInvalidFormat(t *testing.T) {
 	sc := testServerContext(t)
 
 	workspace := filepath.Join(t.TempDir(), "ws")
-	if err := os.MkdirAll(workspace, 0o755); err != nil {
+	if err := os.MkdirAll(workspace, 0o750); err != nil {
 		t.Fatal(err)
 	}
 
@@ -476,7 +476,7 @@ func TestHandleCreateGitCredentialHelper(t *testing.T) {
 	sc := testServerContext(t)
 
 	workspace := filepath.Join(t.TempDir(), "ws")
-	if err := os.MkdirAll(workspace, 0o755); err != nil {
+	if err := os.MkdirAll(workspace, 0o750); err != nil {
 		t.Fatal(err)
 	}
 
@@ -491,7 +491,7 @@ func TestHandleCreateGitCredentialHelper(t *testing.T) {
 	}
 
 	configPath := filepath.Join(sc.Paths.InstancesDir, "gitcred", "config.yaml")
-	data, readErr := os.ReadFile(configPath)
+	data, readErr := os.ReadFile(configPath) // #nosec G304 -- user-supplied or trusted local path; not exposed to untrusted input
 	if readErr != nil {
 		if result.IsError {
 			text := extractResultText(t, result)
@@ -519,7 +519,7 @@ func TestHandleCreateGitHttpsInsteadOfSsh(t *testing.T) {
 	sc := testServerContext(t)
 
 	workspace := filepath.Join(t.TempDir(), "ws")
-	if err := os.MkdirAll(workspace, 0o755); err != nil {
+	if err := os.MkdirAll(workspace, 0o750); err != nil {
 		t.Fatal(err)
 	}
 
@@ -534,7 +534,7 @@ func TestHandleCreateGitHttpsInsteadOfSsh(t *testing.T) {
 	}
 
 	configPath := filepath.Join(sc.Paths.InstancesDir, "githttps", "config.yaml")
-	data, readErr := os.ReadFile(configPath)
+	data, readErr := os.ReadFile(configPath) // #nosec G304 -- user-supplied or trusted local path; not exposed to untrusted input
 	if readErr != nil {
 		if result.IsError {
 			text := extractResultText(t, result)
@@ -562,7 +562,7 @@ func TestHandleCreateModeChat(t *testing.T) {
 	sc := testServerContext(t)
 
 	workspace := filepath.Join(t.TempDir(), "ws")
-	if err := os.MkdirAll(workspace, 0o755); err != nil {
+	if err := os.MkdirAll(workspace, 0o750); err != nil {
 		t.Fatal(err)
 	}
 
@@ -577,7 +577,7 @@ func TestHandleCreateModeChat(t *testing.T) {
 	}
 
 	configPath := filepath.Join(sc.Paths.InstancesDir, "chatmode", "config.yaml")
-	data, readErr := os.ReadFile(configPath)
+	data, readErr := os.ReadFile(configPath) // #nosec G304 -- user-supplied or trusted local path; not exposed to untrusted input
 	if readErr != nil {
 		if result.IsError {
 			text := extractResultText(t, result)
@@ -605,7 +605,7 @@ func TestHandleCreateModeDefaultAgent(t *testing.T) {
 	sc := testServerContext(t)
 
 	workspace := filepath.Join(t.TempDir(), "ws")
-	if err := os.MkdirAll(workspace, 0o755); err != nil {
+	if err := os.MkdirAll(workspace, 0o750); err != nil {
 		t.Fatal(err)
 	}
 
@@ -619,7 +619,7 @@ func TestHandleCreateModeDefaultAgent(t *testing.T) {
 	}
 
 	configPath := filepath.Join(sc.Paths.InstancesDir, "agentmode", "config.yaml")
-	data, readErr := os.ReadFile(configPath)
+	data, readErr := os.ReadFile(configPath) // #nosec G304 -- user-supplied or trusted local path; not exposed to untrusted input
 	if readErr != nil {
 		if result.IsError {
 			text := extractResultText(t, result)
@@ -647,7 +647,7 @@ func TestHandleCreateAllGitParams(t *testing.T) {
 	sc := testServerContext(t)
 
 	workspace := filepath.Join(t.TempDir(), "ws")
-	if err := os.MkdirAll(workspace, 0o755); err != nil {
+	if err := os.MkdirAll(workspace, 0o750); err != nil {
 		t.Fatal(err)
 	}
 
@@ -664,7 +664,7 @@ func TestHandleCreateAllGitParams(t *testing.T) {
 	}
 
 	configPath := filepath.Join(sc.Paths.InstancesDir, "gitall", "config.yaml")
-	data, readErr := os.ReadFile(configPath)
+	data, readErr := os.ReadFile(configPath) // #nosec G304 -- user-supplied or trusted local path; not exposed to untrusted input
 	if readErr != nil {
 		if result.IsError {
 			text := extractResultText(t, result)

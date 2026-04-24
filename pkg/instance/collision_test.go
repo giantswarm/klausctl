@@ -28,7 +28,7 @@ func TestCheckCollisionNoInstance(t *testing.T) {
 func TestCheckCollisionStoppedNoStateFile(t *testing.T) {
 	dir := t.TempDir()
 	instDir := filepath.Join(dir, "myinst")
-	if err := os.MkdirAll(instDir, 0o755); err != nil {
+	if err := os.MkdirAll(instDir, 0o750); err != nil {
 		t.Fatal(err)
 	}
 
@@ -49,13 +49,13 @@ func TestCheckCollisionStoppedNoStateFile(t *testing.T) {
 func TestCheckCollisionStoppedWithStaleState(t *testing.T) {
 	dir := t.TempDir()
 	instDir := filepath.Join(dir, "myinst")
-	if err := os.MkdirAll(instDir, 0o755); err != nil {
+	if err := os.MkdirAll(instDir, 0o750); err != nil {
 		t.Fatal(err)
 	}
 
 	// Write instance state with an invalid runtime so Status() can't check a real container.
 	stateData := `{"name":"myinst","containerID":"abc123","runtime":"nonexistent","port":8080}`
-	if err := os.WriteFile(filepath.Join(instDir, "instance.json"), []byte(stateData), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(instDir, "instance.json"), []byte(stateData), 0o600); err != nil {
 		t.Fatal(err)
 	}
 

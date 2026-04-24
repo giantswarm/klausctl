@@ -35,7 +35,7 @@ func TestPersonalityCommandRegisteredOnRoot(t *testing.T) {
 
 func TestValidatePersonalityDirValid(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "personality.yaml"), []byte(personalitySpecYAML), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "personality.yaml"), []byte(personalitySpecYAML), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -46,7 +46,7 @@ func TestValidatePersonalityDirValid(t *testing.T) {
 
 func TestValidatePersonalityDirMinimal(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "personality.yaml"), []byte("name: minimal"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "personality.yaml"), []byte("name: minimal"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -69,7 +69,7 @@ func TestValidatePersonalityDirMissingSpec(t *testing.T) {
 
 func TestValidatePersonalityDirInvalidYAML(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "personality.yaml"), []byte("{{invalid"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "personality.yaml"), []byte("{{invalid"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -92,7 +92,7 @@ func TestValidatePersonalityDirNotADirectory(t *testing.T) {
 
 func TestValidatePersonalityDirTextOutput(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "personality.yaml"), []byte(personalitySpecYAML), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "personality.yaml"), []byte(personalitySpecYAML), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -112,7 +112,7 @@ func TestValidatePersonalityDirTextOutput(t *testing.T) {
 
 func TestValidatePersonalityDirJSONOutput(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "personality.yaml"), []byte(personalitySpecYAML), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "personality.yaml"), []byte(personalitySpecYAML), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -153,7 +153,7 @@ func TestPersonalityFlagsRegistered(t *testing.T) {
 
 func TestValidatePersonalityDepsNoDeps(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "personality.yaml"), []byte("name: minimal"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "personality.yaml"), []byte("name: minimal"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 

@@ -79,7 +79,7 @@ func runDelete(cmd *cobra.Command, args []string) error {
 	cfg, _ := config.Load(paths.ConfigFile)
 	if cfg != nil && cfg.WorktreePath != "" {
 		if err := worktree.Remove(cfg.Workspace, cfg.WorktreePath); err != nil {
-			fmt.Fprintf(cmd.ErrOrStderr(), "Warning: failed to remove workspace clone: %v\n", err)
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: failed to remove workspace clone: %v\n", err)
 		}
 	}
 
@@ -91,19 +91,19 @@ func runDelete(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("deleting instance directory: %w", err)
 	}
 
-	fmt.Fprintf(cmd.OutOrStdout(), "Deleted instance %q.\n", name)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Deleted instance %q.\n", name)
 	return nil
 }
 
 func confirmDelete(cmd *cobra.Command, name string) error {
-	fmt.Fprintf(cmd.OutOrStdout(), "Delete instance %q? [y/N]: ", name)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Delete instance %q? [y/N]: ", name)
 	reader := bufio.NewReader(cmd.InOrStdin())
 	answer, err := reader.ReadString('\n')
 	if err != nil {
 		return err
 	}
 	answer = strings.ToLower(strings.TrimSpace(answer))
-	if answer != "y" && answer != "yes" {
+	if answer != "y" && answer != "yes" { //nolint:goconst
 		return fmt.Errorf("delete cancelled")
 	}
 	return nil
@@ -157,7 +157,7 @@ func stopAndRemoveContainerIfExists(ctx context.Context, rt runtime.Runtime, con
 		return nil
 	}
 
-	if status == "running" {
+	if status == "running" { //nolint:goconst
 		if err := rt.Stop(ctx, containerName); err != nil {
 			return fmt.Errorf("stopping container: %w", err)
 		}

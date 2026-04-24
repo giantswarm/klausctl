@@ -7,15 +7,11 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/spf13/cobra"
-
-	"github.com/giantswarm/klausctl/pkg/instance"
 )
 
 func TestStatusCommandRegistered(t *testing.T) {
@@ -24,30 +20,6 @@ func TestStatusCommandRegistered(t *testing.T) {
 
 func TestStatusOutputFlagRegistered(t *testing.T) {
 	assertFlagRegistered(t, statusCmd, "output")
-}
-
-// writeInstanceState creates an instance.json for testing.
-func writeInstanceState(t *testing.T, configHome, name string, port int) {
-	t.Helper()
-	instanceDir := filepath.Join(configHome, "klausctl", "instances", name)
-	if err := os.MkdirAll(instanceDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	inst := &instance.Instance{
-		Name:      name,
-		Runtime:   "fake",
-		Image:     "ghcr.io/test/image:latest",
-		Port:      port,
-		Workspace: "/tmp/workspace",
-		StartedAt: time.Now().Add(-5 * time.Minute),
-	}
-	data, err := json.MarshalIndent(inst, "", "  ")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(instanceDir, "instance.json"), data, 0o644); err != nil {
-		t.Fatal(err)
-	}
 }
 
 func TestFormatDuration(t *testing.T) {
@@ -86,7 +58,7 @@ func TestStatusTextOutputIncludesAgentInfo(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/status" {
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(agentStatus)
+			_ = json.NewEncoder(w).Encode(agentStatus)
 			return
 		}
 		http.NotFound(w, r)
@@ -125,7 +97,7 @@ func TestStatusTextOutputIncludesAgentInfo(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if decoded["agent"] != "busy" {
+	if decoded["agent"] != "busy" { //nolint:goconst
 		t.Errorf("expected agent=busy, got %v", decoded["agent"])
 	}
 	if decoded["session"] != "abc-123-def" {

@@ -67,7 +67,7 @@ func TestRefreshSuccess(t *testing.T) {
 }
 
 func TestRefreshNoRefreshToken(t *testing.T) {
-	rec := AuthRecord{
+	rec := AuthRecord{ // #nosec G101 -- constant identifier, not a credential
 		ServerURL:     "https://gw.example.com",
 		TokenEndpoint: "https://auth.example.com/token",
 	}

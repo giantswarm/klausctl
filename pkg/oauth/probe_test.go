@@ -24,7 +24,7 @@ func TestProbeServer_401WithWWWAuthenticate(t *testing.T) {
 	if challenge == nil {
 		t.Fatal("expected non-nil challenge")
 	}
-	if challenge.Realm != "https://dex.example.com" {
+	if challenge.Realm != "https://dex.example.com" { //nolint:goconst
 		t.Errorf("Realm = %q, want https://dex.example.com", challenge.Realm)
 	}
 }
@@ -100,7 +100,7 @@ func TestProbeServer_FallbackResourceMetadata(t *testing.T) {
 		}
 		if r.URL.Path == "/.well-known/oauth-protected-resource" {
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{"resource": "test"}`))
+			_, _ = w.Write([]byte(`{"resource": "test"}`))
 			return
 		}
 		w.WriteHeader(http.StatusNotFound)

@@ -19,7 +19,7 @@ func init() {
 
 func runVersion(cmd *cobra.Command, _ []string) {
 	out := cmd.OutOrStdout()
-	fmt.Fprintf(out, "klausctl %s\n", buildVersion)
-	fmt.Fprintf(out, "  commit: %s\n", buildCommit)
-	fmt.Fprintf(out, "  built:  %s\n", buildDate)
+	_, _ = fmt.Fprintf(out, "klausctl %s\n", buildVersion)
+	_, _ = fmt.Fprintf(out, "  commit: %s\n", buildCommit)
+	_, _ = fmt.Fprintf(out, "  built:  %s\n", buildDate)
 }

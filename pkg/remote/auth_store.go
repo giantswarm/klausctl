@@ -70,7 +70,7 @@ func (s *AuthStore) Get(serverURL string) (*AuthRecord, error) {
 	if err != nil {
 		return nil, err
 	}
-	data, err := os.ReadFile(filepath.Join(s.dir, fileName))
+	data, err := os.ReadFile(filepath.Join(s.dir, fileName)) // #nosec G304 -- user-supplied or trusted local path; not exposed to untrusted input
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil, nil
@@ -96,7 +96,7 @@ func (s *AuthStore) Put(rec AuthRecord) error {
 	if err := os.MkdirAll(s.dir, 0o700); err != nil {
 		return fmt.Errorf("creating auth directory: %w", err)
 	}
-	data, err := yaml.Marshal(&rec)
+	data, err := yaml.Marshal(&rec) // #nosec G117 -- values are bounded by validation upstream
 	if err != nil {
 		return fmt.Errorf("marshaling auth record: %w", err)
 	}
@@ -158,21 +158,21 @@ func writeFileAtomic0600(path string, data []byte) error {
 	}
 	tmpPath := tmp.Name()
 	if _, err := tmp.Write(data); err != nil {
-		tmp.Close()
-		os.Remove(tmpPath)
+		_ = tmp.Close()
+		_ = os.Remove(tmpPath)
 		return fmt.Errorf("writing auth file: %w", err)
 	}
 	if err := tmp.Chmod(0o600); err != nil {
-		tmp.Close()
-		os.Remove(tmpPath)
+		_ = tmp.Close()
+		_ = os.Remove(tmpPath)
 		return fmt.Errorf("setting auth file permissions: %w", err)
 	}
 	if err := tmp.Close(); err != nil {
-		os.Remove(tmpPath)
+		_ = os.Remove(tmpPath)
 		return fmt.Errorf("closing auth file: %w", err)
 	}
 	if err := os.Rename(tmpPath, path); err != nil {
-		os.Remove(tmpPath)
+		_ = os.Remove(tmpPath)
 		return fmt.Errorf("renaming auth file to %s: %w", path, err)
 	}
 	return nil

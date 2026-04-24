@@ -104,7 +104,7 @@ func TestComputeSummary_All(t *testing.T) {
 	if s.AvgMessages != 125 {
 		t.Errorf("AvgMessages = %d, want 125", s.AvgMessages)
 	}
-	if s.MedianDuration != "10m" {
+	if s.MedianDuration != "10m" { //nolint:goconst
 		t.Errorf("MedianDuration = %q, want %q", s.MedianDuration, "10m")
 	}
 }
@@ -193,7 +193,7 @@ func TestComputeSummary_ComplexityBreakdown(t *testing.T) {
 		t.Errorf("simple success pct = %g, want 50", s.ComplexityBreakdown[0].SuccessPct)
 	}
 
-	if s.ComplexityBreakdown[1].Level != "complex" {
+	if s.ComplexityBreakdown[1].Level != "complex" { //nolint:goconst
 		t.Errorf("second breakdown level = %q, want %q", s.ComplexityBreakdown[1].Level, "complex")
 	}
 	if s.ComplexityBreakdown[1].Runs != 1 {
@@ -461,7 +461,7 @@ func TestComputeList_SortByCost(t *testing.T) {
 		t.Fatalf("expected 4 entries, got %d", len(list))
 	}
 	// Most expensive first: run-2 ($3.00)
-	if list[0].Name != "run-2" {
+	if list[0].Name != "run-2" { //nolint:goconst
 		t.Errorf("first entry = %q, want run-2", list[0].Name)
 	}
 }

@@ -270,7 +270,7 @@ func TestRenderMessages_Text(t *testing.T) {
 		},
 	}
 
-	messagesOutput = "text"
+	messagesOutput = "text" //nolint:goconst
 	var buf bytes.Buffer
 	err := renderMessages(&buf, "dev", result)
 	if err != nil {

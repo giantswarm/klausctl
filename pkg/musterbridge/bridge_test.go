@@ -14,7 +14,7 @@ func testPaths(t *testing.T) *config.Paths {
 	dir := t.TempDir()
 	musterDir := filepath.Join(dir, "muster")
 	mcpServersDir := filepath.Join(musterDir, "mcpservers")
-	if err := os.MkdirAll(mcpServersDir, 0o755); err != nil {
+	if err := os.MkdirAll(mcpServersDir, 0o750); err != nil {
 		t.Fatal(err)
 	}
 	return &config.Paths{
@@ -38,7 +38,7 @@ func TestResolvePort_Default(t *testing.T) {
 func TestResolvePort_FromConfig(t *testing.T) {
 	paths := testPaths(t)
 	cfgContent := []byte("aggregator:\n  port: 9999\n")
-	if err := os.WriteFile(filepath.Join(paths.MusterConfigDir, "config.yaml"), cfgContent, 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(paths.MusterConfigDir, "config.yaml"), cfgContent, 0o600); err != nil {
 		t.Fatal(err)
 	}
 	port := resolvePort(paths)
@@ -58,7 +58,7 @@ func TestGetStatus_NotRunning(t *testing.T) {
 func TestGetStatus_StalePID(t *testing.T) {
 	paths := testPaths(t)
 	// Write a PID that doesn't exist.
-	if err := os.WriteFile(paths.MusterPIDFile, []byte("999999999"), 0o644); err != nil {
+	if err := os.WriteFile(paths.MusterPIDFile, []byte("999999999"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	st := GetStatus(paths)
@@ -75,7 +75,7 @@ func TestListMCPServerFiles(t *testing.T) {
 	paths := testPaths(t)
 
 	for _, name := range []string{"pro.yaml", "klausctl.yml", "readme.txt"} {
-		if err := os.WriteFile(filepath.Join(paths.MusterMCPServersDir, name), []byte(""), 0o644); err != nil {
+		if err := os.WriteFile(filepath.Join(paths.MusterMCPServersDir, name), []byte(""), 0o600); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -237,7 +237,7 @@ func TestStart_NoConfig(t *testing.T) {
 func TestStart_NoMusterBinary(t *testing.T) {
 	paths := testPaths(t)
 	// Create a YAML file so HasMusterConfig passes.
-	if err := os.WriteFile(filepath.Join(paths.MusterMCPServersDir, "test.yaml"), []byte("kind: MCPServer"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(paths.MusterMCPServersDir, "test.yaml"), []byte("kind: MCPServer"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 

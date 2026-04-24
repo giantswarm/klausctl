@@ -143,7 +143,7 @@ func TestMergePluginsUserWins(t *testing.T) {
 	if len(merged) != 2 {
 		t.Fatalf("len(merged) = %d, want 2", len(merged))
 	}
-	if merged[0].Repository != "example.com/plugin-a" || merged[0].Tag != "v2.0.0" {
+	if merged[0].Repository != "example.com/plugin-a" || merged[0].Tag != "v2.0.0" { //nolint:goconst
 		t.Errorf("merged[0] = %+v, want user version (v2.0.0)", merged[0])
 	}
 	if merged[1].Repository != "example.com/plugin-b" || merged[1].Tag != "v1.0.0" {
@@ -237,7 +237,7 @@ plugins:
   - repository: gsoci.azurecr.io/giantswarm/klaus-plugins/gs-base
     tag: v0.5.0
 `
-	if err := os.WriteFile(filepath.Join(dir, "personality.yaml"), []byte(specContent), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "personality.yaml"), []byte(specContent), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -278,7 +278,7 @@ func TestHasSOULFile(t *testing.T) {
 		t.Error("HasSOULFile() = true for empty dir, want false")
 	}
 
-	if err := os.WriteFile(filepath.Join(dir, "SOUL.md"), []byte("# Identity"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "SOUL.md"), []byte("# Identity"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 

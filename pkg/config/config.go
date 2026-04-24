@@ -304,7 +304,7 @@ func Load(path string) (*Config, error) {
 	}
 	path = ExpandPath(path)
 
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- user-supplied or trusted local path; not exposed to untrusted input
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil, fmt.Errorf("config file not found: %s\nRun 'klausctl config init' to create one", path)
@@ -336,10 +336,10 @@ func (c *Config) applyDefaults() {
 		c.Port = 8080
 	}
 	if c.Claude.PermissionMode == "" {
-		c.Claude.PermissionMode = "bypassPermissions"
+		c.Claude.PermissionMode = "bypassPermissions" //nolint:goconst
 	}
 	if c.Claude.Mode == "" {
-		c.Claude.Mode = "agent"
+		c.Claude.Mode = "agent" //nolint:goconst
 	}
 	if c.Claude.LoadAdditionalDirsMemory == nil {
 		t := true

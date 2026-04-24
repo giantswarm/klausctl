@@ -106,9 +106,9 @@ func startInstance(cmd *cobra.Command, instanceName, workspaceOverride, configPa
 		return err
 	}
 	if cfg.Runtime == "" {
-		fmt.Fprintf(out, "Auto-detected %s runtime (set 'runtime' in config to override).\n", bold(rt.Name()))
+		_, _ = fmt.Fprintf(out, "Auto-detected %s runtime (set 'runtime' in config to override).\n", bold(rt.Name()))
 	} else {
-		fmt.Fprintf(out, "Using %s runtime.\n", rt.Name())
+		_, _ = fmt.Fprintf(out, "Using %s runtime.\n", rt.Name())
 	}
 
 	// Derive the instance name and container name consistently.
@@ -118,7 +118,7 @@ func startInstance(cmd *cobra.Command, instanceName, workspaceOverride, configPa
 	inst, err := instance.Load(paths)
 	if err == nil && inst.Name != "" {
 		status, sErr := rt.Status(ctx, inst.ContainerName())
-		if sErr == nil && status == "running" {
+		if sErr == nil && status == "running" { //nolint:goconst
 			return fmt.Errorf(
 				"instance %q is already running (container: %s, MCP: http://localhost:%d)\nUse 'klausctl stop %s' to stop it first",
 				inst.Name, inst.ContainerName(), inst.Port,
@@ -136,7 +136,7 @@ func startInstance(cmd *cobra.Command, instanceName, workspaceOverride, configPa
 
 	var personalityDir string
 	if cfg.Personality != "" {
-		fmt.Fprintln(out, "Resolving personality...")
+		_, _ = fmt.Fprintln(out, "Resolving personality...")
 
 		resolvedRef, err := client.ResolvePersonalityRef(ctx, cfg.Personality)
 		if err != nil {
@@ -175,7 +175,7 @@ func startInstance(cmd *cobra.Command, instanceName, workspaceOverride, configPa
 	// so the registered klaus-gateway entry in mcpservers.yaml can flow
 	// through the usual mcpServerRefs -> mcpServers path.
 	if cfg.Requires.Gateway.Enabled {
-		fmt.Fprintln(out, "Ensuring klaus-gateway bridge is running...")
+		_, _ = fmt.Fprintln(out, "Ensuring klaus-gateway bridge is running...")
 		if _, err := gatewaybridge.EnsureRunning(ctx, paths, gatewaybridge.Options{
 			WithAgentGateway: cfg.Requires.Gateway.WithAgentGateway,
 		}); err != nil {
@@ -199,7 +199,7 @@ func startInstance(cmd *cobra.Command, instanceName, workspaceOverride, configPa
 
 	// Pull OCI plugins.
 	if len(cfg.Plugins) > 0 {
-		fmt.Fprintln(out, "Pulling plugins...")
+		_, _ = fmt.Fprintln(out, "Pulling plugins...")
 		if err := orchestrator.PullPlugins(ctx, client, cfg.Plugins, paths.PluginsDir, out); err != nil {
 			return fmt.Errorf("pulling plugins: %w", err)
 		}
@@ -214,7 +214,7 @@ func startInstance(cmd *cobra.Command, instanceName, workspaceOverride, configPa
 	// Pull the image with streamed progress. If the pull fails but the
 	// image is already cached locally (e.g. expired registry credentials),
 	// continue with the cached copy.
-	fmt.Fprintf(out, "Pulling %s...\n", image)
+	_, _ = fmt.Fprintf(out, "Pulling %s...\n", image)
 	if err := rt.Pull(ctx, image, out); err != nil {
 		images, imgErr := rt.Images(ctx, image)
 		if imgErr != nil || len(images) == 0 {
@@ -224,7 +224,7 @@ func startInstance(cmd *cobra.Command, instanceName, workspaceOverride, configPa
 	}
 
 	// Start container.
-	fmt.Fprintln(out, "Starting klaus container...")
+	_, _ = fmt.Fprintln(out, "Starting klaus container...")
 	containerID, err := rt.Run(ctx, runOpts)
 	if err != nil {
 		// The container may exist in "created" state even though Run returned
@@ -264,24 +264,24 @@ func startInstance(cmd *cobra.Command, instanceName, workspaceOverride, configPa
 		return fmt.Errorf("saving instance state: %w", err)
 	}
 
-	fmt.Fprintln(out)
-	fmt.Fprintln(out, green("Klaus instance started."))
-	fmt.Fprintf(out, "  Instance:    %s\n", inst.Name)
+	_, _ = fmt.Fprintln(out)
+	_, _ = fmt.Fprintln(out, green("Klaus instance started."))
+	_, _ = fmt.Fprintf(out, "  Instance:    %s\n", inst.Name)
 	if cfg.Personality != "" {
-		fmt.Fprintf(out, "  Personality: %s\n", cfg.Personality)
+		_, _ = fmt.Fprintf(out, "  Personality: %s\n", cfg.Personality)
 	}
-	fmt.Fprintf(out, "  Container:   %s\n", containerName)
-	fmt.Fprintf(out, "  Image:       %s\n", image)
-	fmt.Fprintf(out, "  Workspace:   %s\n", inst.Workspace)
-	fmt.Fprintf(out, "  MCP:         http://localhost:%d\n", cfg.Port)
+	_, _ = fmt.Fprintf(out, "  Container:   %s\n", containerName)
+	_, _ = fmt.Fprintf(out, "  Image:       %s\n", image)
+	_, _ = fmt.Fprintf(out, "  Workspace:   %s\n", inst.Workspace)
+	_, _ = fmt.Fprintf(out, "  MCP:         http://localhost:%d\n", cfg.Port)
 
 	// Warn about missing API key after the success context so it doesn't
 	// appear before the user knows what's happening.
 	if os.Getenv("ANTHROPIC_API_KEY") == "" {
-		fmt.Fprintf(errOut, "\n%s ANTHROPIC_API_KEY is not set; the claude agent may fail to authenticate.\n", yellow("Warning:"))
+		_, _ = fmt.Fprintf(errOut, "\n%s ANTHROPIC_API_KEY is not set; the claude agent may fail to authenticate.\n", yellow("Warning:"))
 	}
 
-	fmt.Fprintf(out, "\nUse 'klausctl logs %s' to view output, 'klausctl stop %s' to stop.\n", inst.Name, inst.Name)
+	_, _ = fmt.Fprintf(out, "\nUse 'klausctl logs %s' to view output, 'klausctl stop %s' to stop.\n", inst.Name, inst.Name)
 	return nil
 }
 

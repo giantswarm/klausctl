@@ -14,7 +14,7 @@ import (
 func TestGenerateInstanceConfig(t *testing.T) {
 	base := t.TempDir()
 	workspace := filepath.Join(base, "workspace")
-	if err := os.MkdirAll(workspace, 0o755); err != nil {
+	if err := os.MkdirAll(workspace, 0o750); err != nil {
 		t.Fatal(err)
 	}
 
@@ -62,15 +62,15 @@ func TestGenerateInstanceConfig(t *testing.T) {
 func TestGenerateInstanceConfig_PortConflict(t *testing.T) {
 	base := t.TempDir()
 	workspace := filepath.Join(base, "workspace")
-	if err := os.MkdirAll(workspace, 0o755); err != nil {
+	if err := os.MkdirAll(workspace, 0o750); err != nil {
 		t.Fatal(err)
 	}
 
 	conflictInstance := filepath.Join(base, "instances", "other")
-	if err := os.MkdirAll(conflictInstance, 0o755); err != nil {
+	if err := os.MkdirAll(conflictInstance, 0o750); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(conflictInstance, "config.yaml"), []byte("workspace: /tmp\nport: 9090\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(conflictInstance, "config.yaml"), []byte("workspace: /tmp\nport: 9090\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -94,7 +94,7 @@ func TestGenerateInstanceConfig_PortConflict(t *testing.T) {
 func TestGenerateInstanceConfig_ResolvedPersonalityMergesPlugins(t *testing.T) {
 	base := t.TempDir()
 	workspace := filepath.Join(base, "workspace")
-	if err := os.MkdirAll(workspace, 0o755); err != nil {
+	if err := os.MkdirAll(workspace, 0o750); err != nil {
 		t.Fatal(err)
 	}
 
@@ -136,10 +136,10 @@ func TestGenerateInstanceConfig_ResolvedPersonalityMergesPlugins(t *testing.T) {
 func TestNextAvailablePort(t *testing.T) {
 	base := t.TempDir()
 	instDir := filepath.Join(base, "instances", "one")
-	if err := os.MkdirAll(instDir, 0o755); err != nil {
+	if err := os.MkdirAll(instDir, 0o750); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(instDir, "config.yaml"), []byte("workspace: /tmp\nport: 8080\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(instDir, "config.yaml"), []byte("workspace: /tmp\nport: 8080\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -162,7 +162,7 @@ func TestNextAvailablePort(t *testing.T) {
 func TestGenerateInstanceConfig_Overrides(t *testing.T) {
 	base := t.TempDir()
 	workspace := filepath.Join(base, "workspace")
-	if err := os.MkdirAll(workspace, 0o755); err != nil {
+	if err := os.MkdirAll(workspace, 0o750); err != nil {
 		t.Fatal(err)
 	}
 
@@ -437,7 +437,7 @@ func TestGenerateInstanceConfig_Overrides(t *testing.T) {
 func TestGenerateInstanceConfig_GitOverrides(t *testing.T) {
 	base := t.TempDir()
 	workspace := filepath.Join(base, "workspace")
-	if err := os.MkdirAll(workspace, 0o755); err != nil {
+	if err := os.MkdirAll(workspace, 0o750); err != nil {
 		t.Fatal(err)
 	}
 
@@ -476,12 +476,12 @@ func TestGenerateInstanceConfig_GitOverrides(t *testing.T) {
 
 func TestIsPortAvailable_FreePort(t *testing.T) {
 	// Port 0 lets the OS pick a free port; use it to find one that is free.
-	ln, err := net.Listen("tcp", ":0")
+	ln, err := net.Listen("tcp", ":0") // #nosec G102 -- binding controlled by configuration
 	if err != nil {
 		t.Fatalf("failed to listen on ephemeral port: %v", err)
 	}
 	port := ln.Addr().(*net.TCPAddr).Port
-	ln.Close()
+	_ = ln.Close()
 
 	if !IsPortAvailable(port) {
 		t.Errorf("IsPortAvailable(%d) = false, want true for a free port", port)
@@ -489,11 +489,11 @@ func TestIsPortAvailable_FreePort(t *testing.T) {
 }
 
 func TestIsPortAvailable_OccupiedPort(t *testing.T) {
-	ln, err := net.Listen("tcp", ":0")
+	ln, err := net.Listen("tcp", ":0") // #nosec G102 -- binding controlled by configuration
 	if err != nil {
 		t.Fatalf("failed to listen on ephemeral port: %v", err)
 	}
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 	port := ln.Addr().(*net.TCPAddr).Port
 
 	if IsPortAvailable(port) {
@@ -503,11 +503,11 @@ func TestIsPortAvailable_OccupiedPort(t *testing.T) {
 
 func TestNextAvailablePort_SkipsHostOccupied(t *testing.T) {
 	// Occupy a port on the host.
-	ln, err := net.Listen("tcp", ":0")
+	ln, err := net.Listen("tcp", ":0") // #nosec G102 -- binding controlled by configuration
 	if err != nil {
 		t.Fatalf("failed to listen: %v", err)
 	}
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 	occupied := ln.Addr().(*net.TCPAddr).Port
 
 	base := t.TempDir()
@@ -532,16 +532,16 @@ func TestNextAvailablePort_SkipsHostOccupied(t *testing.T) {
 
 func TestGenerateInstanceConfig_ExplicitPortHostOccupied(t *testing.T) {
 	// Occupy a port on the host.
-	ln, err := net.Listen("tcp", ":0")
+	ln, err := net.Listen("tcp", ":0") // #nosec G102 -- binding controlled by configuration
 	if err != nil {
 		t.Fatalf("failed to listen: %v", err)
 	}
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 	occupied := ln.Addr().(*net.TCPAddr).Port
 
 	base := t.TempDir()
 	workspace := filepath.Join(base, "workspace")
-	if err := os.MkdirAll(workspace, 0o755); err != nil {
+	if err := os.MkdirAll(workspace, 0o750); err != nil {
 		t.Fatal(err)
 	}
 

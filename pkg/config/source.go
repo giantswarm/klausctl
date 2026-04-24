@@ -102,7 +102,7 @@ func DefaultSourceConfig() *SourceConfig {
 func LoadSourceConfig(path string) (*SourceConfig, error) {
 	sc := &SourceConfig{path: path}
 
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- user-supplied or trusted local path; not exposed to untrusted input
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			sc.Sources = []Source{builtinSource()}
@@ -138,7 +138,7 @@ func (sc *SourceConfig) SaveTo(path string) error {
 	if err != nil {
 		return fmt.Errorf("serializing sources config: %w", err)
 	}
-	if err := os.WriteFile(path, data, 0o644); err != nil {
+	if err := os.WriteFile(path, data, 0o600); err != nil {
 		return fmt.Errorf("writing sources config: %w", err)
 	}
 	sc.path = path

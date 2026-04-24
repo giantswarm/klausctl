@@ -240,14 +240,14 @@ func toolchainList(ctx context.Context, out io.Writer, rt runtime.Runtime, opts 
 func printImageTable(out io.Writer, images []runtime.ImageInfo, wide bool) error {
 	w := tabwriter.NewWriter(out, 0, 0, 3, ' ', 0)
 	if wide {
-		fmt.Fprintln(w, "IMAGE\tTAG\tID\tCREATED\tSIZE")
+		_, _ = fmt.Fprintln(w, "IMAGE\tTAG\tID\tCREATED\tSIZE")
 		for _, img := range images {
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", img.Repository, img.Tag, img.ID, img.CreatedSince, img.Size)
+			_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", img.Repository, img.Tag, img.ID, img.CreatedSince, img.Size)
 		}
 	} else {
-		fmt.Fprintln(w, "IMAGE\tTAG\tSIZE\tCREATED")
+		_, _ = fmt.Fprintln(w, "IMAGE\tTAG\tSIZE\tCREATED")
 		for _, img := range images {
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", img.Repository, img.Tag, img.Size, img.CreatedSince)
+			_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", img.Repository, img.Tag, img.Size, img.CreatedSince)
 		}
 	}
 	return w.Flush()
@@ -276,7 +276,7 @@ func validateToolchainDir(dir string, out io.Writer, outputFmt string) error {
 	dockerfilePath := filepath.Join(dir, "Dockerfile")
 	if _, err := os.Stat(dockerfilePath); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("Dockerfile not found in %s", dir)
+			return fmt.Errorf("dockerfile not found in %s", dir)
 		}
 		return fmt.Errorf("checking Dockerfile: %w", err)
 	}
@@ -290,7 +290,7 @@ func validateToolchainDir(dir string, out io.Writer, outputFmt string) error {
 		})
 	}
 
-	fmt.Fprintf(out, "Valid toolchain directory: %s\n", dir)
+	_, _ = fmt.Fprintf(out, "Valid toolchain directory: %s\n", dir)
 	return nil
 }
 
@@ -321,7 +321,7 @@ func runToolchainPull(cmd *cobra.Command, args []string) error {
 		progressOut = cmd.ErrOrStderr()
 	}
 
-	fmt.Fprintf(progressOut, "Pulling %s...\n", ref)
+	_, _ = fmt.Fprintf(progressOut, "Pulling %s...\n", ref)
 	if err := rt.Pull(ctx, ref, progressOut); err != nil {
 		return fmt.Errorf("pulling image: %w", err)
 	}
@@ -335,7 +335,7 @@ func runToolchainPull(cmd *cobra.Command, args []string) error {
 		})
 	}
 
-	fmt.Fprintf(out, "Successfully pulled %s\n", ref)
+	_, _ = fmt.Fprintf(out, "Successfully pulled %s\n", ref)
 	return nil
 }
 
@@ -383,17 +383,17 @@ func runToolchainInit(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("directory already exists: %s", dir)
 	}
 
-	if err := os.MkdirAll(filepath.Join(dir, ".circleci"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(dir, ".circleci"), 0o750); err != nil {
 		return fmt.Errorf("creating directory: %w", err)
 	}
 
 	files := scaffoldFiles(toolchainInitName)
 	for name, content := range files {
 		path := filepath.Join(dir, name)
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 			return fmt.Errorf("creating directory for %s: %w", name, err)
 		}
-		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 			return fmt.Errorf("writing %s: %w", name, err)
 		}
 	}
@@ -404,9 +404,9 @@ func runToolchainInit(cmd *cobra.Command, _ []string) error {
 	}
 	sort.Strings(names)
 
-	fmt.Fprintf(out, "Created %s/\n", dir)
+	_, _ = fmt.Fprintf(out, "Created %s/\n", dir)
 	for _, name := range names {
-		fmt.Fprintf(out, "  %s\n", name)
+		_, _ = fmt.Fprintf(out, "  %s\n", name)
 	}
 
 	return nil

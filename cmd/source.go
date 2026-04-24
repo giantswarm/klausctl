@@ -176,21 +176,21 @@ func runSourceList(cmd *cobra.Command, _ []string) error {
 
 	out := cmd.OutOrStdout()
 	w := tabwriter.NewWriter(out, 0, 0, 3, ' ', 0)
-	fmt.Fprintln(w, "NAME\tREGISTRY\tDEFAULT")
+	_, _ = fmt.Fprintln(w, "NAME\tREGISTRY\tDEFAULT")
 	for _, s := range sc.Sources {
 		def := ""
 		if s.Default {
 			def = "*"
 		}
-		fmt.Fprintf(w, "%s\t%s\t%s\n", s.Name, s.Registry, def)
+		_, _ = fmt.Fprintf(w, "%s\t%s\t%s\n", s.Name, s.Registry, def)
 	}
 	if err := w.Flush(); err != nil {
 		return err
 	}
 
 	if customCount == 0 {
-		fmt.Fprintln(out)
-		fmt.Fprintln(out, "No custom sources configured. Use 'klausctl source add' to register one.")
+		_, _ = fmt.Fprintln(out)
+		_, _ = fmt.Fprintln(out, "No custom sources configured. Use 'klausctl source add' to register one.")
 	}
 
 	return nil
@@ -224,7 +224,7 @@ func runSourceAdd(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Fprintf(cmd.OutOrStdout(), "Added source %q (%s)\n", s.Name, s.Registry)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Added source %q (%s)\n", s.Name, s.Registry)
 	return nil
 }
 
@@ -249,7 +249,7 @@ func runSourceUpdate(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Fprintf(cmd.OutOrStdout(), "Updated source %q\n", args[0])
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Updated source %q\n", args[0])
 	return nil
 }
 
@@ -267,7 +267,7 @@ func runSourceRemove(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Fprintf(cmd.OutOrStdout(), "Removed source %q\n", args[0])
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Removed source %q\n", args[0])
 	return nil
 }
 
@@ -285,7 +285,7 @@ func runSourceSetDefault(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Fprintf(cmd.OutOrStdout(), "Default source set to %q\n", args[0])
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Default source set to %q\n", args[0])
 	return nil
 }
 
@@ -302,13 +302,13 @@ func runSourceShow(cmd *cobra.Command, args []string) error {
 
 	out := cmd.OutOrStdout()
 	w := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
-	fmt.Fprintf(w, "Name:\t%s\n", s.Name)
-	fmt.Fprintf(w, "Registry:\t%s\n", s.Registry)
+	_, _ = fmt.Fprintf(w, "Name:\t%s\n", s.Name)
+	_, _ = fmt.Fprintf(w, "Registry:\t%s\n", s.Registry)
 	if s.Default {
-		fmt.Fprintf(w, "Default:\tyes\n")
+		_, _ = fmt.Fprintf(w, "Default:\tyes\n")
 	}
-	fmt.Fprintf(w, "Toolchains:\t%s\n", s.ToolchainRegistry())
-	fmt.Fprintf(w, "Personalities:\t%s\n", s.PersonalityRegistry())
-	fmt.Fprintf(w, "Plugins:\t%s\n", s.PluginRegistry())
+	_, _ = fmt.Fprintf(w, "Toolchains:\t%s\n", s.ToolchainRegistry())
+	_, _ = fmt.Fprintf(w, "Personalities:\t%s\n", s.PersonalityRegistry())
+	_, _ = fmt.Fprintf(w, "Plugins:\t%s\n", s.PluginRegistry())
 	return w.Flush()
 }

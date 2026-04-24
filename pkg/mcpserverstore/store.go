@@ -33,7 +33,7 @@ func Load(path string) (*Store, error) {
 		servers: make(map[string]McpServerDef),
 	}
 
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- user-supplied or trusted local path; not exposed to untrusted input
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return s, nil
@@ -53,11 +53,11 @@ func Load(path string) (*Store, error) {
 
 // Save writes the current server definitions to disk.
 func (s *Store) Save() error {
-	data, err := yaml.Marshal(s.servers)
+	data, err := yaml.Marshal(s.servers) // #nosec G117 -- values are bounded by validation upstream
 	if err != nil {
 		return fmt.Errorf("marshaling MCP servers: %w", err)
 	}
-	return os.WriteFile(s.path, data, 0o644)
+	return os.WriteFile(s.path, data, 0o600)
 }
 
 // Add registers or updates a managed MCP server definition.

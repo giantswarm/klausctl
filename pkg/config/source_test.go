@@ -85,7 +85,7 @@ func TestLoadSourceConfig_Valid(t *testing.T) {
   - name: my-team
     registry: myregistry.example.com/my-team
 `
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -110,7 +110,7 @@ func TestLoadSourceConfig_BuiltinInjected(t *testing.T) {
   - name: my-team
     registry: myregistry.example.com/my-team
 `
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -288,7 +288,7 @@ func TestEnsureBuiltin_RespectsExistingDefault(t *testing.T) {
     registry: myregistry.example.com/my-team
     default: true
 `
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		t.Fatal(err)
 	}
 

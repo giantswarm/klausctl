@@ -399,7 +399,7 @@ func agentBaseURL(ctx context.Context, name string, sc *server.ServerContext) (s
 	}
 
 	status, err := rt.Status(ctx, inst.ContainerName())
-	if err != nil || status != "running" {
+	if err != nil || status != "running" { //nolint:goconst
 		return "", fmt.Errorf("instance %q is not running (status: %s); use klaus_start first", name, status)
 	}
 

@@ -69,7 +69,7 @@ func runStop(cmd *cobra.Command, args []string) error {
 	inst, err := instance.Load(paths)
 	if err != nil {
 		// No instance state -- nothing to stop. Idempotent success.
-		fmt.Fprintf(out, "No klaus instance running for %q.\n", instanceName)
+		_, _ = fmt.Fprintf(out, "No klaus instance running for %q.\n", instanceName)
 		return nil
 	}
 
@@ -83,26 +83,26 @@ func runStop(cmd *cobra.Command, args []string) error {
 	// Check current status.
 	status, err := rt.Status(ctx, containerName)
 	if err != nil || status == "" {
-		fmt.Fprintf(out, "Container %s does not exist.\n", containerName)
+		_, _ = fmt.Fprintf(out, "Container %s does not exist.\n", containerName)
 		_ = instance.Clear(paths)
 		return nil
 	}
 
 	// Archive transcript before stopping.
-	if status == "running" && !stopNoArchive {
+	if status == "running" && !stopNoArchive { //nolint:goconst
 		archiveBeforeStop(ctx, inst, paths)
 	}
 
 	// Stop the container if running.
 	if status == "running" {
-		fmt.Fprintf(out, "Stopping %s...\n", containerName)
+		_, _ = fmt.Fprintf(out, "Stopping %s...\n", containerName)
 		if err := rt.Stop(ctx, containerName); err != nil {
 			return fmt.Errorf("stopping container: %w", err)
 		}
 	}
 
 	// Remove the container.
-	fmt.Fprintf(out, "Removing %s...\n", containerName)
+	_, _ = fmt.Fprintf(out, "Removing %s...\n", containerName)
 	if err := rt.Remove(ctx, containerName); err != nil {
 		return fmt.Errorf("removing container: %w", err)
 	}
@@ -112,7 +112,7 @@ func runStop(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("clearing instance state: %w", err)
 	}
 
-	fmt.Fprintln(out, green("Klaus instance stopped."))
+	_, _ = fmt.Fprintln(out, green("Klaus instance stopped."))
 	return nil
 }
 
@@ -122,7 +122,7 @@ func stopAllInstances(ctx context.Context, out io.Writer, paths *config.Paths) e
 		return err
 	}
 	if len(instances) == 0 {
-		fmt.Fprintln(out, "No klaus instances running.")
+		_, _ = fmt.Fprintln(out, "No klaus instances running.")
 		return nil
 	}
 
@@ -146,12 +146,12 @@ func stopAllInstances(ctx context.Context, out io.Writer, paths *config.Paths) e
 			archiveBeforeStop(ctx, inst, paths)
 		}
 		if status == "running" {
-			fmt.Fprintf(out, "Stopping %s...\n", name)
+			_, _ = fmt.Fprintf(out, "Stopping %s...\n", name)
 			if err := rt.Stop(ctx, name); err != nil {
 				return fmt.Errorf("stopping %s: %w", name, err)
 			}
 		}
-		fmt.Fprintf(out, "Removing %s...\n", name)
+		_, _ = fmt.Fprintf(out, "Removing %s...\n", name)
 		if err := rt.Remove(ctx, name); err != nil {
 			return fmt.Errorf("removing %s: %w", name, err)
 		}
@@ -160,7 +160,7 @@ func stopAllInstances(ctx context.Context, out io.Writer, paths *config.Paths) e
 		}
 	}
 
-	fmt.Fprintln(out, green("All klaus instances stopped."))
+	_, _ = fmt.Fprintln(out, green("All klaus instances stopped."))
 	return nil
 }
 

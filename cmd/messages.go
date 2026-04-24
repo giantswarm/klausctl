@@ -120,7 +120,7 @@ func runMessages(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("instance %q: unable to determine status: %w", instanceName, err)
 	}
-	if status != "running" {
+	if status != "running" { //nolint:goconst
 		return fmt.Errorf("instance %q is not running (status: %s); run 'klausctl start %s' first", instanceName, status, instanceName)
 	}
 
@@ -231,8 +231,8 @@ func renderMessages(out io.Writer, instanceName string, toolResult *mcp.CallTool
 		return enc.Encode(result)
 	}
 
-	fmt.Fprintf(out, "Instance: %s\n", result.Instance)
-	fmt.Fprintf(out, "Messages: %d\n\n", result.Count)
+	_, _ = fmt.Fprintf(out, "Instance: %s\n", result.Instance)
+	_, _ = fmt.Fprintf(out, "Messages: %d\n\n", result.Count)
 
 	for _, msg := range result.Messages {
 		renderSingleMessage(out, msg)
@@ -242,7 +242,7 @@ func renderMessages(out io.Writer, instanceName string, toolResult *mcp.CallTool
 }
 
 func renderSingleMessage(out io.Writer, msg agentMessage) {
-	fmt.Fprintf(out, "[%s]\n%s\n\n", msg.Role, msg.Content)
+	_, _ = fmt.Fprintf(out, "[%s]\n%s\n\n", msg.Role, msg.Content)
 }
 
 // parsedMessages holds display-ready messages converted from the agent envelope.
@@ -375,7 +375,7 @@ func extractInnerText(data json.RawMessage) string {
 	var parts []string
 	for _, b := range blocks {
 		switch b.Type {
-		case "text":
+		case "text": //nolint:goconst
 			if b.Text != "" {
 				parts = append(parts, b.Text)
 			}

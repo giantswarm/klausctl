@@ -35,7 +35,7 @@ func sseServer(lines ...string) *httptest.Server {
 
 		flusher, _ := w.(http.Flusher)
 		for _, line := range lines {
-			fmt.Fprintln(w, line)
+			_, _ = fmt.Fprintln(w, line)
 			if flusher != nil {
 				flusher.Flush()
 			}
@@ -238,7 +238,7 @@ func TestWaitForReadySuccess(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/status" {
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{"name":"klaus","version":"dev","agent":{"status":"idle"}}`))
+			_, _ = w.Write([]byte(`{"name":"klaus","version":"dev","agent":{"status":"idle"}}`))
 			return
 		}
 		http.NotFound(w, r)

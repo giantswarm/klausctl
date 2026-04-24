@@ -55,7 +55,7 @@ type MCPServerEntry struct {
 // the default. The resolved port is also persisted so other commands can read it.
 func resolvePort(paths *config.Paths) int {
 	cfgPath := filepath.Join(paths.MusterConfigDir, "config.yaml")
-	data, err := os.ReadFile(cfgPath)
+	data, err := os.ReadFile(cfgPath) // #nosec G304 -- user-supplied or trusted local path; not exposed to untrusted input
 	if err != nil {
 		return DefaultPort
 	}
@@ -92,7 +92,7 @@ func Start(ctx context.Context, paths *config.Paths) (*Status, error) {
 
 	port := resolvePort(paths)
 
-	cmd := exec.CommandContext(ctx, musterBin, "serve",
+	cmd := exec.CommandContext(ctx, musterBin, "serve", // #nosec G204 -- container runtime CLI invocation with controlled args
 		"--config-path", paths.MusterConfigDir,
 		"--silent",
 	)
@@ -105,10 +105,10 @@ func Start(ctx context.Context, paths *config.Paths) (*Status, error) {
 	}
 
 	pid := cmd.Process.Pid
-	if err := os.WriteFile(paths.MusterPIDFile, []byte(strconv.Itoa(pid)), 0o644); err != nil {
+	if err := os.WriteFile(paths.MusterPIDFile, []byte(strconv.Itoa(pid)), 0o600); err != nil {
 		return nil, fmt.Errorf("writing PID file: %w", err)
 	}
-	if err := os.WriteFile(paths.MusterPortFile, []byte(strconv.Itoa(port)), 0o644); err != nil {
+	if err := os.WriteFile(paths.MusterPortFile, []byte(strconv.Itoa(port)), 0o600); err != nil {
 		return nil, fmt.Errorf("writing port file: %w", err)
 	}
 
@@ -160,7 +160,7 @@ func Stop(paths *config.Paths) error {
 	// Wait briefly for the process to exit.
 	done := make(chan struct{})
 	go func() {
-		proc.Wait() //nolint:errcheck
+		_, _ = proc.Wait()
 		close(done)
 	}()
 
@@ -235,7 +235,7 @@ func findMuster() (string, error) {
 }
 
 func readPID(path string) (int, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- user-supplied or trusted local path; not exposed to untrusted input
 	if err != nil {
 		return 0, err
 	}
@@ -243,7 +243,7 @@ func readPID(path string) (int, error) {
 }
 
 func readPort(path string) (int, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- user-supplied or trusted local path; not exposed to untrusted input
 	if err != nil {
 		return 0, err
 	}
@@ -269,7 +269,7 @@ func waitHealthy(ctx context.Context, port int) error {
 
 		resp, err := client.Get(url)
 		if err == nil {
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			if resp.StatusCode < 500 {
 				return nil
 			}

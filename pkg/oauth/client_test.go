@@ -62,7 +62,7 @@ func TestExchangeCode_Success(t *testing.T) {
 			t.Errorf("Content-Type = %q", ct)
 		}
 
-		r.ParseForm()
+		_ = r.ParseForm() // #nosec G120 -- exec is intentional
 		if r.Form.Get("grant_type") != "authorization_code" {
 			t.Errorf("grant_type = %q", r.Form.Get("grant_type"))
 		}
@@ -74,7 +74,7 @@ func TestExchangeCode_Success(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(Token{
+		_ = json.NewEncoder(w).Encode(Token{ // #nosec G117 -- values are bounded by validation upstream
 			AccessToken:  "access-token-xyz",
 			TokenType:    "Bearer",
 			RefreshToken: "refresh-token-xyz",
@@ -101,7 +101,7 @@ func TestExchangeCode_Success(t *testing.T) {
 func TestExchangeCode_ServerError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(`{"error":"invalid_grant"}`))
+		_, _ = w.Write([]byte(`{"error":"invalid_grant"}`))
 	}))
 	defer server.Close()
 
@@ -117,7 +117,7 @@ func TestExchangeCode_ServerError(t *testing.T) {
 func TestExchangeCode_MissingAccessToken(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(Token{TokenType: "Bearer"})
+		_ = json.NewEncoder(w).Encode(Token{TokenType: "Bearer"}) // #nosec G117 -- values are bounded by validation upstream
 	}))
 	defer server.Close()
 
@@ -130,7 +130,7 @@ func TestExchangeCode_MissingAccessToken(t *testing.T) {
 func TestExchangeCode_InvalidJSON(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte("not json"))
+		_, _ = w.Write([]byte("not json"))
 	}))
 	defer server.Close()
 
@@ -156,7 +156,7 @@ func TestClientAuthStatus_NoToken(t *testing.T) {
 func TestClientAuthStatus_ValidToken(t *testing.T) {
 	dir := t.TempDir()
 	store := NewTokenStore(dir)
-	serverURL := "https://muster.example.com/mcp"
+	serverURL := "https://muster.example.com/mcp" //nolint:goconst
 
 	if err := store.StoreToken(serverURL, "https://dex.example.com", Token{
 		AccessToken: "valid",
@@ -167,7 +167,7 @@ func TestClientAuthStatus_ValidToken(t *testing.T) {
 
 	client := NewClient(store)
 	status := client.AuthStatus(serverURL)
-	if status.Status != "valid" {
+	if status.Status != "valid" { //nolint:goconst
 		t.Errorf("Status = %q, want valid", status.Status)
 	}
 	if status.Issuer != "https://dex.example.com" {
@@ -193,7 +193,7 @@ func TestClientAuthStatus_ExpiredToken(t *testing.T) {
 
 	client := NewClient(store)
 	status := client.AuthStatus(serverURL)
-	if status.Status != "expired" {
+	if status.Status != "expired" { //nolint:goconst
 		t.Errorf("Status = %q, want expired", status.Status)
 	}
 }

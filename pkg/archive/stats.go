@@ -119,7 +119,7 @@ func ComputeSummary(entries []*Entry, filters SummaryFilters) *SummaryStats {
 	for _, e := range filtered {
 		outcome := e.Tags["outcome"]
 		switch outcome {
-		case "success":
+		case "success": //nolint:goconst
 			s.Success++
 		case "partial":
 			s.Partial++
@@ -128,7 +128,7 @@ func ComputeSummary(entries []*Entry, filters SummaryFilters) *SummaryStats {
 		}
 
 		// First attempt
-		if e.Tags["first_attempt"] == "yes" {
+		if e.Tags["first_attempt"] == "yes" { //nolint:goconst
 			s.FirstAttempt++
 		}
 

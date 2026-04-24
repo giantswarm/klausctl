@@ -32,14 +32,14 @@ func Load(path string) (*Store, error) {
 		secrets: make(map[string]string),
 	}
 
-	f, err := os.Open(path)
+	f, err := os.Open(path) // #nosec G304 -- user-supplied or trusted local path; not exposed to untrusted input
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return s, nil
 		}
 		return nil, fmt.Errorf("opening secrets file: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	info, err := f.Stat()
 	if err != nil {

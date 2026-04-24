@@ -13,7 +13,7 @@ func resolveOptionalInstanceName(args []string, commandName string, errOut io.Wr
 		return name, config.ValidateInstanceName(name)
 	}
 
-	fmt.Fprintf(
+	_, _ = fmt.Fprintf(
 		errOut,
 		"%s omitting <name> is deprecated and will be removed in a future release; use 'klausctl %s default'.\n",
 		yellow("Deprecation:"),

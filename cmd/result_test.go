@@ -249,7 +249,7 @@ func TestRenderResultOutput_JSON(t *testing.T) {
 	if decoded.Instance != "dev" {
 		t.Errorf("Instance = %q, want %q", decoded.Instance, "dev")
 	}
-	if decoded.Status != "completed" {
+	if decoded.Status != "completed" { //nolint:goconst
 		t.Errorf("Status = %q, want %q", decoded.Status, "completed")
 	}
 	if decoded.MessageCount != 42 {

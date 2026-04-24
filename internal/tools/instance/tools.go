@@ -385,7 +385,7 @@ func handleStatus(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 		Workspace:   inst.Workspace,
 	}
 
-	if status == "running" {
+	if status == "running" { //nolint:goconst
 		result.MCP = fmt.Sprintf("http://localhost:%d", inst.Port)
 		if info, err := rt.Inspect(ctx, containerName); err == nil && !info.StartedAt.IsZero() {
 			result.Uptime = formatDuration(time.Since(info.StartedAt))

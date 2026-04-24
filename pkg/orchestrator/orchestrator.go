@@ -148,7 +148,7 @@ func setClaudeEnvVars(env map[string]string, claude *config.ClaudeConfig) {
 		env["CLAUDE_MAX_BUDGET_USD"] = fmt.Sprintf("%.2f", claude.MaxBudgetUSD)
 	}
 	if claude.StrictMcpConfig {
-		env["CLAUDE_STRICT_MCP_CONFIG"] = "true"
+		env["CLAUDE_STRICT_MCP_CONFIG"] = "true" //nolint:goconst
 	}
 	if claude.McpTimeout > 0 {
 		env["MCP_TIMEOUT"] = fmt.Sprintf("%d", claude.McpTimeout)
@@ -191,7 +191,7 @@ func BuildVolumes(cfg *config.Config, paths *config.Paths, env map[string]string
 		HostPath:      mountPath,
 		ContainerPath: "/workspace",
 	})
-	env["CLAUDE_WORKSPACE"] = "/workspace"
+	env["CLAUDE_WORKSPACE"] = "/workspace" //nolint:goconst
 
 	// Mount the rendered container config YAML. The container reads this
 	// instead of relying on 30+ individual environment variables.
@@ -201,7 +201,7 @@ func BuildVolumes(cfg *config.Config, paths *config.Paths, env map[string]string
 		ContainerPath: "/etc/klaus/config.yaml",
 		ReadOnly:      true,
 	})
-	env["KLAUS_CONFIG_FILE"] = "/etc/klaus/config.yaml"
+	env["KLAUS_CONFIG_FILE"] = "/etc/klaus/config.yaml" //nolint:goconst
 
 	if len(cfg.McpServers) > 0 {
 		mcpConfigPath := filepath.Join(paths.RenderedDir, "mcp-config.json")
@@ -210,7 +210,7 @@ func BuildVolumes(cfg *config.Config, paths *config.Paths, env map[string]string
 			ContainerPath: "/etc/klaus/mcp-config.json",
 			ReadOnly:      true,
 		})
-		env["CLAUDE_MCP_CONFIG"] = "/etc/klaus/mcp-config.json"
+		env["CLAUDE_MCP_CONFIG"] = "/etc/klaus/mcp-config.json" //nolint:goconst
 	}
 
 	if len(cfg.Hooks) > 0 {
@@ -301,7 +301,7 @@ func BuildVolumes(cfg *config.Config, paths *config.Paths, env map[string]string
 			ReadOnly:      true,
 		})
 		// Set the container-internal path, overriding any host value from envForward.
-		env["KLAUSCTL_SOURCES_FILE"] = "/etc/klaus/sources.yaml"
+		env["KLAUSCTL_SOURCES_FILE"] = "/etc/klaus/sources.yaml" //nolint:goconst
 	}
 
 	return vols, nil
@@ -385,7 +385,7 @@ func buildGitConfigVolume(cfg *config.Config, paths *config.Paths, env map[strin
 		return nil, fmt.Errorf("writing gitconfig: %w", err)
 	}
 
-	env["GIT_CONFIG_GLOBAL"] = "/etc/klaus/gitconfig"
+	env["GIT_CONFIG_GLOBAL"] = "/etc/klaus/gitconfig" //nolint:goconst
 	return &runtime.Volume{
 		HostPath:      hostPath,
 		ContainerPath: "/etc/klaus/gitconfig",

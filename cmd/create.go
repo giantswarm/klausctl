@@ -134,7 +134,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 	// Print the resolved instance name so callers can reference it.
 	// Printed after successful start to avoid advertising a name that
 	// was rolled back on failure.
-	fmt.Fprintln(cmd.OutOrStdout(), instanceName)
+	_, _ = fmt.Fprintln(cmd.OutOrStdout(), instanceName)
 	return nil
 }
 
@@ -148,7 +148,7 @@ func handleCLICollision(cmd *cobra.Command, name string, collision instance.Coll
 
 	case instance.CollisionStopped:
 		if !yes {
-			fmt.Fprintf(cmd.OutOrStdout(), "Instance %q already exists (stopped). Replace it? [y/N]: ", name)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Instance %q already exists (stopped). Replace it? [y/N]: ", name)
 			reader := bufio.NewReader(cmd.InOrStdin())
 			answer, err := reader.ReadString('\n')
 			if err != nil {
@@ -166,7 +166,7 @@ func handleCLICollision(cmd *cobra.Command, name string, collision instance.Coll
 			return fmt.Errorf("instance %q is still running; use --force to replace it", name)
 		}
 		if !yes {
-			fmt.Fprintf(cmd.OutOrStdout(), "Instance %q is still running. Stop and replace it? [y/N]: ", name)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Instance %q is still running. Stop and replace it? [y/N]: ", name)
 			reader := bufio.NewReader(cmd.InOrStdin())
 			answer, err := reader.ReadString('\n')
 			if err != nil {

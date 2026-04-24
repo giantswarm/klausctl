@@ -115,7 +115,7 @@ func runMcpserverAdd(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Fprintf(cmd.OutOrStdout(), "MCP server %q added.\n", name)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "MCP server %q added.\n", name)
 	return nil
 }
 
@@ -132,7 +132,7 @@ func runMcpserverList(cmd *cobra.Command, _ []string) error {
 
 	names := store.List()
 	if len(names) == 0 {
-		fmt.Fprintln(cmd.OutOrStdout(), "No managed MCP servers configured.")
+		_, _ = fmt.Fprintln(cmd.OutOrStdout(), "No managed MCP servers configured.")
 		return nil
 	}
 
@@ -141,14 +141,14 @@ func runMcpserverList(cmd *cobra.Command, _ []string) error {
 	for _, name := range names {
 		def := all[name]
 		auth := authLabel(def, tokenStore)
-		fmt.Fprintf(cmd.OutOrStdout(), "%s  %s  [%s]\n", name, def.URL, auth)
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s  %s  [%s]\n", name, def.URL, auth)
 	}
 	return nil
 }
 
 func authLabel(def mcpserverstore.McpServerDef, tokenStore *oauth.TokenStore) string {
 	if def.Secret != "" {
-		return "secret"
+		return "secret" //nolint:goconst
 	}
 	st := tokenStore.GetToken(def.URL)
 	if st == nil {
@@ -175,7 +175,7 @@ func runMcpserverRemove(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Fprintf(cmd.OutOrStdout(), "MCP server %q removed.\n", name)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "MCP server %q removed.\n", name)
 	return nil
 }
 
@@ -207,9 +207,9 @@ func runMcpserverLogin(cmd *cobra.Command, args []string) error {
 	st := tokenStore.GetToken(def.URL)
 	if st != nil && st.Token.ExpiresIn > 0 {
 		expiry := st.CreatedAt.Add(time.Duration(st.Token.ExpiresIn) * time.Second)
-		fmt.Fprintf(cmd.OutOrStdout(), "Login successful for %q. Token expires at %s.\n", name, expiry.Format(time.RFC3339))
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Login successful for %q. Token expires at %s.\n", name, expiry.Format(time.RFC3339))
 	} else {
-		fmt.Fprintf(cmd.OutOrStdout(), "Login successful for %q.\n", name)
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Login successful for %q.\n", name)
 	}
 
 	return nil
@@ -242,31 +242,31 @@ func printServerAuthStatus(cmd *cobra.Command, store *mcpserverstore.Store, toke
 	}
 
 	w := cmd.OutOrStdout()
-	fmt.Fprintf(w, "Server:  %s\n", name)
-	fmt.Fprintf(w, "URL:     %s\n", def.URL)
+	_, _ = fmt.Fprintf(w, "Server:  %s\n", name)
+	_, _ = fmt.Fprintf(w, "URL:     %s\n", def.URL)
 
 	if def.Secret != "" {
-		fmt.Fprintf(w, "Auth:    secret (%s)\n", def.Secret)
+		_, _ = fmt.Fprintf(w, "Auth:    secret (%s)\n", def.Secret)
 		return nil
 	}
 
 	st := tokenStore.GetToken(def.URL)
 	if st == nil {
-		fmt.Fprintf(w, "Auth:    none\n")
+		_, _ = fmt.Fprintf(w, "Auth:    none\n")
 		return nil
 	}
 
 	if st.IsExpired() {
-		fmt.Fprintf(w, "Auth:    oauth (expired)\n")
+		_, _ = fmt.Fprintf(w, "Auth:    oauth (expired)\n")
 	} else {
-		fmt.Fprintf(w, "Auth:    oauth (valid)\n")
+		_, _ = fmt.Fprintf(w, "Auth:    oauth (valid)\n")
 	}
 
-	fmt.Fprintf(w, "Issuer:  %s\n", st.Issuer)
+	_, _ = fmt.Fprintf(w, "Issuer:  %s\n", st.Issuer)
 
 	if st.Token.ExpiresIn > 0 {
 		expiry := st.CreatedAt.Add(time.Duration(st.Token.ExpiresIn) * time.Second)
-		fmt.Fprintf(w, "Expires: %s\n", expiry.Format(time.RFC3339))
+		_, _ = fmt.Fprintf(w, "Expires: %s\n", expiry.Format(time.RFC3339))
 	}
 
 	return nil
@@ -275,7 +275,7 @@ func printServerAuthStatus(cmd *cobra.Command, store *mcpserverstore.Store, toke
 func printAllAuthStatus(cmd *cobra.Command, store *mcpserverstore.Store, tokenStore *oauth.TokenStore) error {
 	names := store.List()
 	if len(names) == 0 {
-		fmt.Fprintln(cmd.OutOrStdout(), "No managed MCP servers configured.")
+		_, _ = fmt.Fprintln(cmd.OutOrStdout(), "No managed MCP servers configured.")
 		return nil
 	}
 
@@ -283,7 +283,7 @@ func printAllAuthStatus(cmd *cobra.Command, store *mcpserverstore.Store, tokenSt
 	for _, name := range names {
 		def := all[name]
 		auth := authLabel(def, tokenStore)
-		fmt.Fprintf(cmd.OutOrStdout(), "%s  %s  [%s]\n", name, def.URL, auth)
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s  %s  [%s]\n", name, def.URL, auth)
 	}
 	return nil
 }

@@ -79,9 +79,9 @@ func runAuthLogin(cmd *cobra.Command, _ []string) error {
 
 	out := cmd.OutOrStdout()
 	if !rec.ExpiresAt.IsZero() {
-		fmt.Fprintf(out, "Login successful for %s. Token expires at %s.\n", rec.ServerURL, rec.ExpiresAt.Format(time.RFC3339))
+		_, _ = fmt.Fprintf(out, "Login successful for %s. Token expires at %s.\n", rec.ServerURL, rec.ExpiresAt.Format(time.RFC3339))
 	} else {
-		fmt.Fprintf(out, "Login successful for %s.\n", rec.ServerURL)
+		_, _ = fmt.Fprintf(out, "Login successful for %s.\n", rec.ServerURL)
 	}
 	return nil
 }
@@ -101,7 +101,7 @@ func runAuthLogout(cmd *cobra.Command, _ []string) error {
 	if err := store.Delete(normURL); err != nil {
 		return err
 	}
-	fmt.Fprintf(cmd.OutOrStdout(), "Logged out from %s.\n", normURL)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Logged out from %s.\n", normURL)
 	return nil
 }
 
@@ -119,7 +119,7 @@ func runAuthStatus(cmd *cobra.Command, _ []string) error {
 
 	out := cmd.OutOrStdout()
 	if len(records) == 0 {
-		fmt.Fprintln(out, "No remote klaus-gateway credentials stored.")
+		_, _ = fmt.Fprintln(out, "No remote klaus-gateway credentials stored.")
 		return nil
 	}
 
@@ -128,11 +128,11 @@ func runAuthStatus(cmd *cobra.Command, _ []string) error {
 		if rec.IsExpired(0) {
 			state = "expired"
 		}
-		fmt.Fprintf(out, "%s  [%s]", rec.ServerURL, state)
+		_, _ = fmt.Fprintf(out, "%s  [%s]", rec.ServerURL, state)
 		if !rec.ExpiresAt.IsZero() {
-			fmt.Fprintf(out, "  expires=%s", rec.ExpiresAt.Format(time.RFC3339))
+			_, _ = fmt.Fprintf(out, "  expires=%s", rec.ExpiresAt.Format(time.RFC3339))
 		}
-		fmt.Fprintln(out)
+		_, _ = fmt.Fprintln(out)
 	}
 	return nil
 }

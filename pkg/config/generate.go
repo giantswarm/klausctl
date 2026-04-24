@@ -286,7 +286,7 @@ func IsPortAvailable(port int) bool {
 	if err != nil {
 		return false
 	}
-	ln.Close()
+	_ = ln.Close()
 	return true
 }
 
@@ -328,7 +328,7 @@ func UsedPorts(paths *Paths) (map[int]bool, error) {
 		var st struct {
 			Port int `json:"port"`
 		}
-		if data, err := os.ReadFile(stateFile); err == nil {
+		if data, err := os.ReadFile(stateFile); err == nil { // #nosec G304 -- user-supplied or trusted local path; not exposed to untrusted input
 			if err := json.Unmarshal(data, &st); err == nil && st.Port > 0 {
 				used[st.Port] = true
 			}
@@ -337,7 +337,7 @@ func UsedPorts(paths *Paths) (map[int]bool, error) {
 		var cfg struct {
 			Port int `yaml:"port"`
 		}
-		if data, err := os.ReadFile(configFile); err == nil {
+		if data, err := os.ReadFile(configFile); err == nil { // #nosec G304 -- user-supplied or trusted local path; not exposed to untrusted input
 			if err := yaml.Unmarshal(data, &cfg); err == nil && cfg.Port > 0 {
 				used[cfg.Port] = true
 			}

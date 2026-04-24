@@ -240,7 +240,7 @@ func TestResolveRemoteTargetProactiveRefresh(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRemoteTarget: %v", err)
 	}
-	if target.BearerToken != "rotated-token" {
+	if target.BearerToken != "rotated-token" { //nolint:goconst
 		t.Errorf("target bearer = %q, want rotated-token", target.BearerToken)
 	}
 	if rec == nil || rec.AccessToken != "rotated-token" {

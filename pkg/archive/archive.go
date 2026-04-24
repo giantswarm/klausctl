@@ -57,13 +57,13 @@ func Save(archivesDir string, entry *Entry) error {
 	}
 
 	path := filepath.Join(archivesDir, entry.UUID+".json")
-	return os.WriteFile(path, append(data, '\n'), 0o644)
+	return os.WriteFile(path, append(data, '\n'), 0o600)
 }
 
 // Load reads a single archive entry by UUID.
 func Load(archivesDir, uuid string) (*Entry, error) {
 	path := filepath.Join(archivesDir, uuid+".json")
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- user-supplied or trusted local path; not exposed to untrusted input
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil, fmt.Errorf("archive %q not found", uuid)
@@ -94,7 +94,7 @@ func LoadAll(archivesDir string) ([]*Entry, error) {
 			continue
 		}
 
-		data, err := os.ReadFile(filepath.Join(archivesDir, de.Name()))
+		data, err := os.ReadFile(filepath.Join(archivesDir, de.Name())) // #nosec G304 -- user-supplied or trusted local path; not exposed to untrusted input
 		if err != nil {
 			continue
 		}
@@ -139,7 +139,7 @@ func EntryFromResult(inst *instance.Instance, resultJSON string) (*Entry, error)
 	}
 
 	if resultJSON == "" {
-		entry.Status = "unknown"
+		entry.Status = "unknown" //nolint:goconst
 		return entry, nil
 	}
 

@@ -75,7 +75,7 @@ func fetchMetadata(ctx context.Context, url string) (*Metadata, error) {
 	if err != nil {
 		return nil, fmt.Errorf("fetching %s: %w", url, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("fetching %s: status %d", url, resp.StatusCode)
@@ -107,7 +107,7 @@ func FetchResourceMetadata(ctx context.Context, metadataURL string) (*ProtectedR
 	if err != nil {
 		return nil, fmt.Errorf("fetching %s: %w", metadataURL, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("fetching %s: status %d", metadataURL, resp.StatusCode)

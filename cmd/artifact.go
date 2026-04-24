@@ -104,7 +104,7 @@ func pullArtifact(ctx context.Context, ref string, cacheDir string, pull pullFn,
 		return err
 	}
 
-	if outputFmt == "json" {
+	if outputFmt == "json" { //nolint:goconst
 		enc := json.NewEncoder(out)
 		enc.SetIndent("", "  ")
 		return enc.Encode(pullResult{
@@ -116,9 +116,9 @@ func pullArtifact(ctx context.Context, ref string, cacheDir string, pull pullFn,
 	}
 
 	if cached {
-		fmt.Fprintf(out, "%s: up-to-date (%s)\n", shortName, klausoci.TruncateDigest(digest))
+		_, _ = fmt.Fprintf(out, "%s: up-to-date (%s)\n", shortName, klausoci.TruncateDigest(digest))
 	} else {
-		fmt.Fprintf(out, "%s: pulled (%s)\n", shortName, klausoci.TruncateDigest(digest))
+		_, _ = fmt.Fprintf(out, "%s: pulled (%s)\n", shortName, klausoci.TruncateDigest(digest))
 	}
 
 	return nil
@@ -194,9 +194,9 @@ func printRemoteArtifacts(out io.Writer, entries []remoteArtifactEntry, outputFm
 
 	w := tabwriter.NewWriter(out, 0, 0, 3, ' ', 0)
 	if multiSource {
-		fmt.Fprintln(w, "SOURCE\tNAME\tREF\tPULLED")
+		_, _ = fmt.Fprintln(w, "SOURCE\tNAME\tREF\tPULLED")
 	} else {
-		fmt.Fprintln(w, "NAME\tREF\tPULLED")
+		_, _ = fmt.Fprintln(w, "NAME\tREF\tPULLED")
 	}
 	for _, e := range entries {
 		pulled := "-"
@@ -204,9 +204,9 @@ func printRemoteArtifacts(out io.Writer, entries []remoteArtifactEntry, outputFm
 			pulled = formatAge(e.PulledAt)
 		}
 		if multiSource {
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", e.Source, e.Name, e.Ref, pulled)
+			_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", e.Source, e.Name, e.Ref, pulled)
 		} else {
-			fmt.Fprintf(w, "%s\t%s\t%s\n", e.Name, e.Ref, pulled)
+			_, _ = fmt.Fprintf(w, "%s\t%s\t%s\n", e.Name, e.Ref, pulled)
 		}
 	}
 	return w.Flush()
@@ -275,7 +275,7 @@ func listMultiSourceRemoteArtifacts(ctx context.Context, out io.Writer, cacheDir
 	}
 
 	for _, w := range warnings {
-		fmt.Fprintf(out, "Warning: %s\n", w)
+		_, _ = fmt.Fprintf(out, "Warning: %s\n", w)
 	}
 
 	return nil
@@ -285,11 +285,11 @@ func listMultiSourceRemoteArtifacts(ctx context.Context, out io.Writer, cacheDir
 // prints the provided hint lines.
 func printEmpty(out io.Writer, outputFmt string, hints ...string) error {
 	if outputFmt == "json" {
-		fmt.Fprintln(out, "[]")
+		_, _ = fmt.Fprintln(out, "[]")
 		return nil
 	}
 	for _, h := range hints {
-		fmt.Fprintln(out, h)
+		_, _ = fmt.Fprintln(out, h)
 	}
 	return nil
 }
@@ -303,9 +303,9 @@ func printLocalArtifacts(out io.Writer, artifacts []cachedArtifact, outputFmt st
 	}
 
 	w := tabwriter.NewWriter(out, 0, 0, 3, ' ', 0)
-	fmt.Fprintln(w, "NAME\tREF\tDIGEST\tPULLED")
+	_, _ = fmt.Fprintln(w, "NAME\tREF\tDIGEST\tPULLED")
 	for _, a := range artifacts {
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n",
+		_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\n",
 			a.Name,
 			a.Ref,
 			klausoci.TruncateDigest(a.Digest),
@@ -373,7 +373,7 @@ func pushArtifact(ctx context.Context, sourceDir, ref string, push pushFn, out i
 				DryRun: true,
 			})
 		}
-		fmt.Fprintf(out, "%s: validated (dry run, push skipped)\n", shortName)
+		_, _ = fmt.Fprintf(out, "%s: validated (dry run, push skipped)\n", shortName)
 		return nil
 	}
 
@@ -393,7 +393,7 @@ func pushArtifact(ctx context.Context, sourceDir, ref string, push pushFn, out i
 		})
 	}
 
-	fmt.Fprintf(out, "%s: pushed (%s)\n", shortName, klausoci.TruncateDigest(digest))
+	_, _ = fmt.Fprintf(out, "%s: pushed (%s)\n", shortName, klausoci.TruncateDigest(digest))
 	return nil
 }
 
@@ -407,32 +407,32 @@ type printMetaOpts struct {
 // verbosity. When compact is true, only the most important fields are shown.
 func printArtifactMetaWith(out io.Writer, meta artifactMeta, opts printMetaOpts) {
 	p := opts.prefix
-	fmt.Fprintf(out, "%s%-14s %s\n", p, "Name:", meta.Name)
+	_, _ = fmt.Fprintf(out, "%s%-14s %s\n", p, "Name:", meta.Name)
 	if meta.Version != "" {
-		fmt.Fprintf(out, "%s%-14s %s\n", p, "Version:", meta.Version)
+		_, _ = fmt.Fprintf(out, "%s%-14s %s\n", p, "Version:", meta.Version)
 	}
 	if meta.Description != "" {
-		fmt.Fprintf(out, "%s%-14s %s\n", p, "Description:", meta.Description)
+		_, _ = fmt.Fprintf(out, "%s%-14s %s\n", p, "Description:", meta.Description)
 	}
 	if meta.Author != "" {
-		fmt.Fprintf(out, "%s%-14s %s\n", p, "Author:", meta.Author)
+		_, _ = fmt.Fprintf(out, "%s%-14s %s\n", p, "Author:", meta.Author)
 	}
 	if !opts.compact {
 		if meta.Homepage != "" {
-			fmt.Fprintf(out, "%s%-14s %s\n", p, "Homepage:", meta.Homepage)
+			_, _ = fmt.Fprintf(out, "%s%-14s %s\n", p, "Homepage:", meta.Homepage)
 		}
 		if meta.Repository != "" {
-			fmt.Fprintf(out, "%s%-14s %s\n", p, "Repository:", meta.Repository)
+			_, _ = fmt.Fprintf(out, "%s%-14s %s\n", p, "Repository:", meta.Repository)
 		}
 		if meta.License != "" {
-			fmt.Fprintf(out, "%s%-14s %s\n", p, "License:", meta.License)
+			_, _ = fmt.Fprintf(out, "%s%-14s %s\n", p, "License:", meta.License)
 		}
 		if len(meta.Keywords) > 0 {
-			fmt.Fprintf(out, "%s%-14s %s\n", p, "Keywords:", strings.Join(meta.Keywords, ", "))
+			_, _ = fmt.Fprintf(out, "%s%-14s %s\n", p, "Keywords:", strings.Join(meta.Keywords, ", "))
 		}
 	}
 	if meta.Digest != "" {
-		fmt.Fprintf(out, "%s%-14s %s\n", p, "Digest:", meta.Digest)
+		_, _ = fmt.Fprintf(out, "%s%-14s %s\n", p, "Digest:", meta.Digest)
 	}
 }
 
@@ -458,17 +458,17 @@ type artifactMeta struct {
 // metaFromPlugin builds an artifactMeta from a DescribedPlugin.
 func metaFromPlugin(dp *klausoci.DescribedPlugin) artifactMeta {
 	m := artifactMeta{
-		Name:        dp.Plugin.Name,
-		Version:     dp.Plugin.Version,
-		Description: dp.Plugin.Description,
-		Homepage:    dp.Plugin.Homepage,
-		Repository:  dp.Plugin.SourceRepo,
-		License:     dp.Plugin.License,
-		Keywords:    dp.Plugin.Keywords,
-		Digest:      dp.ArtifactInfo.Digest,
+		Name:        dp.Name,
+		Version:     dp.Version,
+		Description: dp.Description,
+		Homepage:    dp.Homepage,
+		Repository:  dp.SourceRepo,
+		License:     dp.License,
+		Keywords:    dp.Keywords,
+		Digest:      dp.Digest,
 	}
-	if dp.Plugin.Author != nil {
-		m.Author = formatAuthor(dp.Plugin.Author)
+	if dp.Author != nil {
+		m.Author = formatAuthor(dp.Author)
 	}
 	return m
 }
@@ -476,17 +476,17 @@ func metaFromPlugin(dp *klausoci.DescribedPlugin) artifactMeta {
 // metaFromPersonality builds an artifactMeta from a DescribedPersonality.
 func metaFromPersonality(dp *klausoci.DescribedPersonality) artifactMeta {
 	m := artifactMeta{
-		Name:        dp.Personality.Name,
-		Version:     dp.Personality.Version,
-		Description: dp.Personality.Description,
-		Homepage:    dp.Personality.Homepage,
-		Repository:  dp.Personality.SourceRepo,
-		License:     dp.Personality.License,
-		Keywords:    dp.Personality.Keywords,
-		Digest:      dp.ArtifactInfo.Digest,
+		Name:        dp.Name,
+		Version:     dp.Version,
+		Description: dp.Description,
+		Homepage:    dp.Homepage,
+		Repository:  dp.SourceRepo,
+		License:     dp.License,
+		Keywords:    dp.Keywords,
+		Digest:      dp.Digest,
 	}
-	if dp.Personality.Author != nil {
-		m.Author = formatAuthor(dp.Personality.Author)
+	if dp.Author != nil {
+		m.Author = formatAuthor(dp.Author)
 	}
 	return m
 }
@@ -494,17 +494,17 @@ func metaFromPersonality(dp *klausoci.DescribedPersonality) artifactMeta {
 // metaFromToolchain builds an artifactMeta from a DescribedToolchain.
 func metaFromToolchain(dt *klausoci.DescribedToolchain) artifactMeta {
 	m := artifactMeta{
-		Name:        dt.Toolchain.Name,
-		Version:     dt.Toolchain.Version,
-		Description: dt.Toolchain.Description,
-		Homepage:    dt.Toolchain.Homepage,
-		Repository:  dt.Toolchain.SourceRepo,
-		License:     dt.Toolchain.License,
-		Keywords:    dt.Toolchain.Keywords,
-		Digest:      dt.ArtifactInfo.Digest,
+		Name:        dt.Name,
+		Version:     dt.Version,
+		Description: dt.Description,
+		Homepage:    dt.Homepage,
+		Repository:  dt.SourceRepo,
+		License:     dt.License,
+		Keywords:    dt.Keywords,
+		Digest:      dt.Digest,
 	}
-	if dt.Toolchain.Author != nil {
-		m.Author = formatAuthor(dt.Toolchain.Author)
+	if dt.Author != nil {
+		m.Author = formatAuthor(dt.Author)
 	}
 	return m
 }
@@ -563,13 +563,13 @@ type describePluginJSON struct {
 
 func newDescribePluginJSON(dp *klausoci.DescribedPlugin) describePluginJSON {
 	return describePluginJSON{
-		describeBaseJSON: newDescribeBaseJSON(metaFromPlugin(dp), dp.ArtifactInfo.Ref),
-		Skills:           dp.Plugin.Skills,
-		Commands:         dp.Plugin.Commands,
-		Agents:           dp.Plugin.Agents,
-		HasHooks:         dp.Plugin.HasHooks,
-		MCPServers:       dp.Plugin.MCPServers,
-		LSPServers:       dp.Plugin.LSPServers,
+		describeBaseJSON: newDescribeBaseJSON(metaFromPlugin(dp), dp.Ref),
+		Skills:           dp.Skills,
+		Commands:         dp.Commands,
+		Agents:           dp.Agents,
+		HasHooks:         dp.HasHooks,
+		MCPServers:       dp.MCPServers,
+		LSPServers:       dp.LSPServers,
 	}
 }
 
@@ -590,12 +590,12 @@ type resolvedDepsJSON struct {
 
 func newDescribePersonalityJSON(dp *klausoci.DescribedPersonality, deps *klausoci.ResolvedDependencies) describePersonalityJSON {
 	result := describePersonalityJSON{
-		describeBaseJSON: newDescribeBaseJSON(metaFromPersonality(dp), dp.ArtifactInfo.Ref),
+		describeBaseJSON: newDescribeBaseJSON(metaFromPersonality(dp), dp.Ref),
 	}
-	if dp.Personality.Toolchain.Repository != "" {
-		result.Toolchain = dp.Personality.Toolchain.Ref()
+	if dp.Toolchain.Repository != "" {
+		result.Toolchain = dp.Toolchain.Ref()
 	}
-	for _, p := range dp.Personality.Plugins {
+	for _, p := range dp.Plugins {
 		result.Plugins = append(result.Plugins, p.Ref())
 	}
 	if deps != nil {
@@ -621,7 +621,7 @@ type describeToolchainJSON struct {
 
 func newDescribeToolchainJSON(dt *klausoci.DescribedToolchain) describeToolchainJSON {
 	return describeToolchainJSON{
-		describeBaseJSON: newDescribeBaseJSON(metaFromToolchain(dt), dt.ArtifactInfo.Ref),
+		describeBaseJSON: newDescribeBaseJSON(metaFromToolchain(dt), dt.Ref),
 	}
 }
 

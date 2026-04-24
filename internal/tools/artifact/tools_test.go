@@ -107,7 +107,7 @@ func TestListLocalArtifacts_NonExistentDir(t *testing.T) {
 
 func TestListLocalArtifacts_SkipsFiles(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "not-a-dir.txt"), []byte("hello"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "not-a-dir.txt"), []byte("hello"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -122,7 +122,7 @@ func TestListLocalArtifacts_SkipsFiles(t *testing.T) {
 
 func TestListLocalArtifacts_SkipsDirsWithoutCache(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(dir, "uncached-artifact"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(dir, "uncached-artifact"), 0o750); err != nil {
 		t.Fatal(err)
 	}
 

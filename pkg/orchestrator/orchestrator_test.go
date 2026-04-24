@@ -297,7 +297,7 @@ func TestBuildVolumes_PersonalitySOULMount(t *testing.T) {
 	env := make(map[string]string)
 
 	personalityDir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(personalityDir, "SOUL.md"), []byte("# Soul"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(personalityDir, "SOUL.md"), []byte("# Soul"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -407,7 +407,7 @@ func TestBuildEnvVars_SecretEnvVars(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	secretsContent := "api-key: sk-secret-123\ndb-pass: hunter2\n"
+	secretsContent := "api-key: sk-secret-123\ndb-pass: hunter2\n" // #nosec G101 -- constant identifier, not a credential
 	if err := os.WriteFile(paths.SecretsFile, []byte(secretsContent), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -511,7 +511,7 @@ func TestResolveSecretRefs(t *testing.T) {
 	}
 
 	mcpContent := "muster:\n  url: https://muster.example.com/mcp\n  secret: muster-token\n"
-	if err := os.WriteFile(paths.McpServersFile, []byte(mcpContent), 0o644); err != nil {
+	if err := os.WriteFile(paths.McpServersFile, []byte(mcpContent), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -538,7 +538,7 @@ func TestResolveSecretRefs(t *testing.T) {
 		t.Fatalf("expected map, got %T", entry)
 	}
 
-	if m["url"] != "https://muster.example.com/mcp" {
+	if m["url"] != "https://muster.example.com/mcp" { //nolint:goconst
 		t.Errorf("url = %v", m["url"])
 	}
 	if m["type"] != "http" {
@@ -562,7 +562,7 @@ func TestResolveSecretRefs_NoSecret(t *testing.T) {
 	}
 
 	mcpContent := "plain:\n  url: https://plain.example.com/mcp\n"
-	if err := os.WriteFile(paths.McpServersFile, []byte(mcpContent), 0o644); err != nil {
+	if err := os.WriteFile(paths.McpServersFile, []byte(mcpContent), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -588,7 +588,7 @@ func TestResolveSecretRefs_MissingServer(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := os.WriteFile(paths.McpServersFile, []byte("{}\n"), 0o644); err != nil {
+	if err := os.WriteFile(paths.McpServersFile, []byte("{}\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -775,7 +775,7 @@ func TestBuildVolumes_SourcesMount(t *testing.T) {
 		t.Fatal(err)
 	}
 	sourcesContent := "sources:\n- name: giantswarm\n  registry: gsoci.azurecr.io/giantswarm\n  default: true\n- name: spiffy\n  registry: spiffy.example.com/artifacts\n"
-	if err := os.WriteFile(paths.SourcesFile, []byte(sourcesContent), 0o644); err != nil {
+	if err := os.WriteFile(paths.SourcesFile, []byte(sourcesContent), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -913,12 +913,12 @@ func TestResolveSecretRefs_OAuthToken(t *testing.T) {
 
 	serverURL := "https://muster.example.com/mcp"
 	mcpContent := "muster-oauth:\n  url: " + serverURL + "\n"
-	if err := os.WriteFile(paths.McpServersFile, []byte(mcpContent), 0o644); err != nil {
+	if err := os.WriteFile(paths.McpServersFile, []byte(mcpContent), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
 	tokenStore := oauth.NewTokenStore(paths.TokensDir)
-	if err := tokenStore.StoreToken(serverURL, "https://dex.example.com", oauth.Token{
+	if err := tokenStore.StoreToken(serverURL, "https://dex.example.com", oauth.Token{ // #nosec G101 -- constant identifier, not a credential
 		AccessToken: "oauth-access-token-xyz",
 		TokenType:   "Bearer",
 		ExpiresIn:   3600,
@@ -959,7 +959,7 @@ func TestResolveSecretRefs_OAuthTokenExpired(t *testing.T) {
 
 	serverURL := "https://muster.example.com/mcp"
 	mcpContent := "muster-expired:\n  url: " + serverURL + "\n"
-	if err := os.WriteFile(paths.McpServersFile, []byte(mcpContent), 0o644); err != nil {
+	if err := os.WriteFile(paths.McpServersFile, []byte(mcpContent), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1003,12 +1003,12 @@ func TestResolveSecretRefs_StaticSecretTakesPrecedence(t *testing.T) {
 	}
 
 	mcpContent := "muster-both:\n  url: " + serverURL + "\n  secret: static-secret\n"
-	if err := os.WriteFile(paths.McpServersFile, []byte(mcpContent), 0o644); err != nil {
+	if err := os.WriteFile(paths.McpServersFile, []byte(mcpContent), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
 	tokenStore := oauth.NewTokenStore(paths.TokensDir)
-	if err := tokenStore.StoreToken(serverURL, "https://dex.example.com", oauth.Token{
+	if err := tokenStore.StoreToken(serverURL, "https://dex.example.com", oauth.Token{ // #nosec G101 -- constant identifier, not a credential
 		AccessToken: "oauth-token-should-not-be-used",
 		TokenType:   "Bearer",
 		ExpiresIn:   3600,

@@ -115,7 +115,7 @@ func handleRun(ctx context.Context, req mcp.CallToolRequest, sc *server.ServerCo
 	// post-start step (MCP readiness, prompt) fails.
 	cleanupOnError := func(stepErr error) (*mcp.CallToolResult, error) {
 		// Best-effort: stop and remove the container we just started.
-		cleanupContainer(context.Background(), name, nil)
+		_ = cleanupContainer(context.Background(), name, nil)
 		_ = os.RemoveAll(instancePaths.InstanceDir)
 		return mcp.NewToolResultError(stepErr.Error()), nil
 	}

@@ -299,7 +299,7 @@ func TestBuildArchiveFilter_NameAndOutcome(t *testing.T) {
 
 	archiveListSince = ""
 	archiveListName = "dev"
-	archiveListOutcome = "success"
+	archiveListOutcome = "success" //nolint:goconst
 	archiveListTagged = false
 	archiveListUntagged = false
 
@@ -310,7 +310,7 @@ func TestBuildArchiveFilter_NameAndOutcome(t *testing.T) {
 	if f.Name != "dev" {
 		t.Errorf("expected Name=dev, got %q", f.Name)
 	}
-	if f.Outcome != "success" {
+	if f.Outcome != "success" { //nolint:goconst
 		t.Errorf("expected Outcome=success, got %q", f.Outcome)
 	}
 }

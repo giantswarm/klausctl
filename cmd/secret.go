@@ -98,7 +98,7 @@ func runSecretSet(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Fprintf(cmd.OutOrStdout(), "Secret %q saved.\n", name)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Secret %q saved.\n", name)
 	return nil
 }
 
@@ -110,12 +110,12 @@ func runSecretList(cmd *cobra.Command, _ []string) error {
 
 	names := store.List()
 	if len(names) == 0 {
-		fmt.Fprintln(cmd.OutOrStdout(), "No secrets stored.")
+		_, _ = fmt.Fprintln(cmd.OutOrStdout(), "No secrets stored.")
 		return nil
 	}
 
 	for _, n := range names {
-		fmt.Fprintln(cmd.OutOrStdout(), n)
+		_, _ = fmt.Fprintln(cmd.OutOrStdout(), n)
 	}
 	return nil
 }
@@ -135,6 +135,6 @@ func runSecretDelete(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Fprintf(cmd.OutOrStdout(), "Secret %q deleted.\n", name)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Secret %q deleted.\n", name)
 	return nil
 }

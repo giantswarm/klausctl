@@ -40,7 +40,7 @@ func TestRenderSkills(t *testing.T) {
 	}
 
 	skillPath := filepath.Join(paths.ExtensionsDir, ".claude", "skills", "test-skill", "SKILL.md")
-	data, err := os.ReadFile(skillPath)
+	data, err := os.ReadFile(skillPath) // #nosec G304 -- user-supplied or trusted local path; not exposed to untrusted input
 	if err != nil {
 		t.Fatalf("skill file not created: %v", err)
 	}
@@ -115,7 +115,7 @@ func TestRenderAgentFiles(t *testing.T) {
 	}
 
 	agentPath := filepath.Join(paths.ExtensionsDir, ".claude", "agents", "reviewer.md")
-	data, err := os.ReadFile(agentPath)
+	data, err := os.ReadFile(agentPath) // #nosec G304 -- user-supplied or trusted local path; not exposed to untrusted input
 	if err != nil {
 		t.Fatalf("agent file not created: %v", err)
 	}
@@ -145,7 +145,7 @@ func TestRenderMCPConfig(t *testing.T) {
 	}
 
 	mcpPath := filepath.Join(paths.RenderedDir, "mcp-config.json")
-	data, err := os.ReadFile(mcpPath)
+	data, err := os.ReadFile(mcpPath) // #nosec G304 -- user-supplied or trusted local path; not exposed to untrusted input
 	if err != nil {
 		t.Fatalf("MCP config not created: %v", err)
 	}
@@ -192,7 +192,7 @@ func TestRenderMCPConfigInfersHTTPType(t *testing.T) {
 	}
 
 	mcpPath := filepath.Join(paths.RenderedDir, "mcp-config.json")
-	data, err := os.ReadFile(mcpPath)
+	data, err := os.ReadFile(mcpPath) // #nosec G304 -- user-supplied or trusted local path; not exposed to untrusted input
 	if err != nil {
 		t.Fatalf("MCP config not created: %v", err)
 	}
@@ -239,7 +239,7 @@ func TestRenderMCPConfigInfersStdioType(t *testing.T) {
 	}
 
 	mcpPath := filepath.Join(paths.RenderedDir, "mcp-config.json")
-	data, err := os.ReadFile(mcpPath)
+	data, err := os.ReadFile(mcpPath) // #nosec G304 -- user-supplied or trusted local path; not exposed to untrusted input
 	if err != nil {
 		t.Fatalf("MCP config not created: %v", err)
 	}
@@ -283,7 +283,7 @@ func TestRenderMCPConfigPreservesExplicitType(t *testing.T) {
 	}
 
 	mcpPath := filepath.Join(paths.RenderedDir, "mcp-config.json")
-	data, err := os.ReadFile(mcpPath)
+	data, err := os.ReadFile(mcpPath) // #nosec G304 -- user-supplied or trusted local path; not exposed to untrusted input
 	if err != nil {
 		t.Fatalf("MCP config not created: %v", err)
 	}
@@ -331,7 +331,7 @@ func TestRenderSettings(t *testing.T) {
 	}
 
 	settingsPath := filepath.Join(paths.RenderedDir, "settings.json")
-	data, err := os.ReadFile(settingsPath)
+	data, err := os.ReadFile(settingsPath) // #nosec G304 -- user-supplied or trusted local path; not exposed to untrusted input
 	if err != nil {
 		t.Fatalf("settings file not created: %v", err)
 	}

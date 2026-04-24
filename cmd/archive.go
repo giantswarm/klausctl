@@ -133,7 +133,7 @@ func runArchiveList(cmd *cobra.Command, _ []string) error {
 
 	out := cmd.OutOrStdout()
 
-	if archiveOutput == "json" {
+	if archiveOutput == "json" { //nolint:goconst
 		summaries := make([]archive.ListSummary, 0, len(entries))
 		for _, e := range entries {
 			summaries = append(summaries, e.ToListSummary())
@@ -144,7 +144,7 @@ func runArchiveList(cmd *cobra.Command, _ []string) error {
 	}
 
 	if len(entries) == 0 {
-		fmt.Fprintln(out, "No archived transcripts.")
+		_, _ = fmt.Fprintln(out, "No archived transcripts.")
 		return nil
 	}
 
@@ -152,14 +152,14 @@ func runArchiveList(cmd *cobra.Command, _ []string) error {
 }
 
 func renderArchiveListText(out io.Writer, entries []*archive.Entry) error {
-	fmt.Fprintf(out, "%-36s  %-20s  %-12s  %5s  %10s  %s\n", "UUID", "NAME", "STATUS", "MSGS", "COST", "STOPPED")
+	_, _ = fmt.Fprintf(out, "%-36s  %-20s  %-12s  %5s  %10s  %s\n", "UUID", "NAME", "STATUS", "MSGS", "COST", "STOPPED")
 	for _, e := range entries {
 		stopped := e.StoppedAt.Format("2006-01-02 15:04")
 		cost := "-"
 		if e.TotalCostUSD != nil {
 			cost = fmt.Sprintf("$%.4f", *e.TotalCostUSD)
 		}
-		fmt.Fprintf(out, "%-36s  %-20s  %-12s  %5d  %10s  %s\n",
+		_, _ = fmt.Fprintf(out, "%-36s  %-20s  %-12s  %5d  %10s  %s\n",
 			e.UUID, truncate(e.Name, 20), e.Status, e.MessageCount, cost, stopped)
 	}
 	return nil
@@ -194,39 +194,39 @@ func runArchiveShow(cmd *cobra.Command, args []string) error {
 }
 
 func renderArchiveShowText(out io.Writer, e *archive.Entry) error {
-	fmt.Fprintf(out, "UUID:         %s\n", e.UUID)
-	fmt.Fprintf(out, "Name:         %s\n", e.Name)
-	fmt.Fprintf(out, "Status:       %s\n", colorStatus(e.Status))
-	fmt.Fprintf(out, "Image:        %s\n", e.Image)
+	_, _ = fmt.Fprintf(out, "UUID:         %s\n", e.UUID)
+	_, _ = fmt.Fprintf(out, "Name:         %s\n", e.Name)
+	_, _ = fmt.Fprintf(out, "Status:       %s\n", colorStatus(e.Status))
+	_, _ = fmt.Fprintf(out, "Image:        %s\n", e.Image)
 	if e.Personality != "" {
-		fmt.Fprintf(out, "Personality:  %s\n", e.Personality)
+		_, _ = fmt.Fprintf(out, "Personality:  %s\n", e.Personality)
 	}
-	fmt.Fprintf(out, "Workspace:    %s\n", e.Workspace)
-	fmt.Fprintf(out, "Port:         %d\n", e.Port)
-	fmt.Fprintf(out, "Started:      %s\n", e.StartedAt.Format("2006-01-02 15:04:05"))
-	fmt.Fprintf(out, "Stopped:      %s\n", e.StoppedAt.Format("2006-01-02 15:04:05"))
-	fmt.Fprintf(out, "Messages:     %d\n", e.MessageCount)
+	_, _ = fmt.Fprintf(out, "Workspace:    %s\n", e.Workspace)
+	_, _ = fmt.Fprintf(out, "Port:         %d\n", e.Port)
+	_, _ = fmt.Fprintf(out, "Started:      %s\n", e.StartedAt.Format("2006-01-02 15:04:05"))
+	_, _ = fmt.Fprintf(out, "Stopped:      %s\n", e.StoppedAt.Format("2006-01-02 15:04:05"))
+	_, _ = fmt.Fprintf(out, "Messages:     %d\n", e.MessageCount)
 	if e.TotalCostUSD != nil {
-		fmt.Fprintf(out, "Cost:         $%.4f\n", *e.TotalCostUSD)
+		_, _ = fmt.Fprintf(out, "Cost:         $%.4f\n", *e.TotalCostUSD)
 	}
 	if e.SessionID != "" {
-		fmt.Fprintf(out, "Session ID:   %s\n", e.SessionID)
+		_, _ = fmt.Fprintf(out, "Session ID:   %s\n", e.SessionID)
 	}
 	if len(e.PRURLs) > 0 {
-		fmt.Fprintf(out, "PR URLs:\n")
+		_, _ = fmt.Fprintf(out, "PR URLs:\n")
 		for _, url := range e.PRURLs {
-			fmt.Fprintf(out, "  - %s\n", url)
+			_, _ = fmt.Fprintf(out, "  - %s\n", url)
 		}
 	}
 	if e.ErrorCount > 0 {
-		fmt.Fprintf(out, "Errors:       %d\n", e.ErrorCount)
+		_, _ = fmt.Fprintf(out, "Errors:       %d\n", e.ErrorCount)
 	}
 	if e.ErrorMessage != "" {
-		fmt.Fprintf(out, "Error:        %s\n", e.ErrorMessage)
+		_, _ = fmt.Fprintf(out, "Error:        %s\n", e.ErrorMessage)
 	}
 	renderTags(out, e.Tags)
 	if len(e.ToolCalls) > 0 {
-		fmt.Fprintf(out, "\nTool Calls:\n")
+		_, _ = fmt.Fprintf(out, "\nTool Calls:\n")
 		type toolCount struct {
 			Name  string
 			Count int
@@ -238,13 +238,13 @@ func renderArchiveShowText(out io.Writer, e *archive.Entry) error {
 		sort.Slice(sorted, func(i, j int) bool {
 			return sorted[i].Count > sorted[j].Count
 		})
-		fmt.Fprintf(out, "  %-30s  %s\n", "TOOL", "COUNT")
+		_, _ = fmt.Fprintf(out, "  %-30s  %s\n", "TOOL", "COUNT")
 		for _, tc := range sorted {
-			fmt.Fprintf(out, "  %-30s  %d\n", tc.Name, tc.Count)
+			_, _ = fmt.Fprintf(out, "  %-30s  %d\n", tc.Name, tc.Count)
 		}
 	}
 	if len(e.ModelUsage) > 0 {
-		fmt.Fprintf(out, "\nModel Usage:\n")
+		_, _ = fmt.Fprintf(out, "\nModel Usage:\n")
 		type modelCount struct {
 			Model string
 			Count int
@@ -256,9 +256,9 @@ func renderArchiveShowText(out io.Writer, e *archive.Entry) error {
 		sort.Slice(sortedModels, func(i, j int) bool {
 			return sortedModels[i].Count > sortedModels[j].Count
 		})
-		fmt.Fprintf(out, "  %-30s  %s\n", "MODEL", "COUNT")
+		_, _ = fmt.Fprintf(out, "  %-30s  %s\n", "MODEL", "COUNT")
 		for _, mc := range sortedModels {
-			fmt.Fprintf(out, "  %-30s  %d\n", mc.Model, mc.Count)
+			_, _ = fmt.Fprintf(out, "  %-30s  %d\n", mc.Model, mc.Count)
 		}
 	}
 	if len(e.TokenUsage) > 0 {
@@ -269,15 +269,15 @@ func renderArchiveShowText(out io.Writer, e *archive.Entry) error {
 			CacheRead   int `json:"cache_read"`
 		}
 		if json.Unmarshal(e.TokenUsage, &tokens) == nil && (tokens.Input > 0 || tokens.Output > 0) {
-			fmt.Fprintf(out, "\nToken Usage:\n")
-			fmt.Fprintf(out, "  Input:         %d\n", tokens.Input)
-			fmt.Fprintf(out, "  Output:        %d\n", tokens.Output)
-			fmt.Fprintf(out, "  Cache Create:  %d\n", tokens.CacheCreate)
-			fmt.Fprintf(out, "  Cache Read:    %d\n", tokens.CacheRead)
+			_, _ = fmt.Fprintf(out, "\nToken Usage:\n")
+			_, _ = fmt.Fprintf(out, "  Input:         %d\n", tokens.Input)
+			_, _ = fmt.Fprintf(out, "  Output:        %d\n", tokens.Output)
+			_, _ = fmt.Fprintf(out, "  Cache Create:  %d\n", tokens.CacheCreate)
+			_, _ = fmt.Fprintf(out, "  Cache Read:    %d\n", tokens.CacheRead)
 		}
 	}
 	if e.ResultText != "" {
-		fmt.Fprintf(out, "\n%s\n", e.ResultText)
+		_, _ = fmt.Fprintf(out, "\n%s\n", e.ResultText)
 	}
 	return nil
 }
@@ -308,7 +308,7 @@ func runArchiveTag(cmd *cobra.Command, args []string) error {
 		return enc.Encode(entry)
 	}
 
-	fmt.Fprintf(out, "Tagged archive %s\n", entry.UUID)
+	_, _ = fmt.Fprintf(out, "Tagged archive %s\n", entry.UUID)
 	renderTags(out, entry.Tags)
 	return nil
 }
@@ -345,14 +345,14 @@ func renderTags(out io.Writer, tags map[string]string) {
 	if len(tags) == 0 {
 		return
 	}
-	fmt.Fprintf(out, "\nTags:\n")
+	_, _ = fmt.Fprintf(out, "\nTags:\n")
 	sorted := make([]string, 0, len(tags))
 	for k := range tags {
 		sorted = append(sorted, k)
 	}
 	sort.Strings(sorted)
 	for _, k := range sorted {
-		fmt.Fprintf(out, "  %s = %s\n", k, tags[k])
+		_, _ = fmt.Fprintf(out, "  %s = %s\n", k, tags[k])
 	}
 }
 

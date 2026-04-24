@@ -236,7 +236,7 @@ func mcpCreateInstance(ctx context.Context, params *mcpCreateParams, sc *server.
 	if err != nil {
 		return nil, fmt.Errorf("serializing config: %v", err)
 	}
-	if err := os.WriteFile(instancePaths.ConfigFile, data, 0o644); err != nil {
+	if err := os.WriteFile(instancePaths.ConfigFile, data, 0o600); err != nil {
 		return nil, fmt.Errorf("writing instance config: %v", err)
 	}
 

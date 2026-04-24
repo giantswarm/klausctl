@@ -332,7 +332,7 @@ func TestToolchainListWide(t *testing.T) {
 func TestValidateToolchainDirValid(t *testing.T) {
 	dir := t.TempDir()
 
-	if err := os.WriteFile(filepath.Join(dir, "Dockerfile"), []byte("FROM alpine"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "Dockerfile"), []byte("FROM alpine"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -349,7 +349,7 @@ func TestValidateToolchainDirMissingDockerfile(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for missing Dockerfile")
 	}
-	if !strings.Contains(err.Error(), "Dockerfile not found") {
+	if !strings.Contains(err.Error(), "dockerfile not found") {
 		t.Errorf("unexpected error: %v", err)
 	}
 }
@@ -364,7 +364,7 @@ func TestValidateToolchainDirNotADirectory(t *testing.T) {
 
 func TestValidateToolchainDirTextOutput(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "Dockerfile"), []byte("FROM alpine"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "Dockerfile"), []byte("FROM alpine"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -380,7 +380,7 @@ func TestValidateToolchainDirTextOutput(t *testing.T) {
 
 func TestValidateToolchainDirJSONOutput(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "Dockerfile"), []byte("FROM alpine"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "Dockerfile"), []byte("FROM alpine"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 

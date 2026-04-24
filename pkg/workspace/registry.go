@@ -37,7 +37,7 @@ type CachedRepo struct {
 // Load reads a WorkspaceConfig from the given path. If the file does not
 // exist, an empty config is returned without error.
 func Load(path string) (*WorkspaceConfig, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- user-supplied or trusted local path; not exposed to untrusted input
 	if err != nil {
 		if os.IsNotExist(err) {
 			return &WorkspaceConfig{}, nil
@@ -54,14 +54,14 @@ func Load(path string) (*WorkspaceConfig, error) {
 // Save writes a WorkspaceConfig to the given path, creating parent
 // directories as needed.
 func Save(path string, cfg *WorkspaceConfig) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		return fmt.Errorf("creating config directory: %w", err)
 	}
 	data, err := yaml.Marshal(cfg)
 	if err != nil {
 		return fmt.Errorf("marshaling workspace config: %w", err)
 	}
-	if err := os.WriteFile(path, data, 0o644); err != nil {
+	if err := os.WriteFile(path, data, 0o600); err != nil {
 		return fmt.Errorf("writing workspace config: %w", err)
 	}
 	return nil
@@ -110,10 +110,10 @@ func EnsureCached(reposDir, owner, repo string, noFetch bool) (string, error) {
 		// Clone from GitHub with --no-checkout so no working tree files
 		// are created, but the full .git/ with refs/remotes/origin/* exists.
 		url := "https://github.com/" + owner + "/" + repo + ".git"
-		if err := os.MkdirAll(filepath.Dir(cacheDir), 0o755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(cacheDir), 0o750); err != nil {
 			return "", fmt.Errorf("creating cache parent directory: %w", err)
 		}
-		cmd := exec.Command("git", "clone", "--no-checkout", url, cacheDir)
+		cmd := exec.Command("git", "clone", "--no-checkout", url, cacheDir) // #nosec G204 -- container runtime CLI invocation with controlled args
 		if out, err := cmd.CombinedOutput(); err != nil {
 			return "", fmt.Errorf("git clone --no-checkout %s: %s: %w", url, strings.TrimSpace(string(out)), err)
 		}

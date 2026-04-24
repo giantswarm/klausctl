@@ -104,7 +104,7 @@ func PullPlugins(ctx context.Context, client *klausoci.Client, plugins []config.
 		shortName := klausoci.ShortName(klausoci.RepositoryFromRef(resolved))
 		destDir := filepath.Join(pluginsDir, shortName)
 
-		fmt.Fprintf(w, "  Pulling %s...\n", resolved)
+		_, _ = fmt.Fprintf(w, "  Pulling %s...\n", resolved)
 
 		result, err := client.PullPlugin(ctx, resolved, destDir)
 		if err != nil {
@@ -112,9 +112,9 @@ func PullPlugins(ctx context.Context, client *klausoci.Client, plugins []config.
 		}
 
 		if result.Cached {
-			fmt.Fprintf(w, "  %s: up-to-date (%s)\n", shortName, klausoci.TruncateDigest(result.Digest))
+			_, _ = fmt.Fprintf(w, "  %s: up-to-date (%s)\n", shortName, klausoci.TruncateDigest(result.Digest))
 		} else {
-			fmt.Fprintf(w, "  %s: pulled (%s)\n", shortName, klausoci.TruncateDigest(result.Digest))
+			_, _ = fmt.Fprintf(w, "  %s: pulled (%s)\n", shortName, klausoci.TruncateDigest(result.Digest))
 		}
 	}
 
@@ -159,16 +159,16 @@ func ResolvePersonality(ctx context.Context, client *klausoci.Client, ref, perso
 	shortName := klausoci.ShortName(repo)
 	destDir := filepath.Join(personalitiesDir, shortName)
 
-	fmt.Fprintf(w, "  Pulling personality %s...\n", ref)
+	_, _ = fmt.Fprintf(w, "  Pulling personality %s...\n", ref)
 	result, err := client.PullPersonality(ctx, ref, destDir)
 	if err != nil {
 		return nil, fmt.Errorf("pulling personality %s: %w", ref, err)
 	}
 
 	if result.Cached {
-		fmt.Fprintf(w, "  %s: up-to-date (%s)\n", shortName, klausoci.TruncateDigest(result.Digest))
+		_, _ = fmt.Fprintf(w, "  %s: up-to-date (%s)\n", shortName, klausoci.TruncateDigest(result.Digest))
 	} else {
-		fmt.Fprintf(w, "  %s: pulled (%s)\n", shortName, klausoci.TruncateDigest(result.Digest))
+		_, _ = fmt.Fprintf(w, "  %s: pulled (%s)\n", shortName, klausoci.TruncateDigest(result.Digest))
 	}
 
 	return &PersonalityResult{

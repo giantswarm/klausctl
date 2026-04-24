@@ -33,7 +33,7 @@ func probeViaHEAD(ctx context.Context, serverURL string) (*AuthChallenge, error)
 	if err != nil {
 		return nil, fmt.Errorf("probing %s: %w", serverURL, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusUnauthorized {
 		return nil, nil
@@ -60,7 +60,7 @@ func probeViaResourceMetadata(ctx context.Context, serverURL string) (*AuthChall
 	if err != nil {
 		return nil, nil
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, nil

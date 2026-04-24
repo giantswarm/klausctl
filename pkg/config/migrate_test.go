@@ -15,10 +15,10 @@ func TestMigrateLayout(t *testing.T) {
 		PersonalitiesDir: filepath.Join(base, "personalities"),
 	}
 
-	if err := os.WriteFile(filepath.Join(base, "config.yaml"), []byte("workspace: /tmp\nport: 8080\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(base, "config.yaml"), []byte("workspace: /tmp\nport: 8080\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(base, "instance.json"), []byte(`{"name":"default","port":8080}`), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(base, "instance.json"), []byte(`{"name":"default","port":8080}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if err := EnsureDir(filepath.Join(base, "rendered")); err != nil {

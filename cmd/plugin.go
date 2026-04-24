@@ -185,8 +185,8 @@ func validatePluginDir(dir string, out io.Writer, outputFmt string) error {
 		})
 	}
 
-	fmt.Fprintf(out, "Valid plugin directory: %s\n", dir)
-	fmt.Fprintf(out, "  Found: %v\n", found)
+	_, _ = fmt.Fprintf(out, "Valid plugin directory: %s\n", dir)
+	_, _ = fmt.Fprintf(out, "  Found: %v\n", found)
 	return nil
 }
 
@@ -331,35 +331,35 @@ func runPluginDescribe(cmd *cobra.Command, args []string) error {
 
 // printPluginComponents prints the Components section for a described plugin.
 func printPluginComponents(out io.Writer, dp *klausoci.DescribedPlugin) {
-	hasComponents := len(dp.Plugin.Skills) > 0 ||
-		len(dp.Plugin.Commands) > 0 ||
-		len(dp.Plugin.Agents) > 0 ||
-		dp.Plugin.HasHooks ||
-		len(dp.Plugin.MCPServers) > 0 ||
-		len(dp.Plugin.LSPServers) > 0
+	hasComponents := len(dp.Skills) > 0 ||
+		len(dp.Commands) > 0 ||
+		len(dp.Agents) > 0 ||
+		dp.HasHooks ||
+		len(dp.MCPServers) > 0 ||
+		len(dp.LSPServers) > 0
 
 	if !hasComponents {
 		return
 	}
 
-	fmt.Fprintln(out)
-	fmt.Fprintln(out, "Components:")
-	if len(dp.Plugin.Skills) > 0 {
-		fmt.Fprintf(out, "  %-14s %s\n", "Skills:", strings.Join(dp.Plugin.Skills, ", "))
+	_, _ = fmt.Fprintln(out)
+	_, _ = fmt.Fprintln(out, "Components:")
+	if len(dp.Skills) > 0 {
+		_, _ = fmt.Fprintf(out, "  %-14s %s\n", "Skills:", strings.Join(dp.Skills, ", "))
 	}
-	if len(dp.Plugin.Commands) > 0 {
-		fmt.Fprintf(out, "  %-14s %s\n", "Commands:", strings.Join(dp.Plugin.Commands, ", "))
+	if len(dp.Commands) > 0 {
+		_, _ = fmt.Fprintf(out, "  %-14s %s\n", "Commands:", strings.Join(dp.Commands, ", "))
 	}
-	if len(dp.Plugin.Agents) > 0 {
-		fmt.Fprintf(out, "  %-14s %s\n", "Agents:", strings.Join(dp.Plugin.Agents, ", "))
+	if len(dp.Agents) > 0 {
+		_, _ = fmt.Fprintf(out, "  %-14s %s\n", "Agents:", strings.Join(dp.Agents, ", "))
 	}
-	if dp.Plugin.HasHooks {
-		fmt.Fprintf(out, "  %-14s %s\n", "Hooks:", "yes")
+	if dp.HasHooks {
+		_, _ = fmt.Fprintf(out, "  %-14s %s\n", "Hooks:", "yes")
 	}
-	if len(dp.Plugin.MCPServers) > 0 {
-		fmt.Fprintf(out, "  %-14s %s\n", "MCP Servers:", strings.Join(dp.Plugin.MCPServers, ", "))
+	if len(dp.MCPServers) > 0 {
+		_, _ = fmt.Fprintf(out, "  %-14s %s\n", "MCP Servers:", strings.Join(dp.MCPServers, ", "))
 	}
-	if len(dp.Plugin.LSPServers) > 0 {
-		fmt.Fprintf(out, "  %-14s %s\n", "LSP Servers:", strings.Join(dp.Plugin.LSPServers, ", "))
+	if len(dp.LSPServers) > 0 {
+		_, _ = fmt.Fprintf(out, "  %-14s %s\n", "LSP Servers:", strings.Join(dp.LSPServers, ", "))
 	}
 }

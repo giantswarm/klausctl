@@ -45,9 +45,9 @@ func bold(s string) string {
 
 func colorStatus(status string) string {
 	switch status {
-	case "started", "completed", "idle":
+	case "started", "completed", "idle": //nolint:goconst
 		return green(status)
-	case "busy":
+	case "busy": //nolint:goconst
 		return yellow(status)
 	case "error", "failed":
 		return yellow(status)

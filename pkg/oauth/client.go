@@ -118,9 +118,9 @@ func (c *Client) AuthStatus(serverURL string) TokenStatus {
 	}
 
 	if st.IsExpired() {
-		status.Status = "expired"
+		status.Status = "expired" //nolint:goconst
 	} else {
-		status.Status = "valid"
+		status.Status = "valid" //nolint:goconst
 	}
 
 	return status
@@ -163,7 +163,7 @@ func exchangeCode(ctx context.Context, tokenEndpoint, cID, redirectURI, code, ve
 	if err != nil {
 		return nil, fmt.Errorf("requesting token: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {

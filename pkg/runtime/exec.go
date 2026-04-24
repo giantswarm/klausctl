@@ -75,7 +75,7 @@ func (r *execRuntime) Run(ctx context.Context, opts RunOptions) (string, error) 
 	args = append(args, opts.Image)
 
 	var stdout, stderr bytes.Buffer
-	cmd := exec.CommandContext(ctx, r.binary, args...)
+	cmd := exec.CommandContext(ctx, r.binary, args...) // #nosec G204 -- container runtime CLI invocation with controlled args
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
@@ -88,7 +88,7 @@ func (r *execRuntime) Run(ctx context.Context, opts RunOptions) (string, error) 
 
 func (r *execRuntime) Stop(ctx context.Context, name string) error {
 	var stderr bytes.Buffer
-	cmd := exec.CommandContext(ctx, r.binary, "stop", name)
+	cmd := exec.CommandContext(ctx, r.binary, "stop", name) // #nosec G204 -- container runtime CLI invocation with controlled args
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
@@ -99,7 +99,7 @@ func (r *execRuntime) Stop(ctx context.Context, name string) error {
 
 func (r *execRuntime) Remove(ctx context.Context, name string) error {
 	var stderr bytes.Buffer
-	cmd := exec.CommandContext(ctx, r.binary, "rm", "-f", name)
+	cmd := exec.CommandContext(ctx, r.binary, "rm", "-f", name) // #nosec G204 -- container runtime CLI invocation with controlled args
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
@@ -110,7 +110,7 @@ func (r *execRuntime) Remove(ctx context.Context, name string) error {
 
 func (r *execRuntime) Status(ctx context.Context, name string) (string, error) {
 	var stdout, stderr bytes.Buffer
-	cmd := exec.CommandContext(ctx, r.binary, "inspect", "--format", "{{.State.Status}}", name)
+	cmd := exec.CommandContext(ctx, r.binary, "inspect", "--format", "{{.State.Status}}", name) // #nosec G204 -- container runtime CLI invocation with controlled args
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
@@ -126,7 +126,7 @@ func (r *execRuntime) Status(ctx context.Context, name string) (string, error) {
 
 func (r *execRuntime) Inspect(ctx context.Context, name string) (*ContainerInfo, error) {
 	var stdout, stderr bytes.Buffer
-	cmd := exec.CommandContext(ctx, r.binary, "inspect", name)
+	cmd := exec.CommandContext(ctx, r.binary, "inspect", name) // #nosec G204 -- container runtime CLI invocation with controlled args
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
@@ -160,7 +160,7 @@ func (r *execRuntime) Images(ctx context.Context, filter string) ([]ImageInfo, e
 	args = append(args, "--format", "{{json .}}")
 
 	var stdout, stderr bytes.Buffer
-	cmd := exec.CommandContext(ctx, r.binary, args...)
+	cmd := exec.CommandContext(ctx, r.binary, args...) // #nosec G204 -- container runtime CLI invocation with controlled args
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
@@ -205,7 +205,7 @@ func (r *execRuntime) Images(ctx context.Context, filter string) ([]ImageInfo, e
 }
 
 func (r *execRuntime) Pull(ctx context.Context, image string, w io.Writer) error {
-	cmd := exec.CommandContext(ctx, r.binary, "pull", image)
+	cmd := exec.CommandContext(ctx, r.binary, "pull", image) // #nosec G204 -- container runtime CLI invocation with controlled args
 	cmd.Stdout = w
 	cmd.Stderr = w
 
@@ -225,7 +225,7 @@ func (r *execRuntime) Logs(ctx context.Context, name string, follow bool, tail i
 	}
 	args = append(args, name)
 
-	cmd := exec.CommandContext(ctx, r.binary, args...)
+	cmd := exec.CommandContext(ctx, r.binary, args...) // #nosec G204 -- container runtime CLI invocation with controlled args
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
@@ -246,7 +246,7 @@ func (r *execRuntime) LogsCapture(ctx context.Context, name string, tail int) (s
 	args = append(args, name)
 
 	var stdout, stderr bytes.Buffer
-	cmd := exec.CommandContext(ctx, r.binary, args...)
+	cmd := exec.CommandContext(ctx, r.binary, args...) // #nosec G204 -- container runtime CLI invocation with controlled args
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
