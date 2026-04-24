@@ -133,7 +133,7 @@ func loadListEntries(paths *config.Paths) ([]listEntry, error) {
 				status, err := rt.Status(context.Background(), st.ContainerName())
 				if err == nil && status != "" {
 					item.Status = status
-					if status == "running" {
+					if status == "running" { //nolint:goconst
 						if info, err := rt.Inspect(context.Background(), st.ContainerName()); err == nil && !info.StartedAt.IsZero() {
 							item.Uptime = formatDuration(time.Since(info.StartedAt))
 						} else if !st.StartedAt.IsZero() {

@@ -94,7 +94,7 @@ func runCacheInfo(cmd *cobra.Command, _ []string) error {
 }
 
 func writeCacheInfo(w io.Writer, info *ocicache.Info, format string) error {
-	if format == "json" {
+	if format == "json" { //nolint:goconst
 		return writeJSON(w, info)
 	}
 	_, _ = fmt.Fprintf(w, "Cache directory: %s\n", displayDir(info.Dir))

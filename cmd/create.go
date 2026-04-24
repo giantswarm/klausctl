@@ -155,7 +155,7 @@ func handleCLICollision(cmd *cobra.Command, name string, collision instance.Coll
 				return err
 			}
 			answer = strings.ToLower(strings.TrimSpace(answer))
-			if answer != "y" && answer != "yes" {
+			if answer != "y" && answer != "yes" { //nolint:goconst
 				return fmt.Errorf("create cancelled")
 			}
 		}

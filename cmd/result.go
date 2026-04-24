@@ -212,7 +212,7 @@ func renderFullResultOutput(out io.Writer, instanceName string, toolResult *mcp.
 		}
 	} else {
 		// Not valid JSON — treat as plain text result.
-		result.Status = "completed"
+		result.Status = "completed" //nolint:goconst
 		result.ResultText = text
 	}
 

@@ -48,6 +48,12 @@ func (r *execRuntime) Run(ctx context.Context, opts RunOptions) (string, error) 
 	}
 
 	// Port mappings (sorted for deterministic output).
+	// Default to binding on loopback only so containers aren't reachable
+	// from the LAN unless the caller explicitly opts in by setting HostIP.
+	hostIP := opts.HostIP
+	if hostIP == "" {
+		hostIP = "127.0.0.1"
+	}
 	portKeys := make([]int, 0, len(opts.Ports))
 	for k := range opts.Ports {
 		portKeys = append(portKeys, k)
@@ -55,7 +61,7 @@ func (r *execRuntime) Run(ctx context.Context, opts RunOptions) (string, error) 
 	sort.Ints(portKeys)
 	for _, hostPort := range portKeys {
 		containerPort := opts.Ports[hostPort]
-		args = append(args, "-p", fmt.Sprintf("%d:%d", hostPort, containerPort))
+		args = append(args, "-p", fmt.Sprintf("%s:%d:%d", hostIP, hostPort, containerPort))
 	}
 
 	// Extra host mappings.

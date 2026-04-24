@@ -187,7 +187,7 @@ func validatePersonalityDir(dir string, out io.Writer, outputFmt string) error {
 		return err
 	}
 
-	if outputFmt == "json" {
+	if outputFmt == "json" { //nolint:goconst
 		enc := json.NewEncoder(out)
 		enc.SetIndent("", "  ")
 		return enc.Encode(personalityValidation{
