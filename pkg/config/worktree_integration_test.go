@@ -31,6 +31,8 @@ func setupGitWorkspace(t *testing.T) (bare, clone string) {
 	gitRun(t, "", "clone", bare, clone)
 	gitRun(t, clone, "config", "user.email", "test@test.com")
 	gitRun(t, clone, "config", "user.name", "Test")
+	gitRun(t, clone, "config", "commit.gpgsign", "false")
+	gitRun(t, clone, "config", "tag.gpgsign", "false")
 	gitRun(t, clone, "checkout", "-b", "main")
 	if err := os.WriteFile(filepath.Join(clone, "README.md"), []byte("hello"), 0o600); err != nil {
 		t.Fatal(err)

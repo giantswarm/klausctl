@@ -25,7 +25,7 @@ func TestDefaultPaths(t *testing.T) {
 	if got := filepath.Base(paths.InstancesDir); got != "instances" {
 		t.Errorf("InstancesDir base = %q, want %q", got, "instances")
 	}
-	if got := filepath.Base(paths.InstanceDir); got != "default" {
+	if got := filepath.Base(paths.InstanceDir); got != "default" { //nolint:goconst
 		t.Errorf("InstanceDir base = %q, want %q", got, "default")
 	}
 	if !strings.Contains(paths.InstanceFile, filepath.Join("instances", "default")) {

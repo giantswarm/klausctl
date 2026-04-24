@@ -18,6 +18,15 @@ import (
 	"github.com/giantswarm/klausctl/pkg/mcpclient"
 )
 
+// hideContainerRuntimes points PATH at an empty directory so runtime auto
+// detection (which uses exec.LookPath for docker/podman) fails. Use this in
+// tests that assert on the "no runtime available" failure path; otherwise the
+// outcome depends on whether docker/podman happen to be installed on the host.
+func hideContainerRuntimes(t *testing.T) {
+	t.Helper()
+	t.Setenv("PATH", t.TempDir())
+}
+
 func testServerContext(t *testing.T) *server.ServerContext {
 	t.Helper()
 	configHome := filepath.Join(t.TempDir(), "config-home")
@@ -322,6 +331,7 @@ func TestHandleCreateMCPCollisionStoppedWithoutConfirm(t *testing.T) {
 
 func TestHandleCreateMCPCollisionStoppedWithConfirm(t *testing.T) {
 	sc := testServerContext(t)
+	hideContainerRuntimes(t)
 
 	workspace := filepath.Join(t.TempDir(), "ws")
 	if err := os.MkdirAll(workspace, 0o750); err != nil {
@@ -367,6 +377,7 @@ func TestHandleCreateMCPCollisionStoppedWithConfirm(t *testing.T) {
 
 func TestHandleCreateMCPCollisionSuffixAvoidsCollision(t *testing.T) {
 	sc := testServerContext(t)
+	hideContainerRuntimes(t)
 
 	workspace := filepath.Join(t.TempDir(), "ws")
 	if err := os.MkdirAll(workspace, 0o750); err != nil {
