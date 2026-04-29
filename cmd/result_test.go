@@ -208,7 +208,7 @@ func TestRenderResultOutput_Text(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			resultOutput = "text"
+			resultOutput = "text" //nolint:goconst
 			var buf bytes.Buffer
 			err := renderResultOutput(&buf, tt.result)
 			if err != nil {

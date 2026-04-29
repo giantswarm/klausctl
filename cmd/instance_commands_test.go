@@ -85,7 +85,7 @@ func TestListJSONOutputIncludesContractFields(t *testing.T) {
 	}
 
 	entry := entries[0]
-	if entry["name"] != "dev" {
+	if entry["name"] != "dev" { //nolint:goconst
 		t.Fatalf("unexpected name: %v", entry["name"])
 	}
 	if entry["status"] != "stopped" {
