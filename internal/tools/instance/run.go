@@ -127,8 +127,19 @@ func handleRun(ctx context.Context, req mcp.CallToolRequest, sc *server.ServerCo
 		return cleanupOnError(fmt.Errorf("waiting for instance %q to become ready: %v", name, err))
 	}
 
+	// In non-blocking mode the SSE stream must outlive this MCP request
+	// handler. mcp-go cancels `ctx` as soon as we return JSONResult, which
+	// would close the underlying TCP connection before klaus can spawn
+	// claude (klaus binds the claude process to the request context and
+	// kills it on client disconnect). Detaching cancellation lets the
+	// long-lived klausctl serve process drain the SSE to completion.
+	streamCtx := ctx
+	if !blocking {
+		streamCtx = context.WithoutCancel(ctx)
+	}
+
 	// Send the prompt via the chat completions API.
-	compCh, err := agentclient.StreamCompletion(ctx, httpClient, agentclient.CompletionRequest{
+	compCh, err := agentclient.StreamCompletion(streamCtx, httpClient, agentclient.CompletionRequest{
 		URL:    agentURL + "/v1/chat/completions",
 		Prompt: message,
 	})
@@ -182,7 +193,16 @@ func handleRunRemote(ctx context.Context, req mcp.CallToolRequest, sc *server.Se
 	}
 
 	httpClient := &http.Client{}
-	compCh, err := call.streamRemotePrompt(ctx, httpClient, message)
+
+	// See note in handleRun: detach the streaming context from the MCP
+	// request lifetime in non-blocking mode so klaus does not see an
+	// immediate disconnect and abort the agent.
+	streamCtx := ctx
+	if !blocking {
+		streamCtx = context.WithoutCancel(ctx)
+	}
+
+	compCh, err := call.streamRemotePrompt(streamCtx, httpClient, message)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("sending prompt to %q via %s: %v", name, call.Target.BaseURL, err)), nil
 	}

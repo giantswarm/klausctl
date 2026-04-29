@@ -160,6 +160,104 @@ func TestStreamCompletionCancelledContext(t *testing.T) {
 	}
 }
 
+// TestStreamCompletionWithoutCancelDetachesParent guards the klausctl#204
+// fix: callers in non-blocking mode wrap the parent context with
+// context.WithoutCancel so that cancelling the parent (e.g. when the MCP
+// request handler returns) does not abort the streaming HTTP request and
+// thereby cause klaus to kill the freshly-spawned claude process.
+func TestStreamCompletionWithoutCancelDetachesParent(t *testing.T) {
+	handlerStreaming := make(chan struct{})
+	handlerSawCancel := make(chan struct{}, 1)
+	releaseHandler := make(chan struct{})
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		flusher := w.(http.Flusher)
+		flusher.Flush()
+		close(handlerStreaming)
+
+		select {
+		case <-r.Context().Done():
+			handlerSawCancel <- struct{}{}
+			return
+		case <-releaseHandler:
+		}
+		_, _ = fmt.Fprintln(w, chunkLine("hello"))
+		_, _ = fmt.Fprintln(w, "data: [DONE]")
+		flusher.Flush()
+	}))
+	defer srv.Close()
+
+	parent, cancelParent := context.WithCancel(context.Background())
+	streamCtx := context.WithoutCancel(parent)
+
+	ch, err := StreamCompletion(streamCtx, srv.Client(), CompletionRequest{URL: srv.URL + "/v1/chat/completions", Prompt: "test"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Wait until the server has flushed headers and is sitting in its
+	// streaming loop, then cancel the parent context. With the
+	// WithoutCancel wrapper the server must NOT observe cancellation
+	// before we release it.
+	<-handlerStreaming
+	cancelParent()
+
+	select {
+	case <-handlerSawCancel:
+		t.Fatal("server saw context cancellation despite WithoutCancel wrapper")
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	close(releaseHandler)
+
+	contents, streamErr := collectDeltas(t, ch)
+	if streamErr != nil {
+		t.Fatalf("unexpected stream error: %v", streamErr)
+	}
+	if len(contents) != 1 || contents[0] != "hello" {
+		t.Errorf("got %v, want [hello]", contents)
+	}
+}
+
+// TestStreamCompletionDirectParentPropagatesCancel demonstrates the
+// pre-fix behaviour: passing the request context directly causes the
+// server-side handler to observe cancellation when the parent is
+// cancelled. This is the regression that klausctl#204 protects against
+// for non-blocking callers.
+func TestStreamCompletionDirectParentPropagatesCancel(t *testing.T) {
+	handlerStreaming := make(chan struct{})
+	handlerSawCancel := make(chan struct{}, 1)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		w.(http.Flusher).Flush()
+		close(handlerStreaming)
+
+		<-r.Context().Done()
+		handlerSawCancel <- struct{}{}
+	}))
+	defer srv.Close()
+
+	parent, cancelParent := context.WithCancel(context.Background())
+
+	_, err := StreamCompletion(parent, srv.Client(), CompletionRequest{URL: srv.URL + "/v1/chat/completions", Prompt: "test"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	<-handlerStreaming
+	cancelParent()
+
+	select {
+	case <-handlerSawCancel:
+	case <-time.After(time.Second):
+		t.Fatal("server did not observe cancellation propagated from parent")
+	}
+}
+
 func TestStreamCompletionMalformedJSON(t *testing.T) {
 	srv := sseServer(
 		"data: {invalid json}",
