@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `klaus_run` and `klaus_prompt` MCP tools no longer leave the agent stuck at `stopped (1 messages)` in non-blocking mode. The streaming `POST /v1/chat/completions` request is now wrapped with `context.WithoutCancel` so the SSE connection is not torn down when the MCP request handler returns. Without this, mcp-go cancels the per-request context as soon as the handler emits `JSONResult`, klaus sees the client disconnect on `r.Context().Done()`, and SIGTERMs the freshly-started claude process before it produces any output. Affects `handlePrompt`, `handlePromptRemote`, `handleRun`, and `handleRunRemote` in `internal/tools/instance/`. ([#204](https://github.com/giantswarm/klausctl/issues/204))
 - Tests in `pkg/worktree`, `pkg/config`, and `internal/tools/instance` no longer fail on developer machines that have GPG-signed commits enforced globally or that have Docker/Podman installed. Worktree/config helpers explicitly disable `commit.gpgsign`/`tag.gpgsign` in their throwaway repos, and the MCP collision tests stub `PATH` so container-runtime auto-detection cannot pick up a real Docker binary.
 
 ### Changed

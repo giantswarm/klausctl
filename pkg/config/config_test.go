@@ -43,7 +43,7 @@ claude:
 	if cfg.Claude.Model != "sonnet" {
 		t.Errorf("Claude.Model = %q, want %q", cfg.Claude.Model, "sonnet")
 	}
-	if cfg.Claude.PermissionMode != "default" {
+	if cfg.Claude.PermissionMode != "default" { //nolint:goconst
 		t.Errorf("Claude.PermissionMode = %q, want %q", cfg.Claude.PermissionMode, "default")
 	}
 	if cfg.Claude.Effort != "high" {
@@ -77,10 +77,10 @@ func TestLoadAppliesDefaults(t *testing.T) {
 	if cfg.Port != 8080 {
 		t.Errorf("default Port = %d, want %d", cfg.Port, 8080)
 	}
-	if cfg.Claude.PermissionMode != "bypassPermissions" {
+	if cfg.Claude.PermissionMode != "bypassPermissions" { //nolint:goconst
 		t.Errorf("default PermissionMode = %q, want %q", cfg.Claude.PermissionMode, "bypassPermissions")
 	}
-	if cfg.Claude.Mode != "agent" {
+	if cfg.Claude.Mode != "agent" { //nolint:goconst
 		t.Errorf("default Mode = %q, want %q", cfg.Claude.Mode, "agent")
 	}
 	if cfg.Claude.LoadAdditionalDirsMemory == nil || !*cfg.Claude.LoadAdditionalDirsMemory {

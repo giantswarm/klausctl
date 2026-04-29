@@ -100,7 +100,7 @@ func runPrompt(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("instance %q: unable to determine status: %w", instanceName, err)
 	}
-	if status != "running" {
+	if status != "running" { //nolint:goconst
 		return fmt.Errorf("instance %q is not running (status: %s); run 'klausctl start %s' first", instanceName, status, instanceName)
 	}
 
