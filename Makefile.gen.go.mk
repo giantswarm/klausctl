@@ -2,7 +2,7 @@
 #
 #    devctl
 #
-#    https://github.com/giantswarm/devctl/blob/243afc98a2832b4f85f9b1d99b15fcd2af5dff06/pkg/gen/input/makefile/internal/file/Makefile.gen.go.mk.template
+#    https://github.com/giantswarm/devctl/blob/7c787388267260c08429be53b4cd7bb6ecb3d3e7/pkg/gen/input/makefile/internal/file/Makefile.gen.go.mk.template
 #
 
 PACKAGE_DIR    := ./bin-dist
@@ -20,8 +20,9 @@ ifeq ($(OS), linux)
 EXTLDFLAGS := -static
 endif
 LDFLAGS        ?= -w -linkmode 'auto' -extldflags '$(EXTLDFLAGS)' \
-  -X '$(shell go list -m)/pkg/project.buildTimestamp=${BUILDTIMESTAMP}' \
-  -X '$(shell go list -m)/pkg/project.gitSHA=${GITSHA1}'
+  -X '$(MODULE)/pkg/project.version=$(VERSION)' \
+  -X '$(MODULE)/pkg/project.buildTimestamp=$(BUILDTIMESTAMP)' \
+  -X '$(MODULE)/pkg/project.gitSHA=$(GITSHA1)'
 
 .DEFAULT_GOAL := build
 
