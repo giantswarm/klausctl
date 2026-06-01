@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [0.0.98](https://github.com/giantswarm/klausctl/compare/v0.0.97...v0.0.98) (2026-06-01)
+
+
+### Fixed
+
+* **deps:** update module github.com/giantswarm/klaus-oci to v0.0.33 ([#243](https://github.com/giantswarm/klausctl/issues/243)) ([00dc628](https://github.com/giantswarm/klausctl/commit/00dc6282b2529492da257115ae63a1b9746dc1ea))
+* **deps:** update module github.com/giantswarm/klaus-oci to v0.0.35 ([#246](https://github.com/giantswarm/klausctl/issues/246)) ([5a6b96f](https://github.com/giantswarm/klausctl/commit/5a6b96f0e0f3bde3dea9931e96fe859bb53f4148))
+
+
+### Changed
+
+* align files according to platform standards ([#245](https://github.com/giantswarm/klausctl/issues/245)) ([5f88445](https://github.com/giantswarm/klausctl/commit/5f884450d132e9a3a8b516ff111f9ef00808278c))
+* **deps:** update dependency architect to v9 ([#244](https://github.com/giantswarm/klausctl/issues/244)) ([55cfed8](https://github.com/giantswarm/klausctl/commit/55cfed809e29121441ffb9dcca6ecf6a9621b4a8))
+* **main:** release 0.0.97 ([#242](https://github.com/giantswarm/klausctl/issues/242)) ([c7d4df2](https://github.com/giantswarm/klausctl/commit/c7d4df2aa4b5e52ca6ae9228aaa29305000f64b7))
+
 ## [0.0.97](https://github.com/giantswarm/klausctl/compare/v0.0.96...v0.0.97) (2026-06-01)
 
 
