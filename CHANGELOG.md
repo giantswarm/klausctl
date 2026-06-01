@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [0.0.97](https://github.com/giantswarm/klausctl/compare/v0.0.96...v0.0.97) (2026-06-01)
+
+
+### Fixed
+
+* **deps:** update module github.com/giantswarm/klaus-oci to v0.0.33 ([#243](https://github.com/giantswarm/klausctl/issues/243)) ([00dc628](https://github.com/giantswarm/klausctl/commit/00dc6282b2529492da257115ae63a1b9746dc1ea))
+
+
+### Changed
+
+* align files according to platform standards ([#241](https://github.com/giantswarm/klausctl/issues/241)) ([55ccade](https://github.com/giantswarm/klausctl/commit/55ccade8f776570b0c4eedd26b78396d98fecad3))
+* align files according to platform standards ([#245](https://github.com/giantswarm/klausctl/issues/245)) ([5f88445](https://github.com/giantswarm/klausctl/commit/5f884450d132e9a3a8b516ff111f9ef00808278c))
+
 ## [Unreleased]
 
 ### Security
