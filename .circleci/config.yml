@@ -10,6 +10,27 @@ workflows:
           context: architect
           name: go-build
           binary: klausctl
+          # Match what the previous goreleaser setup shipped, minus Windows
+          # (architect's go-build doesn't append .exe). The architect default
+          # is linux-only, which would silently drop Mac binaries from
+          # releases and break every Mac user's install path on next upgrade.
+          architectures: "linux/amd64,linux/arm64,darwin/amd64,darwin/arm64"
           filters:
             tags:
               only: /^v.*/
+
+      # On tag builds, upload the binaries produced by go-build to the
+      # GitHub Release that .github/workflows/auto-release.yaml created when it
+      # pushed the tag. `upload-release-assets` retries for ~1 minute to
+      # absorb any race with the release-creation step.
+      - architect/upload-release-assets:
+          context: architect
+          name: upload-release-assets
+          requires:
+            - go-build
+          binary: klausctl
+          filters:
+            tags:
+              only: /^v.*/
+            branches:
+              ignore: /.*/
