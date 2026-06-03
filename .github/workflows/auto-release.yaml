@@ -57,9 +57,18 @@ jobs:
       - name: Decide whether to tag
         id: decide
         env:
-          NEXT: ${{ steps.cliff.outputs.version }}
+          # The git-cliff-action's `version` output is unreliable for
+          # `--bumped-version`: it parses from a `--context` JSON dump and that
+          # dump doesn't populate the way jq expects for that mode, so the
+          # output ends up empty. The action's `content` output, on the other
+          # hand, captures what git-cliff writes to its output destination
+          # (via the GIT_CLIFF_OUTPUT env var the action sets), which for
+          # `--bumped-version` is just the version string. Trim trailing
+          # whitespace / newline.
+          NEXT_RAW: ${{ steps.cliff.outputs.content }}
         run: |
           set -euo pipefail
+          NEXT=$(echo "$NEXT_RAW" | tr -d '[:space:]')
           # `git describe --tags --abbrev=0` returns the closest tag reachable
           # from HEAD — NOT the highest tag in the repo overall. This matters
           # for backports: on release-2.x, HEAD's reachable history terminates
