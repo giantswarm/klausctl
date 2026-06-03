@@ -1,0 +1,64 @@
+# git-cliff config for the push-based PoC.
+#
+# Two jobs:
+#   1. Decide the next semver from conventional commits (`--bumped-version`,
+#      used by .github/workflows/auto-tag.yaml).
+#   2. Render the release notes posted on the GitHub Release (`--latest`,
+#      also used by auto-tag.yaml after the tag is pushed).
+
+[bump]
+# `feat:` always bumps minor (not patch). Matches conventional-commits spec.
+features_always_bump_minor = true
+# `feat!:`/`BREAKING CHANGE` always bumps major.
+breaking_always_bump_major = true
+
+[git]
+conventional_commits = true
+# Drop non-conventional commits silently rather than counting them as
+# unclassified work — the bump-decider should only act on intent-bearing
+# commits.
+filter_unconventional = true
+# Highest-version tag (not creation date) is the baseline when computing what
+# changed since last release.
+topo_order = false
+sort_commits = "oldest"
+
+# Map commit types to changelog groups. Mirrors the section structure from
+# the old release-please-config.json (Keep-a-Changelog convention): feat →
+# Added, fix → Fixed, all "internal change" types → Changed, security →
+# Security.
+#
+# `style` is the only type marked skip — release-please-config.json didn't
+# include it anywhere either. Bump decision is unaffected by these group
+# names: git-cliff only bumps on feat / fix / breaking regardless.
+commit_parsers = [
+  { message = "^feat",     group = "Added" },
+  { message = "^fix",      group = "Fixed" },
+  { message = "^refactor", group = "Changed" },
+  { message = "^perf",     group = "Changed" },
+  { message = "^docs",     group = "Changed" },
+  { message = "^chore",    group = "Changed" },
+  { message = "^test",     group = "Changed" },
+  { message = "^build",    group = "Changed" },
+  { message = "^ci",       group = "Changed" },
+  { message = "^security", group = "Security" },
+  { message = "^style",    skip = true },
+]
+
+# Template for the rendered release notes. Body is what gets posted to the
+# GitHub Release; header and footer are empty so the release page shows only
+# the section list. Squash-merge PR refs like "(#42)" in commit messages
+# auto-link on the GitHub Release page without us needing to template them.
+[changelog]
+header = ""
+body = """
+{% for group, commits in commits | group_by(attribute="group") %}
+### {{ group }}
+
+{% for commit in commits %}
+- {{ commit.message | split(pat="\n") | first | upper_first }}
+{% endfor %}
+{% endfor %}
+"""
+trim = true
+footer = ""

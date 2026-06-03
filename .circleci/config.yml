@@ -10,6 +10,26 @@ workflows:
           context: architect
           name: go-build
           binary: klausctl
+          # User-facing CLI: ship linux + macOS, both archs. No Windows
+          # (architect's go-build doesn't append .exe; would be confusing on
+          # Windows hosts. Revisit if Windows users surface).
+          architectures: "linux/amd64,linux/arm64,darwin/amd64,darwin/arm64"
           filters:
             tags:
               only: /^v.*/
+
+      # On tag builds, upload the binaries produced by go-build to the
+      # GitHub Release that .github/workflows/auto-tag.yaml created when it
+      # pushed the tag. `upload-release-assets` retries for ~1 minute to
+      # absorb any race with the release-creation step.
+      - architect/upload-release-assets:
+          context: architect
+          name: upload-release-assets
+          requires:
+            - go-build
+          binary: klausctl
+          filters:
+            tags:
+              only: /^v.*/
+            branches:
+              ignore: /.*/
