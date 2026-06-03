@@ -27,7 +27,9 @@ on:
       - 'release-*'   # maintenance branches for backports, e.g. release-2.x
 
 permissions:
-  contents: write   # needed to push tags and create the GitHub Release
+  contents: write       # needed to push tags and create the GitHub Release
+  pull-requests: read   # needed for git-cliff's GitHub API lookups
+                        # (commit.remote.pr_number / username in release notes)
 
 # Scope the concurrency lock per branch so a backport tag on release-2.x
 # doesn't block (or get blocked by) a main release, and vice versa. A second

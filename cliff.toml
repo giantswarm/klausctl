@@ -45,10 +45,28 @@ commit_parsers = [
   { message = "^style",    skip = true },
 ]
 
+# GitHub repo coordinates — required for the API lookups that populate
+# `commit.remote.pr_number` and `commit.remote.username` in the template
+# below. The token is passed automatically by git-cliff-action from the
+# workflow's GITHUB_TOKEN.
+#
+# Note for devctl when templating this file: owner / repo need to come from
+# the consuming repo's identity, not be hard-coded.
+[remote.github]
+owner = "giantswarm"
+repo = "klausctl"
+
 # Template for the rendered release notes. Body is what gets posted to the
 # GitHub Release; header and footer are empty so the release page shows only
-# the section list. Squash-merge PR refs like "(#42)" in commit messages
-# auto-link on the GitHub Release page without us needing to template them.
+# the section list.
+#
+# Each bullet ends with " in [#N](pr-url) by [@user](user-url)" when
+# git-cliff successfully resolves the PR for the commit via the GitHub API.
+# `commit.remote` is the post-2.x replacement for the per-platform fields
+# (commit.github / commit.gitlab / etc.) — using it future-proofs the
+# template against git-cliff dropping the old names.
+# Backslashes at line ends escape the newline so the bullet stays on one
+# line in the rendered Markdown.
 [changelog]
 header = ""
 body = """
@@ -56,7 +74,11 @@ body = """
 ### {{ group }}
 
 {% for commit in commits %}
-- {{ commit.message | split(pat="\n") | first | upper_first }}
+- {% if commit.scope %}*({{ commit.scope }})* {% endif %}\
+{% if commit.breaking %}[**breaking**] {% endif %}\
+{{ commit.message | split(pat="\n") | first | upper_first }}\
+{% if commit.remote.pr_number %} in [#{{ commit.remote.pr_number }}](https://github.com/{{ remote.github.owner }}/{{ remote.github.repo }}/pull/{{ commit.remote.pr_number }}){% endif %}\
+{% if commit.remote.username %} by [@{{ commit.remote.username }}](https://github.com/{{ commit.remote.username }}){% endif %}
 {% endfor %}
 {% endfor %}
 """
