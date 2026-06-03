@@ -23,6 +23,20 @@ filter_unconventional = true
 topo_order = false
 sort_commits = "oldest"
 
+# Strip the trailing " (#N)" that GitHub appends to squash-merge commit
+# messages. Our template renders the PR link explicitly via cliff's GitHub
+# integration (commit.remote.pr_number — see [changelog].body), so the
+# auto-appended reference would duplicate it.
+#
+# `(?m)` enables multi-line mode so `$` matches end-of-line (the squash
+# `(#N)` lives at the end of the subject line, not the end of the full
+# commit text — git-cliff's default regex mode is single-line). This
+# anchoring keeps `(#N)` references that appear inside commit bodies
+# untouched.
+commit_preprocessors = [
+  { pattern = '(?m) \(#\d+\)$', replace = "" },
+]
+
 # Map commit types to changelog groups. Mirrors the section structure from
 # the old release-please-config.json (Keep-a-Changelog convention): feat →
 # Added, fix → Fixed, all "internal change" types → Changed, security →
@@ -46,7 +60,7 @@ commit_parsers = [
 ]
 
 # GitHub repo coordinates — required for the API lookups that populate
-# `commit.remote.pr_number` and `commit.remote.username` in the template
+# `commit.github.pr_number` and `commit.github.username` in the template
 # below. The token is passed automatically by git-cliff-action from the
 # workflow's GITHUB_TOKEN.
 #
@@ -69,18 +83,25 @@ repo = "klausctl"
 # line in the rendered Markdown.
 [changelog]
 header = ""
+# `{%-` / `-%}` strip the surrounding newline so the rendered Markdown is
+# tight: one blank line before each "### " header, no leading blank, no
+# double-blank between header and bullets. Without the whitespace control
+# the output picks up two extra blank lines per loop iteration.
 body = """
-{% for group, commits in commits | group_by(attribute="group") %}
+{% for group, commits in commits | group_by(attribute="group") -%}
 ### {{ group }}
 
-{% for commit in commits %}
+{% for commit in commits -%}
 - {% if commit.scope %}*({{ commit.scope }})* {% endif %}\
 {% if commit.breaking %}[**breaking**] {% endif %}\
 {{ commit.message | split(pat="\n") | first | upper_first }}\
 {% if commit.remote.pr_number %} in [#{{ commit.remote.pr_number }}](https://github.com/{{ remote.github.owner }}/{{ remote.github.repo }}/pull/{{ commit.remote.pr_number }}){% endif %}\
 {% if commit.remote.username %} by [@{{ commit.remote.username }}](https://github.com/{{ commit.remote.username }}){% endif %}
 {% endfor %}
-{% endfor %}
+{% endfor -%}
+{% if previous.version %}
+**Full Changelog**: https://github.com/{{ remote.github.owner }}/{{ remote.github.repo }}/compare/{{ previous.version }}...{{ version }}
+{% endif -%}
 """
 trim = true
 footer = ""
