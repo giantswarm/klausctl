@@ -19,7 +19,7 @@ workflows:
               only: /^v.*/
 
       # On tag builds, upload the binaries produced by go-build to the
-      # GitHub Release that .github/workflows/auto-tag.yaml created when it
+      # GitHub Release that .github/workflows/auto-release.yaml created when it
       # pushed the tag. `upload-release-assets` retries for ~1 minute to
       # absorb any race with the release-creation step.
       - architect/upload-release-assets:

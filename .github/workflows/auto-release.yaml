@@ -18,7 +18,7 @@
 # No release PR. No human approval step. The mechanism that protects against
 # bad releases is the pre-merge CI on the feature PRs that landed these
 # commits — once they're on the branch, they ship.
-name: Auto-tag
+name: Auto-release
 
 on:
   push:
@@ -33,7 +33,7 @@ permissions:
 # doesn't block (or get blocked by) a main release, and vice versa. A second
 # push to the same branch while a tag is being computed still waits.
 concurrency:
-  group: auto-tag-${{ github.ref_name }}
+  group: auto-release-${{ github.ref_name }}
   cancel-in-progress: false
 
 jobs:
