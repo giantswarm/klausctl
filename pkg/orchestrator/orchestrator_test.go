@@ -693,6 +693,27 @@ func TestBuildGitConfig_HTTPSInsteadOfSSH(t *testing.T) {
 	}
 }
 
+func TestBuildGitConfig_SignCommits(t *testing.T) {
+	git := &config.GitConfig{
+		SignCommits: true,
+		SigningKey:  "43F38C03302CCD02D29EC068C8A8E3F23BAB4599",
+	}
+	content := BuildGitConfig(git)
+
+	if !strings.Contains(content, "[user]") {
+		t.Error("expected user section")
+	}
+	if !strings.Contains(content, "signingkey = 43F38C03302CCD02D29EC068C8A8E3F23BAB4599") {
+		t.Error("expected signingkey entry")
+	}
+	if !strings.Contains(content, "[commit]") {
+		t.Error("expected commit section")
+	}
+	if !strings.Contains(content, "gpgsign = true") {
+		t.Error("expected gpgsign entry")
+	}
+}
+
 func TestBuildGitConfig_Both(t *testing.T) {
 	git := &config.GitConfig{
 		CredentialHelper:  "gh",

@@ -38,6 +38,7 @@ type mcpCreateParams struct {
 	gitAuthorEmail string
 	gitCredHelper  string
 	gitHTTPS       bool
+	gpgSign        bool
 	mode           string
 	noIsolate      bool
 	noFetch        bool
@@ -115,6 +116,7 @@ func parseMCPCreateParams(req mcp.CallToolRequest) (*mcpCreateParams, error) {
 		gitAuthorEmail: gitAuthorEmail,
 		gitCredHelper:  req.GetString("gitCredentialHelper", ""),
 		gitHTTPS:       req.GetBool("gitHttpsInsteadOfSsh", false),
+		gpgSign:        req.GetBool("gpgSign", false),
 		mode:           req.GetString("mode", "agent"),
 		noIsolate:      req.GetBool("noIsolate", false),
 		noFetch:        req.GetBool("noFetch", false),
@@ -187,6 +189,7 @@ func mcpCreateInstance(ctx context.Context, params *mcpCreateParams, sc *server.
 		GitAuthorEmail:       params.gitAuthorEmail,
 		GitCredentialHelper:  params.gitCredHelper,
 		GitHTTPSInsteadOfSSH: params.gitHTTPS,
+		GitSignCommits:       params.gpgSign,
 		EnvVars:              params.envVars,
 		EnvForward:           params.envForward,
 		McpServers:           params.mcpServers,

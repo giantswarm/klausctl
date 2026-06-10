@@ -45,6 +45,7 @@ type CreateOptions struct {
 	GitAuthorEmail       string
 	GitCredentialHelper  string
 	GitHTTPSInsteadOfSSH bool
+	GitSignCommits       bool
 
 	// Override fields applied after personality resolution.
 	EnvVars        map[string]string
@@ -200,6 +201,21 @@ func GenerateInstanceConfig(paths *Paths, opts CreateOptions) (*Config, error) {
 
 	applyCreateOverrides(cfg, opts)
 
+	// Default the git identity from the host configuration so the agent
+	// never has to invent one (which used to pollute bind-mounted
+	// workspaces with a bogus local identity). Evaluated from the
+	// workspace directory so per-repository identities win.
+	if cfg.Git.AuthorName == "" && cfg.Git.AuthorEmail == "" {
+		cfg.Git.AuthorName, cfg.Git.AuthorEmail = HostGitIdentity(workDir)
+	}
+	if cfg.Git.SignCommits && cfg.Git.SigningKey == "" {
+		key, err := HostSigningKey(workDir, cfg.Git.AuthorEmail)
+		if err != nil {
+			return nil, err
+		}
+		cfg.Git.SigningKey = key
+	}
+
 	return cfg, cfg.Validate()
 }
 
@@ -257,6 +273,9 @@ func applyCreateOverrides(cfg *Config, opts CreateOptions) {
 	}
 	if opts.GitHTTPSInsteadOfSSH {
 		cfg.Git.HTTPSInsteadOfSSH = true
+	}
+	if opts.GitSignCommits {
+		cfg.Git.SignCommits = true
 	}
 
 	if opts.Mode != "" {

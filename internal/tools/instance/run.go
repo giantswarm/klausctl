@@ -42,6 +42,7 @@ func registerRun(s *mcpserver.MCPServer, sc *server.ServerContext) {
 		mcp.WithString("gitAuthor", mcp.Description("Git author identity as \"Name <email>\"; sets GIT_AUTHOR_NAME/GIT_COMMITTER_NAME and GIT_AUTHOR_EMAIL/GIT_COMMITTER_EMAIL in the container")),
 		mcp.WithString("gitCredentialHelper", mcp.Description("Git credential helper (currently only \"gh\" is supported, which configures git to call \"gh auth git-credential\" for github.com)")),
 		mcp.WithBoolean("gitHttpsInsteadOfSsh", mcp.Description("Rewrite SSH git URLs (git@github.com:...) to HTTPS via container-local gitconfig (default: false)")),
+		mcp.WithBoolean("gpgSign", mcp.Description("Sign agent commits with the host GPG key via a forwarded gpg-agent socket; the private key never enters the container (default: false)")),
 		mcp.WithBoolean("generateSuffix", mcp.Description("Append a random 4-character suffix to the instance name to avoid collisions (default: true)")),
 		mcp.WithBoolean("force", mcp.Description("Allow replacing a running instance; requires confirm: true as well")),
 		mcp.WithBoolean("confirm", mcp.Description("Confirm replacement of an existing instance; required when a name collision is detected")),

@@ -35,6 +35,7 @@ var (
 	createGitAuthor         string
 	createGitCredHelper     string
 	createGitHTTPSInsteadOf bool
+	createGPGSign           bool
 	createYes               bool
 	createForce             bool
 	createGenerateSuffix    bool
@@ -85,6 +86,7 @@ func init() {
 	createCmd.Flags().StringVar(&createGitAuthor, "git-author", "", `git author identity "Name <email>"`)
 	createCmd.Flags().StringVar(&createGitCredHelper, "git-credential-helper", "", "git credential helper (currently only 'gh')")
 	createCmd.Flags().BoolVar(&createGitHTTPSInsteadOf, "git-https-instead-of-ssh", false, "rewrite SSH git URLs to HTTPS via container-local gitconfig")
+	createCmd.Flags().BoolVar(&createGPGSign, "gpg-sign", false, "sign agent commits with the host GPG key via a forwarded gpg-agent socket")
 	createCmd.Flags().BoolVarP(&createYes, "yes", "y", false, "auto-confirm replacement of existing instances")
 	createCmd.Flags().BoolVar(&createForce, "force", false, "allow replacing a running instance (prompts for confirmation unless -y is also set)")
 	createCmd.Flags().BoolVar(&createGenerateSuffix, "generate-suffix", true, "append a random 4-character suffix to the instance name (use --no-generate-suffix to disable)")
@@ -121,6 +123,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		GitAuthor:       createGitAuthor,
 		GitCredHelper:   createGitCredHelper,
 		GitHTTPSInstead: createGitHTTPSInsteadOf,
+		GPGSign:         createGPGSign,
 		Yes:             createYes,
 		Force:           createForce,
 		GenerateSuffix:  createGenerateSuffix,
