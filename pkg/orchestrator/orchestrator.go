@@ -282,6 +282,12 @@ func BuildVolumes(cfg *config.Config, paths *config.Paths, env map[string]string
 		vols = append(vols, *gitconfigVol)
 	}
 
+	gpgVols, err := buildGPGVolumes(cfg, paths, env)
+	if err != nil {
+		return nil, err
+	}
+	vols = append(vols, gpgVols...)
+
 	secretVols, err := resolveSecretFiles(cfg, paths)
 	if err != nil {
 		return nil, err
@@ -335,10 +341,10 @@ func setGitEnvVars(env map[string]string, git *config.GitConfig) {
 }
 
 // BuildGitConfig generates a container-local gitconfig file content for
-// credential helper and/or URL rewriting. Returns empty string if no
-// gitconfig is needed.
+// credential helper, URL rewriting, and/or commit signing. Returns empty
+// string if no gitconfig is needed.
 func BuildGitConfig(git *config.GitConfig) string {
-	if !git.HTTPSInsteadOfSSH && git.CredentialHelper == "" {
+	if !git.HTTPSInsteadOfSSH && git.CredentialHelper == "" && !git.SignCommits {
 		return ""
 	}
 
@@ -355,6 +361,13 @@ func BuildGitConfig(git *config.GitConfig) string {
 		b.WriteString("[url \"https://github.com/\"]\n")
 		b.WriteString("\tinsteadOf = git@github.com:\n")
 		b.WriteString("\tinsteadOf = ssh://git@github.com/\n")
+	}
+
+	if git.SignCommits {
+		b.WriteString("[user]\n")
+		b.WriteString("\tsigningkey = " + git.SigningKey + "\n")
+		b.WriteString("[commit]\n")
+		b.WriteString("\tgpgsign = true\n")
 	}
 
 	return b.String()

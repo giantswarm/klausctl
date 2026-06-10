@@ -41,6 +41,7 @@ type CLICreateParams struct {
 	GitAuthor       string
 	GitCredHelper   string
 	GitHTTPSInstead bool
+	GPGSign         bool
 	Yes             bool
 	Force           bool
 	GenerateSuffix  bool
@@ -150,6 +151,7 @@ func cliCreateInstance(ctx context.Context, cmd *cobra.Command, params CLICreate
 		GitAuthorEmail:       gitEmail,
 		GitCredentialHelper:  params.GitCredHelper,
 		GitHTTPSInsteadOfSSH: params.GitHTTPSInstead,
+		GitSignCommits:       params.GPGSign,
 		EnvVars:              envVars,
 		EnvForward:           params.EnvForward,
 		SecretEnvVars:        secretEnvVars,

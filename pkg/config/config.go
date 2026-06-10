@@ -215,6 +215,15 @@ type GitConfig struct {
 	// (git@github.com:...) are rewritten to HTTPS without modifying
 	// the workspace .git/config.
 	HTTPSInsteadOfSSH bool `yaml:"httpsInsteadOfSsh,omitempty"`
+	// SignCommits enables GPG-signed commits inside the container. The
+	// host gpg-agent's restricted ("extra") socket is forwarded into the
+	// container and a GNUPGHOME containing only the public key is
+	// prepared, so the private key never leaves the host.
+	SignCommits bool `yaml:"signCommits,omitempty"`
+	// SigningKey is the GPG key id or fingerprint used when SignCommits
+	// is enabled. Resolved at create time from the host git config
+	// (user.signingkey) or the secret key matching AuthorEmail when empty.
+	SigningKey string `yaml:"signingKey,omitempty"`
 }
 
 // validCredentialHelpers lists valid credential helper values.

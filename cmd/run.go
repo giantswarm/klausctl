@@ -37,6 +37,7 @@ var (
 	runGitAuthor         string
 	runGitCredHelper     string
 	runGitHTTPSInsteadOf bool
+	runGPGSign           bool
 	runYes               bool
 	runForce             bool
 	runGenerateSuffix    bool
@@ -92,6 +93,7 @@ func init() {
 	runCmd.Flags().StringVar(&runGitAuthor, "git-author", "", `git author identity "Name <email>"`)
 	runCmd.Flags().StringVar(&runGitCredHelper, "git-credential-helper", "", "git credential helper (currently only 'gh')")
 	runCmd.Flags().BoolVar(&runGitHTTPSInsteadOf, "git-https-instead-of-ssh", false, "rewrite SSH git URLs to HTTPS via container-local gitconfig")
+	runCmd.Flags().BoolVar(&runGPGSign, "gpg-sign", false, "sign agent commits with the host GPG key via a forwarded gpg-agent socket")
 	runCmd.Flags().BoolVarP(&runYes, "yes", "y", false, "auto-confirm replacement of existing instances")
 	runCmd.Flags().BoolVar(&runForce, "force", false, "allow replacing a running instance (prompts for confirmation unless -y is also set)")
 	runCmd.Flags().BoolVar(&runGenerateSuffix, "generate-suffix", true, "append a random 4-character suffix to the instance name (use --no-generate-suffix to disable)")
@@ -144,6 +146,7 @@ func runRun(cmd *cobra.Command, args []string) error {
 		GitAuthor:       runGitAuthor,
 		GitCredHelper:   runGitCredHelper,
 		GitHTTPSInstead: runGitHTTPSInsteadOf,
+		GPGSign:         runGPGSign,
 		Yes:             runYes,
 		Force:           runForce,
 		GenerateSuffix:  runGenerateSuffix,
