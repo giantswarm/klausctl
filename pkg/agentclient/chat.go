@@ -5,11 +5,21 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
 )
+
+// finishReasonError is the OpenAI-compatible finish_reason emitted by klaus
+// when an agent run terminates in an error state.
+const finishReasonError = "error"
+
+// ErrAgentRunFailed is set on the final CompletionDelta when the agent run
+// ended in error (finish_reason "error"). Blocking callers return it so the
+// process exits non-zero, preventing silent success on a failed run.
+var ErrAgentRunFailed = errors.New("agent run ended in error")
 
 // CompletionDelta is a single streaming delta from the completions endpoint.
 // When the channel is closed the stream has ended. If the stream was
@@ -114,13 +124,25 @@ func StreamCompletion(ctx context.Context, client *http.Client, req CompletionRe
 					Delta struct {
 						Content string `json:"content"`
 					} `json:"delta"`
+					FinishReason *string `json:"finish_reason"`
 				} `json:"choices"`
 			}
 			if err := json.Unmarshal([]byte(payload), &chunk); err != nil {
 				continue
 			}
-			if len(chunk.Choices) > 0 && chunk.Choices[0].Delta.Content != "" {
-				ch <- CompletionDelta{Content: chunk.Choices[0].Delta.Content}
+			if len(chunk.Choices) > 0 {
+				if content := chunk.Choices[0].Delta.Content; content != "" {
+					ch <- CompletionDelta{Content: content}
+				}
+				// A terminal finish_reason of "error" means the agent run
+				// failed (e.g. the model was unavailable and the underlying
+				// subprocess exited non-zero). Surface it as a delta error so
+				// blocking callers exit non-zero instead of reporting success
+				// for a run that produced nothing.
+				if fr := chunk.Choices[0].FinishReason; fr != nil && *fr == finishReasonError {
+					ch <- CompletionDelta{Err: ErrAgentRunFailed}
+					return
+				}
 			}
 		}
 

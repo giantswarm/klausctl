@@ -173,9 +173,18 @@ func handleRun(ctx context.Context, req mcp.CallToolRequest, sc *server.ServerCo
 		return mcp.NewToolResultError(fmt.Sprintf("fetching result from %q: %v", name, err)), nil
 	}
 
+	// Reflect the agent's real terminal status instead of assuming success.
+	// A run can finish in "error" (e.g. the model was unavailable and the
+	// subprocess exited non-zero); reporting "completed" for it makes callers
+	// treat a run that produced nothing as a success.
+	status := mcpclient.ParseStatusField(resultResp)
+	if status == "" {
+		status = "completed"
+	}
+
 	return server.JSONResult(runResult{
 		Instance:  name,
-		Status:    "completed",
+		Status:    status,
 		Container: createRes.Container,
 		Image:     createRes.Image,
 		Workspace: createRes.Workspace,

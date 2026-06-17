@@ -83,6 +83,56 @@ func TestStreamCompletionBasic(t *testing.T) {
 	}
 }
 
+func TestStreamCompletionFinishReasonError(t *testing.T) {
+	// klaus signals a failed agent run (e.g. model unavailable) by ending the
+	// stream with finish_reason "error". The client must surface this as
+	// ErrAgentRunFailed so blocking callers exit non-zero rather than report
+	// success for a run that produced nothing. Regression guard for the
+	// memory-keeper silent-failure incident.
+	srv := sseServer(
+		chunkLine("Claude Fable 5 is currently unavailable."),
+		`data: {"choices":[{"delta":{},"finish_reason":"error"}]}`,
+		"data: [DONE]",
+	)
+	defer srv.Close()
+
+	ch, err := StreamCompletion(context.Background(), srv.Client(), CompletionRequest{URL: srv.URL + "/v1/chat/completions", Prompt: "test"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	contents, streamErr := collectDeltas(t, ch)
+	if !errors.Is(streamErr, ErrAgentRunFailed) {
+		t.Fatalf("expected ErrAgentRunFailed, got %v", streamErr)
+	}
+	// Content that arrived before the error must still be delivered.
+	if got := strings.Join(contents, ""); got != "Claude Fable 5 is currently unavailable." {
+		t.Errorf("expected pre-error content delivered, got %q", got)
+	}
+}
+
+func TestStreamCompletionFinishReasonStopNoError(t *testing.T) {
+	// A normal finish_reason "stop" must not produce an error.
+	srv := sseServer(
+		chunkLine("done"),
+		`data: {"choices":[{"delta":{},"finish_reason":"stop"}]}`,
+		"data: [DONE]",
+	)
+	defer srv.Close()
+
+	ch, err := StreamCompletion(context.Background(), srv.Client(), CompletionRequest{URL: srv.URL + "/v1/chat/completions", Prompt: "test"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	contents, streamErr := collectDeltas(t, ch)
+	if streamErr != nil {
+		t.Fatalf("unexpected stream error: %v", streamErr)
+	}
+	if len(contents) != 1 || contents[0] != "done" {
+		t.Errorf("got %v, want [done]", contents)
+	}
+}
+
 func TestStreamCompletionEmptyContent(t *testing.T) {
 	srv := sseServer(
 		`data: {"choices":[{"delta":{"content":""}}]}`,
