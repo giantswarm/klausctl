@@ -6,7 +6,7 @@ toolchain go1.26.5
 
 require (
 	github.com/creativeprojects/go-selfupdate v1.6.0
-	github.com/giantswarm/klaus-oci v0.0.62
+	github.com/giantswarm/klaus-oci v0.0.63
 	github.com/google/uuid v1.6.0
 	github.com/mark3labs/mcp-go v0.56.0
 	github.com/spf13/cobra v1.10.2
@@ -40,5 +40,5 @@ require (
 	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/text v0.38.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
-	oras.land/oras-go/v2 v2.6.1 // indirect
+	oras.land/oras-go/v2 v2.6.2 // indirect
 )
