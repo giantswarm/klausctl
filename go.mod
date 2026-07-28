@@ -42,3 +42,5 @@ require (
 	golang.org/x/time v0.15.0 // indirect
 	oras.land/oras-go/v2 v2.6.2 // indirect
 )
+
+replace golang.org/x/text v0.38.0 => golang.org/x/text v0.40.0
