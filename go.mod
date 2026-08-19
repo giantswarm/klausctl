@@ -2,7 +2,7 @@ module github.com/giantswarm/klausctl
 
 go 1.25.12
 
-toolchain go1.26.6
+toolchain go1.27.0
 
 require (
 	github.com/creativeprojects/go-selfupdate v1.6.0
