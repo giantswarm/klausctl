@@ -19,6 +19,12 @@ import (
 	"github.com/giantswarm/klausctl/pkg/runtime"
 )
 
+// roleSystem is the message role emitted for system messages.
+const roleSystem = "system"
+
+// msgSubtypeInit marks the session-init system message.
+const msgSubtypeInit = "init"
+
 var (
 	messagesFollow bool
 	messagesOutput string
@@ -45,7 +51,7 @@ Examples:
 
 func init() {
 	messagesCmd.Flags().BoolVarP(&messagesFollow, "follow", "f", false, "follow new messages in real time")
-	messagesCmd.Flags().StringVarP(&messagesOutput, "output", "o", "text", "output format: text, json")
+	messagesCmd.Flags().StringVarP(&messagesOutput, "output", "o", outputText, "output format: text, json")
 
 	messagesCmd.Flags().StringVar(&messagesRemote, remoteFlagName("remote"), "", remoteFlagDesc("remote"))
 	messagesCmd.Flags().StringVar(&messagesSession, remoteFlagName("session"), "", remoteFlagDesc("session"))
@@ -120,7 +126,7 @@ func runMessages(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("instance %q: unable to determine status: %w", instanceName, err)
 	}
-	if status != "running" { //nolint:goconst
+	if status != statusRunning {
 		return fmt.Errorf("instance %q is not running (status: %s); run 'klausctl start %s' first", instanceName, status, instanceName)
 	}
 
@@ -225,7 +231,7 @@ func renderMessages(out io.Writer, instanceName string, toolResult *mcp.CallTool
 		Metadata: parsed.Metadata,
 	}
 
-	if messagesOutput == "json" {
+	if messagesOutput == outputJSON {
 		enc := json.NewEncoder(out)
 		enc.SetIndent("", "  ")
 		return enc.Encode(result)
@@ -317,11 +323,11 @@ func convertRawMessage(data json.RawMessage) (agentMessage, bool) {
 	}
 
 	switch item.Type {
-	case "system":
-		if item.Subtype == "init" || item.Subtype == "hook_started" || item.Subtype == "hook_response" {
+	case roleSystem:
+		if item.Subtype == msgSubtypeInit || item.Subtype == "hook_started" || item.Subtype == "hook_response" {
 			return agentMessage{}, false
 		}
-		return agentMessage{Role: "system", Content: extractInnerText(item.Message)}, true
+		return agentMessage{Role: roleSystem, Content: extractInnerText(item.Message)}, true
 
 	case "assistant":
 		text := extractInnerText(item.Message)
@@ -339,7 +345,7 @@ func convertRawMessage(data json.RawMessage) (agentMessage, bool) {
 
 	case "result":
 		if item.Result != "" {
-			return agentMessage{Role: "system", Content: item.Result}, true
+			return agentMessage{Role: roleSystem, Content: item.Result}, true
 		}
 		return agentMessage{}, false
 
@@ -375,14 +381,14 @@ func extractInnerText(data json.RawMessage) string {
 	var parts []string
 	for _, b := range blocks {
 		switch b.Type {
-		case "text": //nolint:goconst
+		case outputText:
 			if b.Text != "" {
 				parts = append(parts, b.Text)
 			}
 		case "tool_use":
 			name := b.Name
 			if name == "" {
-				name = "unknown"
+				name = unknownValue
 			}
 			label := fmt.Sprintf("[tool_use: %s]", name)
 			if b.Text != "" {

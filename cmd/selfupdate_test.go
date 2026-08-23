@@ -15,8 +15,8 @@ func TestRunSelfUpdateRejectsDevVersion(t *testing.T) {
 		name    string
 		version string
 	}{
-		{"dev", "dev"},
-		{"empty", ""},
+		{versionDev, versionDev},
+		{testCaseEmpty, ""},
 	}
 
 	for _, tc := range tests {

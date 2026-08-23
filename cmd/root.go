@@ -7,6 +7,19 @@ import (
 	"github.com/giantswarm/klausctl/pkg/ocicache"
 )
 
+// Cobra Use strings shared by several command groups.
+const (
+	useList              = "list"
+	useInit              = "init"
+	useStatus            = "status"
+	useDescribeReference = "describe <reference>"
+	usePullReference     = "pull <reference>"
+	useValidateDirectory = "validate <directory>"
+)
+
+// unknownValue is the placeholder for values that cannot be determined.
+const unknownValue = "unknown"
+
 // applyCacheFlags propagates the global --cache-dir / --no-cache flag state
 // into the ocicache package. Registered with cobra.OnInitialize so it fires
 // on every Execute() regardless of whether a subcommand defines its own
@@ -18,7 +31,7 @@ func applyCacheFlags() {
 var (
 	buildVersion = "dev"
 	buildCommit  = "none"
-	buildDate    = "unknown"
+	buildDate    = unknownValue
 
 	// cfgFile is the optional path to the config file (overrides default).
 	cfgFile string

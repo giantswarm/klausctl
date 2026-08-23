@@ -10,6 +10,18 @@ import (
 	"github.com/giantswarm/klausctl/pkg/config"
 )
 
+// Shared renderer test fixtures.
+const (
+	testWorkspaceRoot    = "/tmp"
+	testWorkspaceDir     = "/tmp/ws"
+	testModelSonnet      = "sonnet"
+	testModelOpus        = "opus"
+	testAgentReviewer    = "reviewer"
+	testModeChat         = "chat"
+	testEffortHigh       = "high"
+	testPermissionBypass = "bypassPermissions"
+)
+
 func TestBuildContainerConfig_FixedContainerValues(t *testing.T) {
 	cfg := &config.Config{
 		Workspace: "/home/user/project",
@@ -30,22 +42,22 @@ func TestBuildContainerConfig_FixedContainerValues(t *testing.T) {
 
 func TestBuildContainerConfig_ClaudeSettings(t *testing.T) {
 	cfg := &config.Config{
-		Workspace: "/tmp/ws",
+		Workspace: testWorkspaceDir,
 		Port:      8080,
 		Claude: config.ClaudeConfig{
-			Model:              "opus",
+			Model:              testModelOpus,
 			SystemPrompt:       "You are helpful.",
 			AppendSystemPrompt: "Be concise.",
-			PermissionMode:     "bypassPermissions",
-			Effort:             "high",
-			FallbackModel:      "sonnet",
+			PermissionMode:     testPermissionBypass,
+			Effort:             testEffortHigh,
+			FallbackModel:      testModelSonnet,
 			MaxTurns:           50,
 			MaxBudgetUSD:       10.0,
 			StrictMcpConfig:    true,
 			McpTimeout:         30000,
 			MaxMcpOutputTokens: 8192,
-			ActiveAgent:        "reviewer",
-			Mode:               "chat",
+			ActiveAgent:        testAgentReviewer,
+			Mode:               testModeChat,
 			Tools:              []string{"read", "write"},
 			AllowedTools:       []string{"mcp__*"},
 			DisallowedTools:    []string{"bash"},
@@ -54,13 +66,13 @@ func TestBuildContainerConfig_ClaudeSettings(t *testing.T) {
 
 	cc := BuildContainerConfig(cfg)
 
-	if cc.Claude.Model != "opus" {
+	if cc.Claude.Model != testModelOpus {
 		t.Errorf("Claude.Model = %q, want opus", cc.Claude.Model)
 	}
 	if cc.Claude.SystemPrompt != "You are helpful." {
 		t.Errorf("Claude.SystemPrompt = %q", cc.Claude.SystemPrompt)
 	}
-	if cc.Claude.PermissionMode != "bypassPermissions" {
+	if cc.Claude.PermissionMode != testPermissionBypass {
 		t.Errorf("Claude.PermissionMode = %q", cc.Claude.PermissionMode)
 	}
 	if cc.Claude.MaxTurns != 50 {
@@ -75,17 +87,17 @@ func TestBuildContainerConfig_ClaudeSettings(t *testing.T) {
 	if len(cc.Claude.Tools) != 2 {
 		t.Errorf("Claude.Tools length = %d, want 2", len(cc.Claude.Tools))
 	}
-	if cc.Claude.Mode != "chat" {
+	if cc.Claude.Mode != testModeChat {
 		t.Errorf("Claude.Mode = %q, want chat", cc.Claude.Mode)
 	}
 }
 
 func TestBuildContainerConfig_ExcludesHostFields(t *testing.T) {
 	cfg := &config.Config{
-		Workspace: "/tmp/ws",
+		Workspace: testWorkspaceDir,
 		Port:      8080,
 		Claude: config.ClaudeConfig{
-			Model:        "sonnet",
+			Model:        testModelSonnet,
 			SettingsFile: "/host/path/settings.json",
 			AddDirs:      []string{"/host/extra"},
 			PluginDirs:   []string{"/host/plugins"},
@@ -122,7 +134,7 @@ func TestBuildContainerConfig_ExcludesHostFields(t *testing.T) {
 	}
 
 	// Container-relevant fields should still be present.
-	if cc.Claude.Model != "sonnet" {
+	if cc.Claude.Model != testModelSonnet {
 		t.Errorf("Claude.Model = %q, want sonnet", cc.Claude.Model)
 	}
 	if cc.Git.AuthorName != "Test" {
@@ -145,7 +157,7 @@ func stringContains(s, substr string) bool {
 
 func TestBuildContainerConfig_GitSettings(t *testing.T) {
 	cfg := &config.Config{
-		Workspace: "/tmp/ws",
+		Workspace: testWorkspaceDir,
 		Port:      8080,
 		Git: config.GitConfig{
 			AuthorName:  "Klaus Agent",
@@ -165,13 +177,13 @@ func TestBuildContainerConfig_GitSettings(t *testing.T) {
 
 func TestBuildContainerConfig_Agents(t *testing.T) {
 	cfg := &config.Config{
-		Workspace: "/tmp/ws",
+		Workspace: testWorkspaceDir,
 		Port:      8080,
 		Agents: map[string]config.AgentConfig{
-			"reviewer": {
+			testAgentReviewer: {
 				Description: "Code reviewer",
 				Prompt:      "Review this code.",
-				Model:       "sonnet",
+				Model:       testModelSonnet,
 			},
 		},
 	}
@@ -181,14 +193,14 @@ func TestBuildContainerConfig_Agents(t *testing.T) {
 	if len(cc.Agents) != 1 {
 		t.Fatalf("Agents length = %d, want 1", len(cc.Agents))
 	}
-	if cc.Agents["reviewer"].Description != "Code reviewer" {
-		t.Errorf("Agents[reviewer].Description = %q", cc.Agents["reviewer"].Description)
+	if cc.Agents[testAgentReviewer].Description != "Code reviewer" {
+		t.Errorf("Agents[reviewer].Description = %q", cc.Agents[testAgentReviewer].Description)
 	}
 }
 
 func TestBuildContainerConfig_NoAgentsWhenEmpty(t *testing.T) {
 	cfg := &config.Config{
-		Workspace: "/tmp/ws",
+		Workspace: testWorkspaceDir,
 		Port:      8080,
 	}
 
@@ -207,8 +219,8 @@ func TestRenderContainerConfig(t *testing.T) {
 		Workspace: "/home/user/project",
 		Port:      9090,
 		Claude: config.ClaudeConfig{
-			Model:          "sonnet",
-			PermissionMode: "bypassPermissions",
+			Model:          testModelSonnet,
+			PermissionMode: testPermissionBypass,
 			MaxTurns:       25,
 		},
 		Git: config.GitConfig{
@@ -241,7 +253,7 @@ func TestRenderContainerConfig(t *testing.T) {
 	if cc.Port != 8080 {
 		t.Errorf("Port = %d, want 8080", cc.Port)
 	}
-	if cc.Claude.Model != "sonnet" {
+	if cc.Claude.Model != testModelSonnet {
 		t.Errorf("Claude.Model = %q, want sonnet", cc.Claude.Model)
 	}
 	if cc.Claude.MaxTurns != 25 {
@@ -263,13 +275,13 @@ func TestRenderContainerConfig(t *testing.T) {
 
 func TestRenderContainerConfig_MarshalRoundTrip(t *testing.T) {
 	cfg := &config.Config{
-		Workspace: "/tmp",
+		Workspace: testWorkspaceRoot,
 		Port:      8080,
 		Claude: config.ClaudeConfig{
-			Model:                  "opus",
-			Effort:                 "high",
+			Model:                  testModelOpus,
+			Effort:                 testEffortHigh,
 			IncludePartialMessages: true,
-			Mode:                   "chat",
+			Mode:                   testModeChat,
 			JsonSchema:             `{"type":"object"}`,
 		},
 		Agents: map[string]config.AgentConfig{
@@ -292,16 +304,16 @@ func TestRenderContainerConfig_MarshalRoundTrip(t *testing.T) {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 
-	if roundTripped.Claude.Model != "opus" {
+	if roundTripped.Claude.Model != testModelOpus {
 		t.Errorf("Model = %q after round-trip", roundTripped.Claude.Model)
 	}
-	if roundTripped.Claude.Effort != "high" {
+	if roundTripped.Claude.Effort != testEffortHigh {
 		t.Errorf("Effort = %q after round-trip", roundTripped.Claude.Effort)
 	}
 	if !roundTripped.Claude.IncludePartialMessages {
 		t.Error("IncludePartialMessages should be true after round-trip")
 	}
-	if roundTripped.Claude.Mode != "chat" {
+	if roundTripped.Claude.Mode != testModeChat {
 		t.Errorf("Mode = %q after round-trip, want chat", roundTripped.Claude.Mode)
 	}
 	if len(roundTripped.Agents) != 1 {

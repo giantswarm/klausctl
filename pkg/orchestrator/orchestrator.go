@@ -21,6 +21,22 @@ import (
 	"github.com/giantswarm/klausctl/pkg/secret"
 )
 
+// Paths inside the klaus container where klausctl mounts or points the
+// generated artifacts.
+const (
+	containerWorkspaceDir  = "/workspace"
+	containerConfigPath    = "/etc/klaus/config.yaml"
+	containerMCPConfigPath = "/etc/klaus/mcp-config.json"
+	containerSourcesPath   = "/etc/klaus/sources.yaml"
+	containerGitConfigPath = "/etc/klaus/gitconfig"
+)
+
+// mcpTypeHTTP is the MCP server type written into the generated MCP config.
+const mcpTypeHTTP = "http"
+
+// envValueTrue is the truthy value for boolean-ish environment variables.
+const envValueTrue = "true"
+
 // BuildRunOptions constructs the container runtime options from config.
 // This mirrors the Helm deployment.yaml template, producing the same
 // env vars and volume mounts. personalityDir is the local path to the
@@ -148,7 +164,7 @@ func setClaudeEnvVars(env map[string]string, claude *config.ClaudeConfig) {
 		env["CLAUDE_MAX_BUDGET_USD"] = fmt.Sprintf("%.2f", claude.MaxBudgetUSD)
 	}
 	if claude.StrictMcpConfig {
-		env["CLAUDE_STRICT_MCP_CONFIG"] = "true" //nolint:goconst
+		env["CLAUDE_STRICT_MCP_CONFIG"] = envValueTrue
 	}
 	if claude.McpTimeout > 0 {
 		env["MCP_TIMEOUT"] = fmt.Sprintf("%d", claude.McpTimeout)
@@ -157,7 +173,7 @@ func setClaudeEnvVars(env map[string]string, claude *config.ClaudeConfig) {
 		env["MAX_MCP_OUTPUT_TOKENS"] = fmt.Sprintf("%d", claude.MaxMcpOutputTokens)
 	}
 	if claude.IncludePartialMessages {
-		env["CLAUDE_INCLUDE_PARTIAL_MESSAGES"] = "true"
+		env["CLAUDE_INCLUDE_PARTIAL_MESSAGES"] = envValueTrue
 	}
 	setEnvIfNotEmpty(env, "CLAUDE_JSON_SCHEMA", claude.JsonSchema)
 	setEnvIfNotEmpty(env, "CLAUDE_SETTING_SOURCES", claude.SettingSources)
@@ -189,28 +205,28 @@ func BuildVolumes(cfg *config.Config, paths *config.Paths, env map[string]string
 	}
 	vols = append(vols, runtime.Volume{
 		HostPath:      mountPath,
-		ContainerPath: "/workspace",
+		ContainerPath: containerWorkspaceDir,
 	})
-	env["CLAUDE_WORKSPACE"] = "/workspace" //nolint:goconst
+	env["CLAUDE_WORKSPACE"] = containerWorkspaceDir
 
 	// Mount the rendered container config YAML. The container reads this
 	// instead of relying on 30+ individual environment variables.
 	configPath := filepath.Join(paths.RenderedDir, "config.yaml")
 	vols = append(vols, runtime.Volume{
 		HostPath:      configPath,
-		ContainerPath: "/etc/klaus/config.yaml",
+		ContainerPath: containerConfigPath,
 		ReadOnly:      true,
 	})
-	env["KLAUS_CONFIG_FILE"] = "/etc/klaus/config.yaml" //nolint:goconst
+	env["KLAUS_CONFIG_FILE"] = containerConfigPath
 
 	if len(cfg.McpServers) > 0 {
 		mcpConfigPath := filepath.Join(paths.RenderedDir, "mcp-config.json")
 		vols = append(vols, runtime.Volume{
 			HostPath:      mcpConfigPath,
-			ContainerPath: "/etc/klaus/mcp-config.json",
+			ContainerPath: containerMCPConfigPath,
 			ReadOnly:      true,
 		})
-		env["CLAUDE_MCP_CONFIG"] = "/etc/klaus/mcp-config.json" //nolint:goconst
+		env["CLAUDE_MCP_CONFIG"] = containerMCPConfigPath
 	}
 
 	if len(cfg.Hooks) > 0 {
@@ -246,7 +262,7 @@ func BuildVolumes(cfg *config.Config, paths *config.Paths, env map[string]string
 	if len(addDirs) > 0 {
 		env["CLAUDE_ADD_DIRS"] = strings.Join(addDirs, ",")
 		if cfg.Claude.LoadAdditionalDirsMemory == nil || *cfg.Claude.LoadAdditionalDirsMemory {
-			env["CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD"] = "true"
+			env["CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD"] = envValueTrue
 		}
 	}
 
@@ -303,11 +319,11 @@ func BuildVolumes(cfg *config.Config, paths *config.Paths, env map[string]string
 	} else {
 		vols = append(vols, runtime.Volume{
 			HostPath:      paths.SourcesFile,
-			ContainerPath: "/etc/klaus/sources.yaml",
+			ContainerPath: containerSourcesPath,
 			ReadOnly:      true,
 		})
 		// Set the container-internal path, overriding any host value from envForward.
-		env["KLAUSCTL_SOURCES_FILE"] = "/etc/klaus/sources.yaml" //nolint:goconst
+		env["KLAUSCTL_SOURCES_FILE"] = containerSourcesPath
 	}
 
 	return vols, nil
@@ -398,10 +414,10 @@ func buildGitConfigVolume(cfg *config.Config, paths *config.Paths, env map[strin
 		return nil, fmt.Errorf("writing gitconfig: %w", err)
 	}
 
-	env["GIT_CONFIG_GLOBAL"] = "/etc/klaus/gitconfig" //nolint:goconst
+	env["GIT_CONFIG_GLOBAL"] = containerGitConfigPath
 	return &runtime.Volume{
 		HostPath:      hostPath,
-		ContainerPath: "/etc/klaus/gitconfig",
+		ContainerPath: containerGitConfigPath,
 		ReadOnly:      true,
 	}, nil
 }
@@ -429,7 +445,7 @@ func ResolveSecretRefs(cfg *config.Config, paths *config.Paths) error {
 
 		entry := map[string]any{
 			"url":  def.URL,
-			"type": "http",
+			"type": mcpTypeHTTP,
 		}
 
 		if def.Secret != "" {

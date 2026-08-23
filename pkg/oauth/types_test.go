@@ -7,7 +7,7 @@ import (
 
 func TestStoredToken_IsExpired_NoExpiry(t *testing.T) {
 	st := &StoredToken{
-		Token:     Token{AccessToken: "test"},
+		Token:     Token{AccessToken: testAccessToken},
 		CreatedAt: time.Now().Add(-24 * time.Hour),
 	}
 	if st.IsExpired() {
@@ -17,7 +17,7 @@ func TestStoredToken_IsExpired_NoExpiry(t *testing.T) {
 
 func TestStoredToken_IsExpired_NegativeExpiresIn(t *testing.T) {
 	st := &StoredToken{
-		Token:     Token{AccessToken: "test", ExpiresIn: -1},
+		Token:     Token{AccessToken: testAccessToken, ExpiresIn: -1},
 		CreatedAt: time.Now(),
 	}
 	if st.IsExpired() {
@@ -27,7 +27,7 @@ func TestStoredToken_IsExpired_NegativeExpiresIn(t *testing.T) {
 
 func TestStoredToken_IsExpired_Fresh(t *testing.T) {
 	st := &StoredToken{
-		Token:     Token{AccessToken: "test", ExpiresIn: 3600},
+		Token:     Token{AccessToken: testAccessToken, ExpiresIn: 3600},
 		CreatedAt: time.Now(),
 	}
 	if st.IsExpired() {
@@ -37,7 +37,7 @@ func TestStoredToken_IsExpired_Fresh(t *testing.T) {
 
 func TestStoredToken_IsExpired_Expired(t *testing.T) {
 	st := &StoredToken{
-		Token:     Token{AccessToken: "test", ExpiresIn: 3600},
+		Token:     Token{AccessToken: testAccessToken, ExpiresIn: 3600},
 		CreatedAt: time.Now().Add(-2 * time.Hour),
 	}
 	if !st.IsExpired() {
@@ -47,7 +47,7 @@ func TestStoredToken_IsExpired_Expired(t *testing.T) {
 
 func TestStoredToken_IsExpired_Boundary(t *testing.T) {
 	st := &StoredToken{
-		Token:     Token{AccessToken: "test", ExpiresIn: 60},
+		Token:     Token{AccessToken: testAccessToken, ExpiresIn: 60},
 		CreatedAt: time.Now().Add(-61 * time.Second),
 	}
 	if !st.IsExpired() {

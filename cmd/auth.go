@@ -46,7 +46,7 @@ var authLogoutCmd = &cobra.Command{
 }
 
 var authStatusCmd = &cobra.Command{
-	Use:   "status",
+	Use:   useStatus,
 	Short: "Show authentication status for remote klaus-gateway endpoints",
 	Args:  cobra.NoArgs,
 	RunE:  runAuthStatus,

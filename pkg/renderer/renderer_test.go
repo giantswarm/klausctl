@@ -10,6 +10,12 @@ import (
 	"github.com/giantswarm/klausctl/pkg/config"
 )
 
+// Fixtures local to renderer_test.go.
+const (
+	testMCPURL       = "https://example.com/mcp"
+	testPwnedContent = "pwned\n"
+)
+
 func testPaths(t *testing.T) *config.Paths {
 	t.Helper()
 	dir := t.TempDir()
@@ -25,7 +31,7 @@ func TestRenderSkills(t *testing.T) {
 	r := New(paths)
 
 	cfg := &config.Config{
-		Workspace: "/tmp",
+		Workspace: testWorkspaceRoot,
 		Port:      8080,
 		Skills: map[string]config.Skill{
 			"test-skill": {
@@ -67,7 +73,7 @@ func TestRenderSkillFrontmatter(t *testing.T) {
 		DisableModelInvocation: true,
 		UserInvocable:          true,
 		AllowedTools:           "Bash",
-		Model:                  "sonnet",
+		Model:                  testModelSonnet,
 	}
 
 	content, err := renderSkillContent(skill)
@@ -103,10 +109,10 @@ func TestRenderAgentFiles(t *testing.T) {
 	r := New(paths)
 
 	cfg := &config.Config{
-		Workspace: "/tmp",
+		Workspace: testWorkspaceRoot,
 		Port:      8080,
 		AgentFiles: map[string]config.AgentFile{
-			"reviewer": {Content: "You are a code reviewer.\n"},
+			testAgentReviewer: {Content: "You are a code reviewer.\n"},
 		},
 	}
 
@@ -130,12 +136,12 @@ func TestRenderMCPConfig(t *testing.T) {
 	r := New(paths)
 
 	cfg := &config.Config{
-		Workspace: "/tmp",
+		Workspace: testWorkspaceRoot,
 		Port:      8080,
 		McpServers: map[string]any{
 			"github": map[string]any{
-				"type": "http",
-				"url":  "https://example.com/mcp",
+				"type":      "http",
+				mcpFieldURL: testMCPURL,
 			},
 		},
 	}
@@ -175,11 +181,11 @@ func TestRenderMCPConfigInfersHTTPType(t *testing.T) {
 	r := New(paths)
 
 	cfg := &config.Config{
-		Workspace: "/tmp",
+		Workspace: testWorkspaceRoot,
 		Port:      8080,
 		McpServers: map[string]any{
 			"muster": map[string]any{
-				"url": "https://example.com/mcp",
+				mcpFieldURL: testMCPURL,
 				"headers": map[string]any{
 					"Authorization": "Bearer tok",
 				},
@@ -214,7 +220,7 @@ func TestRenderMCPConfigInfersHTTPType(t *testing.T) {
 	if muster["type"] != "http" {
 		t.Errorf("expected type=http for URL-based server, got %v", muster["type"])
 	}
-	if muster["url"] != "https://example.com/mcp" {
+	if muster[mcpFieldURL] != testMCPURL {
 		t.Error("url should be preserved")
 	}
 }
@@ -224,7 +230,7 @@ func TestRenderMCPConfigInfersStdioType(t *testing.T) {
 	r := New(paths)
 
 	cfg := &config.Config{
-		Workspace: "/tmp",
+		Workspace: testWorkspaceRoot,
 		Port:      8080,
 		McpServers: map[string]any{
 			"local": map[string]any{
@@ -268,12 +274,12 @@ func TestRenderMCPConfigPreservesExplicitType(t *testing.T) {
 	r := New(paths)
 
 	cfg := &config.Config{
-		Workspace: "/tmp",
+		Workspace: testWorkspaceRoot,
 		Port:      8080,
 		McpServers: map[string]any{
 			"custom": map[string]any{
-				"type": "sse",
-				"url":  "https://example.com/events",
+				"type":      "sse",
+				mcpFieldURL: "https://example.com/events",
 			},
 		},
 	}
@@ -312,7 +318,7 @@ func TestRenderSettings(t *testing.T) {
 	r := New(paths)
 
 	cfg := &config.Config{
-		Workspace: "/tmp",
+		Workspace: testWorkspaceRoot,
 		Port:      8080,
 		Hooks: map[string][]config.HookMatcher{
 			"PreToolUse": {
@@ -360,7 +366,7 @@ func TestRenderHookScripts(t *testing.T) {
 	r := New(paths)
 
 	cfg := &config.Config{
-		Workspace: "/tmp",
+		Workspace: testWorkspaceRoot,
 		Port:      8080,
 		HookScripts: map[string]string{
 			"check.sh": "#!/bin/bash\nexit 0\n",
@@ -389,7 +395,7 @@ func TestRenderCleansPreviousOutput(t *testing.T) {
 
 	// First render creates a file.
 	cfg := &config.Config{
-		Workspace: "/tmp",
+		Workspace: testWorkspaceRoot,
 		Port:      8080,
 		Skills: map[string]config.Skill{
 			"old-skill": {Content: "old\n"},
@@ -433,25 +439,25 @@ func TestRenderRejectsPathTraversal(t *testing.T) {
 		{
 			name: "skill with path separator",
 			cfg: &config.Config{
-				Workspace: "/tmp", Port: 8080,
+				Workspace: testWorkspaceRoot, Port: 8080,
 				Skills: map[string]config.Skill{
-					"../../evil": {Content: "pwned\n"},
+					"../../evil": {Content: testPwnedContent},
 				},
 			},
 		},
 		{
 			name: "agent with path separator",
 			cfg: &config.Config{
-				Workspace: "/tmp", Port: 8080,
+				Workspace: testWorkspaceRoot, Port: 8080,
 				AgentFiles: map[string]config.AgentFile{
-					"../evil": {Content: "pwned\n"},
+					"../evil": {Content: testPwnedContent},
 				},
 			},
 		},
 		{
 			name: "hook script with path separator",
 			cfg: &config.Config{
-				Workspace: "/tmp", Port: 8080,
+				Workspace: testWorkspaceRoot, Port: 8080,
 				HookScripts: map[string]string{
 					"../../evil.sh": "#!/bin/bash\necho pwned\n",
 				},
@@ -460,9 +466,9 @@ func TestRenderRejectsPathTraversal(t *testing.T) {
 		{
 			name: "skill named dotdot",
 			cfg: &config.Config{
-				Workspace: "/tmp", Port: 8080,
+				Workspace: testWorkspaceRoot, Port: 8080,
 				Skills: map[string]config.Skill{
-					"..": {Content: "pwned\n"},
+					"..": {Content: testPwnedContent},
 				},
 			},
 		},

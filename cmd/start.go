@@ -118,7 +118,7 @@ func startInstance(cmd *cobra.Command, instanceName, workspaceOverride, configPa
 	inst, err := instance.Load(paths)
 	if err == nil && inst.Name != "" {
 		status, sErr := rt.Status(ctx, inst.ContainerName())
-		if sErr == nil && status == "running" { //nolint:goconst
+		if sErr == nil && status == statusRunning {
 			return fmt.Errorf(
 				"instance %q is already running (container: %s, MCP: http://localhost:%d)\nUse 'klausctl stop %s' to stop it first",
 				inst.Name, inst.ContainerName(), inst.Port,

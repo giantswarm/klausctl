@@ -46,7 +46,7 @@ Examples:
 func init() {
 	promptCmd.Flags().StringVarP(&promptMessage, "message", "m", "", "prompt message to send to the agent (required)")
 	promptCmd.Flags().BoolVar(&promptBlocking, "blocking", false, "wait for the agent to complete and return the result")
-	promptCmd.Flags().StringVarP(&promptOutput, "output", "o", "text", "output format: text, json")
+	promptCmd.Flags().StringVarP(&promptOutput, "output", "o", outputText, "output format: text, json")
 
 	promptCmd.Flags().StringVar(&promptRemote, remoteFlagName("remote"), "", remoteFlagDesc("remote"))
 	promptCmd.Flags().StringVar(&promptSession, remoteFlagName("session"), "", remoteFlagDesc("session"))
@@ -100,7 +100,7 @@ func runPrompt(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("instance %q: unable to determine status: %w", instanceName, err)
 	}
-	if status != "running" { //nolint:goconst
+	if status != statusRunning {
 		return fmt.Errorf("instance %q is not running (status: %s); run 'klausctl start %s' first", instanceName, status, instanceName)
 	}
 
@@ -135,7 +135,7 @@ func runPromptBlocking(ctx context.Context, out io.Writer, httpClient *http.Clie
 
 	return renderPromptResult(out, promptCLIResult{
 		Instance: instanceName,
-		Status:   "completed",
+		Status:   statusCompleted,
 	})
 }
 
@@ -156,7 +156,7 @@ func runPromptNonBlocking(ctx context.Context, out io.Writer, httpClient *http.C
 
 	result := promptCLIResult{
 		Instance: instanceName,
-		Status:   "started",
+		Status:   statusStarted,
 	}
 	return renderPromptResult(out, result)
 }
@@ -182,7 +182,7 @@ func runPromptRemote(ctx context.Context, out io.Writer, paths *config.Paths, in
 		}()
 		return renderPromptResult(out, promptCLIResult{
 			Instance: instanceName,
-			Status:   "started",
+			Status:   statusStarted,
 		})
 	}
 
@@ -196,12 +196,12 @@ func runPromptRemote(ctx context.Context, out io.Writer, paths *config.Paths, in
 
 	return renderPromptResult(out, promptCLIResult{
 		Instance: instanceName,
-		Status:   "completed",
+		Status:   statusCompleted,
 	})
 }
 
 func renderPromptResult(out io.Writer, result promptCLIResult) error {
-	if promptOutput == "json" {
+	if promptOutput == outputJSON {
 		enc := json.NewEncoder(out)
 		enc.SetIndent("", "  ")
 		return enc.Encode(result)

@@ -15,10 +15,10 @@ import (
 )
 
 func TestValidateOutputFormat(t *testing.T) {
-	if err := validateOutputFormat("text"); err != nil {
+	if err := validateOutputFormat(outputText); err != nil {
 		t.Errorf("expected text to be valid, got: %v", err)
 	}
-	if err := validateOutputFormat("json"); err != nil {
+	if err := validateOutputFormat(outputJSON); err != nil {
 		t.Errorf("expected json to be valid, got: %v", err)
 	}
 	if err := validateOutputFormat("yaml"); err == nil {
@@ -32,13 +32,13 @@ func TestValidateOutputFormat(t *testing.T) {
 func TestListLocalArtifacts(t *testing.T) {
 	dir := t.TempDir()
 
-	pluginDir := filepath.Join(dir, "gs-base")
+	pluginDir := filepath.Join(dir, testPluginGSBase)
 	if err := os.MkdirAll(pluginDir, 0o750); err != nil {
 		t.Fatal(err)
 	}
 	if err := klausoci.WriteCacheEntry(pluginDir, klausoci.CacheEntry{
 		Digest: "sha256:abc123",
-		Ref:    "gsoci.azurecr.io/giantswarm/klaus-plugins/gs-base:v0.6.0",
+		Ref:    testPluginRefGS,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -52,8 +52,8 @@ func TestListLocalArtifacts(t *testing.T) {
 		t.Fatalf("expected 1 artifact, got %d", len(artifacts))
 	}
 
-	if artifacts[0].Name != "gs-base" { //nolint:goconst
-		t.Errorf("Name = %q, want %q", artifacts[0].Name, "gs-base")
+	if artifacts[0].Name != testPluginGSBase {
+		t.Errorf("Name = %q, want %q", artifacts[0].Name, testPluginGSBase)
 	}
 	if artifacts[0].Digest != "sha256:abc123" {
 		t.Errorf("Digest = %q, want %q", artifacts[0].Digest, "sha256:abc123")
@@ -85,7 +85,7 @@ func TestListLocalArtifactsMissingDir(t *testing.T) {
 func TestListLocalArtifactsSkipsNonDirs(t *testing.T) {
 	dir := t.TempDir()
 
-	if err := os.WriteFile(filepath.Join(dir, "not-a-dir.txt"), []byte("hello"), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "not-a-dir.txt"), []byte(testHello), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -118,14 +118,14 @@ func TestPrintLocalArtifactsText(t *testing.T) {
 	var buf bytes.Buffer
 	artifacts := []cachedArtifact{
 		{
-			Name:     "gs-base",
-			Ref:      "gsoci.azurecr.io/giantswarm/klaus-plugins/gs-base:v0.6.0",
+			Name:     testPluginGSBase,
+			Ref:      testPluginRefGS,
 			Digest:   "sha256:abcdef1234567890",
 			PulledAt: time.Now().Add(-2 * time.Hour),
 		},
 	}
 
-	if err := printLocalArtifacts(&buf, artifacts, "text"); err != nil {
+	if err := printLocalArtifacts(&buf, artifacts, outputText); err != nil {
 		t.Fatalf("printLocalArtifacts() error = %v", err)
 	}
 
@@ -133,7 +133,7 @@ func TestPrintLocalArtifactsText(t *testing.T) {
 	if !strings.Contains(output, "NAME") {
 		t.Error("expected header with NAME column")
 	}
-	if !strings.Contains(output, "gs-base") {
+	if !strings.Contains(output, testPluginGSBase) {
 		t.Error("expected output to contain artifact name")
 	}
 	if !strings.Contains(output, "DIGEST") {
@@ -145,14 +145,14 @@ func TestPrintLocalArtifactsJSON(t *testing.T) {
 	var buf bytes.Buffer
 	artifacts := []cachedArtifact{
 		{
-			Name:     "gs-base",
+			Name:     testPluginGSBase,
 			Ref:      "example.com/plugin:v1",
-			Digest:   "sha256:abc",
+			Digest:   testDigestABC,
 			PulledAt: time.Now(),
 		},
 	}
 
-	if err := printLocalArtifacts(&buf, artifacts, "json"); err != nil {
+	if err := printLocalArtifacts(&buf, artifacts, outputJSON); err != nil {
 		t.Fatalf("printLocalArtifacts() error = %v", err)
 	}
 
@@ -168,7 +168,7 @@ func TestPrintLocalArtifactsJSON(t *testing.T) {
 func TestPrintEmptyJSON(t *testing.T) {
 	var buf bytes.Buffer
 
-	if err := printEmpty(&buf, "json", "hint line 1", "hint line 2"); err != nil {
+	if err := printEmpty(&buf, outputJSON, "hint line 1", "hint line 2"); err != nil {
 		t.Fatalf("printEmpty() error = %v", err)
 	}
 
@@ -181,7 +181,7 @@ func TestPrintEmptyJSON(t *testing.T) {
 func TestPrintEmptyText(t *testing.T) {
 	var buf bytes.Buffer
 
-	if err := printEmpty(&buf, "text", "No items found.", "Try pulling first."); err != nil {
+	if err := printEmpty(&buf, outputText, "No items found.", "Try pulling first."); err != nil {
 		t.Fatalf("printEmpty() error = %v", err)
 	}
 
@@ -200,13 +200,13 @@ func TestPushArtifactText(t *testing.T) {
 		return "sha256:deadbeef12345678", nil //nolint:goconst
 	}
 
-	err := pushArtifact(context.Background(), "/tmp/src", "example.com/plugins/gs-base:v1.0.0", fakePush, &buf, "text", pushOpts{})
+	err := pushArtifact(context.Background(), "/tmp/src", "example.com/plugins/gs-base:v1.0.0", fakePush, &buf, outputText, pushOpts{})
 	if err != nil {
 		t.Fatalf("pushArtifact() error = %v", err)
 	}
 
 	output := buf.String()
-	if !strings.Contains(output, "gs-base") {
+	if !strings.Contains(output, testPluginGSBase) {
 		t.Error("expected output to contain short name")
 	}
 	if !strings.Contains(output, "pushed") {
@@ -223,7 +223,7 @@ func TestPushArtifactJSON(t *testing.T) {
 		return "sha256:deadbeef12345678", nil
 	}
 
-	err := pushArtifact(context.Background(), "/tmp/src", "example.com/plugins/gs-base:v1.0.0", fakePush, &buf, "json", pushOpts{})
+	err := pushArtifact(context.Background(), "/tmp/src", "example.com/plugins/gs-base:v1.0.0", fakePush, &buf, outputJSON, pushOpts{})
 	if err != nil {
 		t.Fatalf("pushArtifact() error = %v", err)
 	}
@@ -232,8 +232,8 @@ func TestPushArtifactJSON(t *testing.T) {
 	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
 		t.Fatalf("JSON parse error: %v", err)
 	}
-	if result.Name != "gs-base" {
-		t.Errorf("Name = %q, want %q", result.Name, "gs-base")
+	if result.Name != testPluginGSBase {
+		t.Errorf("Name = %q, want %q", result.Name, testPluginGSBase)
 	}
 	if result.Ref != "example.com/plugins/gs-base:v1.0.0" {
 		t.Errorf("Ref = %q, want full ref", result.Ref)
@@ -249,7 +249,7 @@ func TestPushArtifactError(t *testing.T) {
 		return "", fmt.Errorf("registry unavailable")
 	}
 
-	err := pushArtifact(context.Background(), "/tmp/src", "example.com/plugins/gs-base:v1.0.0", fakePush, &buf, "text", pushOpts{})
+	err := pushArtifact(context.Background(), "/tmp/src", "example.com/plugins/gs-base:v1.0.0", fakePush, &buf, outputText, pushOpts{})
 	if err == nil {
 		t.Fatal("expected error from push")
 	}
@@ -266,7 +266,7 @@ func TestPushArtifactDryRunText(t *testing.T) {
 		return "sha256:deadbeef12345678", nil
 	}
 
-	err := pushArtifact(context.Background(), "/tmp/src", "example.com/plugins/gs-base:v1.0.0", fakePush, &buf, "text", pushOpts{dryRun: true})
+	err := pushArtifact(context.Background(), "/tmp/src", "example.com/plugins/gs-base:v1.0.0", fakePush, &buf, outputText, pushOpts{dryRun: true})
 	if err != nil {
 		t.Fatalf("pushArtifact() error = %v", err)
 	}
@@ -278,7 +278,7 @@ func TestPushArtifactDryRunText(t *testing.T) {
 	if !strings.Contains(output, "dry run") {
 		t.Error("expected output to mention dry run")
 	}
-	if !strings.Contains(output, "gs-base") {
+	if !strings.Contains(output, testPluginGSBase) {
 		t.Error("expected output to contain short name")
 	}
 }
@@ -290,7 +290,7 @@ func TestPushArtifactDryRunJSON(t *testing.T) {
 		return "", nil
 	}
 
-	err := pushArtifact(context.Background(), "/tmp/src", "example.com/plugins/gs-base:v1.0.0", fakePush, &buf, "json", pushOpts{dryRun: true})
+	err := pushArtifact(context.Background(), "/tmp/src", "example.com/plugins/gs-base:v1.0.0", fakePush, &buf, outputJSON, pushOpts{dryRun: true})
 	if err != nil {
 		t.Fatalf("pushArtifact() error = %v", err)
 	}
@@ -315,7 +315,7 @@ func TestValidatePushRef(t *testing.T) {
 		{ref: "example.com/plugins/gs-base:v1.0.0", wantErr: false},
 		{ref: "gs-base:v1.0.0", wantErr: false},
 		{ref: "example.com/plugins/gs-base", wantErr: true},
-		{ref: "gs-base", wantErr: true},
+		{ref: testPluginGSBase, wantErr: true},
 		{ref: "localhost:5000/plugins/gs-base", wantErr: true},
 		{ref: "localhost:5000/plugins/gs-base:v1.0.0", wantErr: false},
 		{ref: "registry.example.com:5000/repo", wantErr: true},
@@ -336,16 +336,16 @@ func TestShortNameFromRef(t *testing.T) {
 		want string
 	}{
 		{
-			ref:  "gsoci.azurecr.io/giantswarm/klaus-plugins/gs-base:v0.6.0",
-			want: "gs-base",
+			ref:  testPluginRefGS,
+			want: testPluginGSBase,
 		},
 		{
 			ref:  "gsoci.azurecr.io/giantswarm/klaus-plugins/gs-base@sha256:abc123",
-			want: "gs-base",
+			want: testPluginGSBase,
 		},
 		{
 			ref:  "gsoci.azurecr.io/giantswarm/klaus-plugins/gs-base",
-			want: "gs-base",
+			want: testPluginGSBase,
 		},
 		{
 			ref:  "example.com/plugin:v1",
@@ -376,21 +376,21 @@ func TestLatestSemverTag(t *testing.T) {
 		},
 		{
 			name: "single version",
-			tags: []string{"v1.0.0"},
-			want: "v1.0.0",
+			tags: []string{testVersionV100},
+			want: testVersionV100,
 		},
 		{
 			name: "mixed valid and invalid",
-			tags: []string{"latest", "v0.0.6", "main", "v0.0.7"},
+			tags: []string{testTagLatest, "v0.0.6", "main", "v0.0.7"},
 			want: "v0.0.7",
 		},
 		{
 			name: "no valid semver",
-			tags: []string{"latest", "main", "dev"},
+			tags: []string{testTagLatest, "main", testInstanceDev},
 			want: "",
 		},
 		{
-			name: "empty",
+			name: testCaseEmpty,
 			tags: nil,
 			want: "",
 		},
@@ -415,7 +415,7 @@ func TestPrintRemoteArtifactsText(t *testing.T) {
 	var buf bytes.Buffer
 	entries := []remoteArtifactEntry{
 		{
-			Name: "gs-base", Ref: "example.com/plugins/gs-base:v0.0.7",
+			Name: testPluginGSBase, Ref: testPluginRefExample,
 			PulledAt: time.Now().Add(-2 * time.Hour),
 		},
 		{
@@ -423,7 +423,7 @@ func TestPrintRemoteArtifactsText(t *testing.T) {
 		},
 	}
 
-	if err := printRemoteArtifacts(&buf, entries, "text"); err != nil {
+	if err := printRemoteArtifacts(&buf, entries, outputText); err != nil {
 		t.Fatalf("printRemoteArtifacts() error = %v", err)
 	}
 
@@ -433,7 +433,7 @@ func TestPrintRemoteArtifactsText(t *testing.T) {
 			t.Errorf("expected header with %s column", col)
 		}
 	}
-	if !strings.Contains(output, "gs-base") {
+	if !strings.Contains(output, testPluginGSBase) {
 		t.Error("expected output to contain gs-base")
 	}
 	if !strings.Contains(output, "h ago") {
@@ -448,11 +448,11 @@ func TestPrintRemoteArtifactsJSON(t *testing.T) {
 	var buf bytes.Buffer
 	entries := []remoteArtifactEntry{
 		{
-			Name: "gs-base", Ref: "example.com/plugins/gs-base:v0.0.7",
+			Name: testPluginGSBase, Ref: testPluginRefExample,
 		},
 	}
 
-	if err := printRemoteArtifacts(&buf, entries, "json"); err != nil {
+	if err := printRemoteArtifacts(&buf, entries, outputJSON); err != nil {
 		t.Fatalf("printRemoteArtifacts() error = %v", err)
 	}
 
@@ -463,7 +463,7 @@ func TestPrintRemoteArtifactsJSON(t *testing.T) {
 	if len(result) != 1 {
 		t.Fatalf("expected 1 entry in JSON, got %d", len(result))
 	}
-	if result[0].Ref != "example.com/plugins/gs-base:v0.0.7" {
+	if result[0].Ref != testPluginRefExample {
 		t.Errorf("ref = %q, want full ref", result[0].Ref)
 	}
 }
@@ -471,8 +471,8 @@ func TestPrintRemoteArtifactsJSON(t *testing.T) {
 func TestPrintArtifactMetaFull(t *testing.T) {
 	var buf bytes.Buffer
 	printArtifactMeta(&buf, artifactMeta{
-		Name:        "gs-base",
-		Version:     "v0.1.0",
+		Name:        testPluginGSBase,
+		Version:     testVersion010,
 		Description: "Base plugin for Giant Swarm",
 		Author:      "Giant Swarm <support@giantswarm.io>",
 		Homepage:    "https://giantswarm.io",
@@ -539,41 +539,41 @@ func TestFormatAuthor(t *testing.T) {
 
 func TestMetaFromPlugin(t *testing.T) {
 	dp := &klausoci.DescribedPlugin{
-		ArtifactInfo: klausoci.ArtifactInfo{Digest: "sha256:abc"},
+		ArtifactInfo: klausoci.ArtifactInfo{Digest: testDigestABC},
 		Plugin: klausoci.Plugin{
-			Name:        "gs-base",
-			Version:     "v0.1.0",
+			Name:        testPluginGSBase,
+			Version:     testVersion010,
 			Description: "desc",
 			Author:      &klausoci.Author{Name: "GS", Email: "e@gs.io"},
 			License:     "MIT",
 		},
 	}
 	m := metaFromPlugin(dp)
-	if m.Name != "gs-base" {
+	if m.Name != testPluginGSBase {
 		t.Errorf("Name = %q", m.Name)
 	}
 	if m.Author != "GS <e@gs.io>" {
 		t.Errorf("Author = %q", m.Author)
 	}
-	if m.Digest != "sha256:abc" {
+	if m.Digest != testDigestABC {
 		t.Errorf("Digest = %q", m.Digest)
 	}
 }
 
 func TestMetaFromPersonality(t *testing.T) {
 	dp := &klausoci.DescribedPersonality{
-		ArtifactInfo: klausoci.ArtifactInfo{Digest: "sha256:def"},
+		ArtifactInfo: klausoci.ArtifactInfo{Digest: testDigestDef},
 		Personality: klausoci.Personality{
-			Name:    "sre",
-			Version: "v0.2.0",
+			Name:    testPersonalitySRE,
+			Version: testVersion020,
 			Author:  &klausoci.Author{Name: "GS"},
 		},
 	}
 	m := metaFromPersonality(dp)
-	if m.Name != "sre" {
+	if m.Name != testPersonalitySRE {
 		t.Errorf("Name = %q", m.Name)
 	}
-	if m.Version != "v0.2.0" {
+	if m.Version != testVersion020 {
 		t.Errorf("Version = %q", m.Version)
 	}
 }
@@ -583,34 +583,34 @@ func TestMetaFromToolchain(t *testing.T) {
 		ArtifactInfo: klausoci.ArtifactInfo{Digest: "sha256:789"},
 		Toolchain: klausoci.Toolchain{
 			Name:    "go",
-			Version: "v1.0.0",
+			Version: testVersionV100,
 		},
 	}
 	m := metaFromToolchain(dt)
 	if m.Name != "go" {
 		t.Errorf("Name = %q", m.Name)
 	}
-	if m.Version != "v1.0.0" {
+	if m.Version != testVersionV100 {
 		t.Errorf("Version = %q", m.Version)
 	}
 }
 
 func TestNewDescribePluginJSON(t *testing.T) {
 	dp := &klausoci.DescribedPlugin{
-		ArtifactInfo: klausoci.ArtifactInfo{Ref: "example.com/p:v1", Digest: "sha256:abc"},
+		ArtifactInfo: klausoci.ArtifactInfo{Ref: testRefShort, Digest: testDigestABC},
 		Plugin: klausoci.Plugin{
-			Name:       "gs-base",
-			Version:    "v0.1.0",
+			Name:       testPluginGSBase,
+			Version:    testVersion010,
 			Skills:     []string{"k8s", "flux"},
 			MCPServers: []string{"github"},
 			HasHooks:   true,
 		},
 	}
 	j := newDescribePluginJSON(dp)
-	if j.Name != "gs-base" {
+	if j.Name != testPluginGSBase {
 		t.Errorf("Name = %q", j.Name)
 	}
-	if j.Ref != "example.com/p:v1" {
+	if j.Ref != testRefShort {
 		t.Errorf("Ref = %q", j.Ref)
 	}
 	if len(j.Skills) != 2 {
@@ -623,13 +623,13 @@ func TestNewDescribePluginJSON(t *testing.T) {
 
 func TestNewDescribePersonalityJSON(t *testing.T) {
 	dp := &klausoci.DescribedPersonality{
-		ArtifactInfo: klausoci.ArtifactInfo{Ref: "example.com/p:v1", Digest: "sha256:def"},
+		ArtifactInfo: klausoci.ArtifactInfo{Ref: testRefShort, Digest: testDigestDef},
 		Personality: klausoci.Personality{
-			Name:      "sre",
-			Version:   "v0.2.0",
-			Toolchain: klausoci.ToolchainReference{Repository: "example.com/tc", Tag: "v1.0.0"},
+			Name:      testPersonalitySRE,
+			Version:   testVersion020,
+			Toolchain: klausoci.ToolchainReference{Repository: "example.com/tc", Tag: testVersionV100},
 			Plugins: []klausoci.PluginReference{
-				{Repository: "example.com/p1", Tag: "v0.1.0"},
+				{Repository: "example.com/p1", Tag: testVersion010},
 			},
 		},
 	}
@@ -647,21 +647,21 @@ func TestNewDescribePersonalityJSON(t *testing.T) {
 
 func TestNewDescribePersonalityJSONWithDeps(t *testing.T) {
 	dp := &klausoci.DescribedPersonality{
-		ArtifactInfo: klausoci.ArtifactInfo{Ref: "example.com/p:v1", Digest: "sha256:def"},
+		ArtifactInfo: klausoci.ArtifactInfo{Ref: testRefShort, Digest: testDigestDef},
 		Personality: klausoci.Personality{
-			Name:    "sre",
-			Version: "v0.2.0",
+			Name:    testPersonalitySRE,
+			Version: testVersion020,
 		},
 	}
 	deps := &klausoci.ResolvedDependencies{
 		Toolchain: &klausoci.DescribedToolchain{
 			ArtifactInfo: klausoci.ArtifactInfo{Ref: "example.com/tc:v1", Digest: "sha256:tc"},
-			Toolchain:    klausoci.Toolchain{Name: "go", Version: "v1.0.0"},
+			Toolchain:    klausoci.Toolchain{Name: "go", Version: testVersionV100},
 		},
 		Plugins: []klausoci.DescribedPlugin{
 			{
 				ArtifactInfo: klausoci.ArtifactInfo{Ref: "example.com/p1:v1", Digest: "sha256:p1"},
-				Plugin:       klausoci.Plugin{Name: "gs-base", Version: "v0.1.0"},
+				Plugin:       klausoci.Plugin{Name: testPluginGSBase, Version: testVersion010},
 			},
 		},
 		Warnings: []string{"plugin gs-sre: not found"},
@@ -689,7 +689,7 @@ func TestNewDescribeToolchainJSON(t *testing.T) {
 		ArtifactInfo: klausoci.ArtifactInfo{Ref: "example.com/tc:v1", Digest: "sha256:789"},
 		Toolchain: klausoci.Toolchain{
 			Name:    "go",
-			Version: "v1.0.0",
+			Version: testVersionV100,
 			Author:  &klausoci.Author{Name: "GS"},
 		},
 	}
@@ -697,7 +697,7 @@ func TestNewDescribeToolchainJSON(t *testing.T) {
 	if j.Name != "go" {
 		t.Errorf("Name = %q", j.Name)
 	}
-	if j.Version != "v1.0.0" {
+	if j.Version != testVersionV100 {
 		t.Errorf("Version = %q", j.Version)
 	}
 	if j.Author != "GS" {
@@ -734,7 +734,7 @@ func TestFormatAge(t *testing.T) {
 		{
 			name:     "zero",
 			t:        time.Time{},
-			contains: "unknown",
+			contains: unknownValue,
 		},
 	}
 

@@ -11,6 +11,9 @@ import (
 	"time"
 )
 
+// testPrompt is the prompt sent in StreamCompletion tests.
+const testPrompt = "test"
+
 func sseServer(lines ...string) *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/v1/chat/completions" {
@@ -96,7 +99,7 @@ func TestStreamCompletionFinishReasonError(t *testing.T) {
 	)
 	defer srv.Close()
 
-	ch, err := StreamCompletion(context.Background(), srv.Client(), CompletionRequest{URL: srv.URL + "/v1/chat/completions", Prompt: "test"})
+	ch, err := StreamCompletion(context.Background(), srv.Client(), CompletionRequest{URL: srv.URL + "/v1/chat/completions", Prompt: testPrompt})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -120,7 +123,7 @@ func TestStreamCompletionFinishReasonStopNoError(t *testing.T) {
 	)
 	defer srv.Close()
 
-	ch, err := StreamCompletion(context.Background(), srv.Client(), CompletionRequest{URL: srv.URL + "/v1/chat/completions", Prompt: "test"})
+	ch, err := StreamCompletion(context.Background(), srv.Client(), CompletionRequest{URL: srv.URL + "/v1/chat/completions", Prompt: testPrompt})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -141,7 +144,7 @@ func TestStreamCompletionEmptyContent(t *testing.T) {
 	)
 	defer srv.Close()
 
-	ch, err := StreamCompletion(context.Background(), srv.Client(), CompletionRequest{URL: srv.URL + "/v1/chat/completions", Prompt: "test"})
+	ch, err := StreamCompletion(context.Background(), srv.Client(), CompletionRequest{URL: srv.URL + "/v1/chat/completions", Prompt: testPrompt})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -165,7 +168,7 @@ func TestStreamCompletionSkipsNonDataLines(t *testing.T) {
 	)
 	defer srv.Close()
 
-	ch, err := StreamCompletion(context.Background(), srv.Client(), CompletionRequest{URL: srv.URL + "/v1/chat/completions", Prompt: "test"})
+	ch, err := StreamCompletion(context.Background(), srv.Client(), CompletionRequest{URL: srv.URL + "/v1/chat/completions", Prompt: testPrompt})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -185,7 +188,7 @@ func TestStreamCompletionNon200(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	_, err := StreamCompletion(context.Background(), srv.Client(), CompletionRequest{URL: srv.URL + "/v1/chat/completions", Prompt: "test"})
+	_, err := StreamCompletion(context.Background(), srv.Client(), CompletionRequest{URL: srv.URL + "/v1/chat/completions", Prompt: testPrompt})
 	if err == nil {
 		t.Fatal("expected error for non-200 response")
 	}
@@ -204,7 +207,7 @@ func TestStreamCompletionCancelledContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	_, err := StreamCompletion(ctx, &http.Client{}, CompletionRequest{URL: "http://localhost:0/v1/chat/completions", Prompt: "test"})
+	_, err := StreamCompletion(ctx, &http.Client{}, CompletionRequest{URL: "http://localhost:0/v1/chat/completions", Prompt: testPrompt})
 	if err == nil {
 		t.Fatal("expected error for cancelled context")
 	}
@@ -242,7 +245,7 @@ func TestStreamCompletionWithoutCancelDetachesParent(t *testing.T) {
 	parent, cancelParent := context.WithCancel(context.Background())
 	streamCtx := context.WithoutCancel(parent)
 
-	ch, err := StreamCompletion(streamCtx, srv.Client(), CompletionRequest{URL: srv.URL + "/v1/chat/completions", Prompt: "test"})
+	ch, err := StreamCompletion(streamCtx, srv.Client(), CompletionRequest{URL: srv.URL + "/v1/chat/completions", Prompt: testPrompt})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -293,7 +296,7 @@ func TestStreamCompletionDirectParentPropagatesCancel(t *testing.T) {
 
 	parent, cancelParent := context.WithCancel(context.Background())
 
-	_, err := StreamCompletion(parent, srv.Client(), CompletionRequest{URL: srv.URL + "/v1/chat/completions", Prompt: "test"})
+	_, err := StreamCompletion(parent, srv.Client(), CompletionRequest{URL: srv.URL + "/v1/chat/completions", Prompt: testPrompt})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -316,7 +319,7 @@ func TestStreamCompletionMalformedJSON(t *testing.T) {
 	)
 	defer srv.Close()
 
-	ch, err := StreamCompletion(context.Background(), srv.Client(), CompletionRequest{URL: srv.URL + "/v1/chat/completions", Prompt: "test"})
+	ch, err := StreamCompletion(context.Background(), srv.Client(), CompletionRequest{URL: srv.URL + "/v1/chat/completions", Prompt: testPrompt})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -338,7 +341,7 @@ func TestStreamCompletionNoChoices(t *testing.T) {
 	)
 	defer srv.Close()
 
-	ch, err := StreamCompletion(context.Background(), srv.Client(), CompletionRequest{URL: srv.URL + "/v1/chat/completions", Prompt: "test"})
+	ch, err := StreamCompletion(context.Background(), srv.Client(), CompletionRequest{URL: srv.URL + "/v1/chat/completions", Prompt: testPrompt})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -358,7 +361,7 @@ func TestStreamCompletionChannelClosesWithoutDONE(t *testing.T) {
 	)
 	defer srv.Close()
 
-	ch, err := StreamCompletion(context.Background(), srv.Client(), CompletionRequest{URL: srv.URL + "/v1/chat/completions", Prompt: "test"})
+	ch, err := StreamCompletion(context.Background(), srv.Client(), CompletionRequest{URL: srv.URL + "/v1/chat/completions", Prompt: testPrompt})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -376,7 +379,7 @@ func TestStreamCompletionUnreachable(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 
-	_, err := StreamCompletion(ctx, &http.Client{}, CompletionRequest{URL: "http://127.0.0.1:1/v1/chat/completions", Prompt: "test"})
+	_, err := StreamCompletion(ctx, &http.Client{}, CompletionRequest{URL: "http://127.0.0.1:1/v1/chat/completions", Prompt: testPrompt})
 	if err == nil {
 		t.Fatal("expected error for unreachable host")
 	}

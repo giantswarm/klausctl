@@ -31,13 +31,13 @@ type listEntry struct {
 }
 
 var listCmd = &cobra.Command{
-	Use:   "list",
+	Use:   useList,
 	Short: "List klaus instances",
 	RunE:  runList,
 }
 
 func init() {
-	listCmd.Flags().StringVarP(&listOutput, "output", "o", "text", "output format: text, json")
+	listCmd.Flags().StringVarP(&listOutput, "output", "o", outputText, "output format: text, json")
 	rootCmd.AddCommand(listCmd)
 }
 
@@ -59,7 +59,7 @@ func runList(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	if listOutput == "json" {
+	if listOutput == outputJSON {
 		enc := json.NewEncoder(cmd.OutOrStdout())
 		enc.SetIndent("", "  ")
 		return enc.Encode(entries)
@@ -120,7 +120,7 @@ func loadListEntries(paths *config.Paths) ([]listEntry, error) {
 
 		item := listEntry{
 			Name:        name,
-			Status:      "stopped",
+			Status:      statusStopped,
 			Toolchain:   klausoci.ShortName(klausoci.RepositoryFromRef(cmp.Or(cfg.Toolchain, cfg.Image))),
 			Personality: klausoci.ShortName(klausoci.RepositoryFromRef(cfg.Personality)),
 			Workspace:   cfg.Workspace,
@@ -133,7 +133,7 @@ func loadListEntries(paths *config.Paths) ([]listEntry, error) {
 				status, err := rt.Status(context.Background(), st.ContainerName())
 				if err == nil && status != "" {
 					item.Status = status
-					if status == "running" { //nolint:goconst
+					if status == statusRunning {
 						if info, err := rt.Inspect(context.Background(), st.ContainerName()); err == nil && !info.StartedAt.IsZero() {
 							item.Uptime = formatDuration(time.Since(info.StartedAt))
 						} else if !st.StartedAt.IsZero() {

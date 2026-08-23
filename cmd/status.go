@@ -32,7 +32,7 @@ Returns exit code 1 when no instance is running, making it usable in scripts:
 }
 
 func init() {
-	statusCmd.Flags().StringVarP(&statusOutput, "output", "o", "text", "output format: text, json")
+	statusCmd.Flags().StringVarP(&statusOutput, "output", "o", outputText, "output format: text, json")
 	rootCmd.AddCommand(statusCmd)
 }
 
@@ -70,7 +70,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("migrating config layout: %w", err)
 	}
 
-	instanceName, err := resolveOptionalInstanceName(args, "status", cmd.ErrOrStderr())
+	instanceName, err := resolveOptionalInstanceName(args, useStatus, cmd.ErrOrStderr())
 	if err != nil {
 		return err
 	}
@@ -104,7 +104,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		Workspace:   inst.Workspace,
 	}
 
-	if status == "running" {
+	if status == statusRunning {
 		info.MCP = fmt.Sprintf("http://localhost:%d", inst.Port)
 
 		// Try to get uptime from the runtime, fall back to saved state.
@@ -139,7 +139,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	if statusOutput == "json" {
+	if statusOutput == outputJSON {
 		enc := json.NewEncoder(out)
 		enc.SetIndent("", "  ")
 		return enc.Encode(info)
@@ -147,7 +147,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 
 	// Text output.
 	var statusColor string
-	if status == "running" {
+	if status == statusRunning {
 		statusColor = green(status)
 	} else {
 		statusColor = yellow(status)
@@ -163,7 +163,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	_, _ = fmt.Fprintf(out, "Image:       %s\n", inst.Image)
 	_, _ = fmt.Fprintf(out, "Workspace:   %s\n", inst.Workspace)
 
-	if status == "running" {
+	if status == statusRunning {
 		_, _ = fmt.Fprintf(out, "MCP:         %s\n", info.MCP)
 		if info.Uptime != "" {
 			_, _ = fmt.Fprintf(out, "Uptime:      %s\n", info.Uptime)

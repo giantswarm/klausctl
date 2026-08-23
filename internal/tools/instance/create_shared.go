@@ -50,7 +50,7 @@ type mcpCreateParams struct {
 
 // parseMCPCreateParams extracts common create parameters from an MCP request.
 func parseMCPCreateParams(req mcp.CallToolRequest) (*mcpCreateParams, error) {
-	name, err := req.RequireString("name")
+	name, err := req.RequireString(paramName)
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +58,7 @@ func parseMCPCreateParams(req mcp.CallToolRequest) (*mcpCreateParams, error) {
 		return nil, err
 	}
 
-	workspace := req.GetString("workspace", "")
+	workspace := req.GetString(paramWorkspace, "")
 	if workspace == "" {
 		cwd, err := os.Getwd()
 		if err != nil {
@@ -85,19 +85,19 @@ func parseMCPCreateParams(req mcp.CallToolRequest) (*mcpCreateParams, error) {
 		return nil, err
 	}
 
-	port := int(req.GetFloat("port", 0))
+	port := int(req.GetFloat(paramPort, 0))
 	if port < 0 || port > 65535 {
 		return nil, fmt.Errorf("port must be between 1 and 65535, got %d", port)
 	}
 
-	gitAuthorName, gitAuthorEmail, err := parseGitAuthor(req.GetString("gitAuthor", ""))
+	gitAuthorName, gitAuthorEmail, err := parseGitAuthor(req.GetString(paramGitAuthor, ""))
 	if err != nil {
 		return nil, err
 	}
 
 	p := &mcpCreateParams{
 		name:           name,
-		generateSuffix: req.GetBool("generateSuffix", true),
+		generateSuffix: req.GetBool(paramGenerateSuffix, true),
 		force:          req.GetBool("force", false),
 		confirm:        req.GetBool("confirm", false),
 		workspace:      workspace,

@@ -10,10 +10,21 @@ import (
 	"github.com/giantswarm/klausctl/pkg/config"
 )
 
+// Artifact reference fixtures shared across artifact merge tests.
+const (
+	testRepoPlugin     = "example.com/plugin"
+	testRepoPluginA    = "example.com/plugin-a"
+	testRepoPluginB    = "example.com/plugin-b"
+	testRepoGSPlatform = "gsoci.azurecr.io/giantswarm/klaus-plugins/gs-platform"
+	testDigestABC123   = "sha256:abc123"
+	testTagV1          = "v1.0.0"
+	testTagV2          = "v2.0.0"
+)
+
 func TestPluginDirs(t *testing.T) {
 	plugins := []config.Plugin{
-		{Repository: "example.com/org/plugin-a", Tag: "v1.0.0"},
-		{Repository: "example.com/org/plugin-b", Tag: "v2.0.0"},
+		{Repository: "example.com/org/plugin-a", Tag: testTagV1},
+		{Repository: "example.com/org/plugin-b", Tag: testTagV2},
 	}
 
 	dirs := PluginDirs(plugins)
@@ -44,23 +55,23 @@ func TestBuildRef(t *testing.T) {
 	}{
 		{
 			name:   "tag",
-			plugin: config.Plugin{Repository: "example.com/plugin", Tag: "v1.0.0"},
+			plugin: config.Plugin{Repository: testRepoPlugin, Tag: testTagV1},
 			want:   "example.com/plugin:v1.0.0",
 		},
 		{
 			name:   "digest",
-			plugin: config.Plugin{Repository: "example.com/plugin", Digest: "sha256:abc123"},
+			plugin: config.Plugin{Repository: testRepoPlugin, Digest: testDigestABC123},
 			want:   "example.com/plugin@sha256:abc123",
 		},
 		{
 			name:   "digest takes precedence over tag",
-			plugin: config.Plugin{Repository: "example.com/plugin", Tag: "v1.0.0", Digest: "sha256:abc123"},
+			plugin: config.Plugin{Repository: testRepoPlugin, Tag: testTagV1, Digest: testDigestABC123},
 			want:   "example.com/plugin@sha256:abc123",
 		},
 		{
 			name:   "no tag or digest",
-			plugin: config.Plugin{Repository: "example.com/plugin"},
-			want:   "example.com/plugin",
+			plugin: config.Plugin{Repository: testRepoPlugin},
+			want:   testRepoPlugin,
 		},
 	}
 
@@ -85,30 +96,30 @@ func TestPluginFromReference(t *testing.T) {
 		{
 			name: "tag only",
 			ref: klausoci.PluginReference{
-				Repository: "gsoci.azurecr.io/giantswarm/klaus-plugins/gs-platform",
-				Tag:        "v1.0.0",
+				Repository: testRepoGSPlatform,
+				Tag:        testTagV1,
 			},
-			wantRepo: "gsoci.azurecr.io/giantswarm/klaus-plugins/gs-platform",
-			wantTag:  "v1.0.0",
+			wantRepo: testRepoGSPlatform,
+			wantTag:  testTagV1,
 		},
 		{
 			name: "digest only",
 			ref: klausoci.PluginReference{
 				Repository: "gsoci.azurecr.io/giantswarm/klaus-plugins/gs-base",
-				Digest:     "sha256:abc123",
+				Digest:     testDigestABC123,
 			},
 			wantRepo:   "gsoci.azurecr.io/giantswarm/klaus-plugins/gs-base",
-			wantDigest: "sha256:abc123",
+			wantDigest: testDigestABC123,
 		},
 		{
 			name: "tag and digest",
 			ref: klausoci.PluginReference{
-				Repository: "example.com/plugin",
-				Tag:        "v2.0.0",
+				Repository: testRepoPlugin,
+				Tag:        testTagV2,
 				Digest:     "sha256:def456",
 			},
-			wantRepo:   "example.com/plugin",
-			wantTag:    "v2.0.0",
+			wantRepo:   testRepoPlugin,
+			wantTag:    testTagV2,
 			wantDigest: "sha256:def456",
 		},
 	}
@@ -131,11 +142,11 @@ func TestPluginFromReference(t *testing.T) {
 
 func TestMergePluginsUserWins(t *testing.T) {
 	personalityPlugins := []klausoci.PluginReference{
-		{Repository: "example.com/plugin-a", Tag: "v1.0.0"},
-		{Repository: "example.com/plugin-b", Tag: "v1.0.0"},
+		{Repository: testRepoPluginA, Tag: testTagV1},
+		{Repository: testRepoPluginB, Tag: testTagV1},
 	}
 	userPlugins := []config.Plugin{
-		{Repository: "example.com/plugin-a", Tag: "v2.0.0"},
+		{Repository: testRepoPluginA, Tag: testTagV2},
 	}
 
 	merged := MergePlugins(personalityPlugins, userPlugins)
@@ -143,20 +154,20 @@ func TestMergePluginsUserWins(t *testing.T) {
 	if len(merged) != 2 {
 		t.Fatalf("len(merged) = %d, want 2", len(merged))
 	}
-	if merged[0].Repository != "example.com/plugin-a" || merged[0].Tag != "v2.0.0" { //nolint:goconst
+	if merged[0].Repository != testRepoPluginA || merged[0].Tag != testTagV2 {
 		t.Errorf("merged[0] = %+v, want user version (v2.0.0)", merged[0])
 	}
-	if merged[1].Repository != "example.com/plugin-b" || merged[1].Tag != "v1.0.0" {
+	if merged[1].Repository != testRepoPluginB || merged[1].Tag != testTagV1 {
 		t.Errorf("merged[1] = %+v, want personality plugin-b", merged[1])
 	}
 }
 
 func TestMergePluginsNoOverlap(t *testing.T) {
 	personalityPlugins := []klausoci.PluginReference{
-		{Repository: "example.com/plugin-a", Tag: "v1.0.0"},
+		{Repository: testRepoPluginA, Tag: testTagV1},
 	}
 	userPlugins := []config.Plugin{
-		{Repository: "example.com/plugin-b", Tag: "v2.0.0"},
+		{Repository: testRepoPluginB, Tag: testTagV2},
 	}
 
 	merged := MergePlugins(personalityPlugins, userPlugins)
@@ -164,17 +175,17 @@ func TestMergePluginsNoOverlap(t *testing.T) {
 	if len(merged) != 2 {
 		t.Fatalf("len(merged) = %d, want 2", len(merged))
 	}
-	if merged[0].Repository != "example.com/plugin-b" {
+	if merged[0].Repository != testRepoPluginB {
 		t.Errorf("merged[0] should be user plugin, got %q", merged[0].Repository)
 	}
-	if merged[1].Repository != "example.com/plugin-a" {
+	if merged[1].Repository != testRepoPluginA {
 		t.Errorf("merged[1] should be personality plugin, got %q", merged[1].Repository)
 	}
 }
 
 func TestMergePluginsEmptyPersonality(t *testing.T) {
 	userPlugins := []config.Plugin{
-		{Repository: "example.com/plugin-a", Tag: "v1.0.0"},
+		{Repository: testRepoPluginA, Tag: testTagV1},
 	}
 
 	merged := MergePlugins(nil, userPlugins)
@@ -182,15 +193,15 @@ func TestMergePluginsEmptyPersonality(t *testing.T) {
 	if len(merged) != 1 {
 		t.Fatalf("len(merged) = %d, want 1", len(merged))
 	}
-	if merged[0].Repository != "example.com/plugin-a" {
+	if merged[0].Repository != testRepoPluginA {
 		t.Errorf("merged[0] = %+v, want user plugin", merged[0])
 	}
 }
 
 func TestMergePluginsEmptyUser(t *testing.T) {
 	personalityPlugins := []klausoci.PluginReference{
-		{Repository: "example.com/plugin-a", Tag: "v1.0.0"},
-		{Repository: "example.com/plugin-b", Tag: "v2.0.0"},
+		{Repository: testRepoPluginA, Tag: testTagV1},
+		{Repository: testRepoPluginB, Tag: testTagV2},
 	}
 
 	merged := MergePlugins(personalityPlugins, nil)
@@ -209,8 +220,8 @@ func TestMergePluginsBothEmpty(t *testing.T) {
 
 func TestMergePluginsDeduplicatesPersonality(t *testing.T) {
 	personalityPlugins := []klausoci.PluginReference{
-		{Repository: "example.com/plugin-a", Tag: "v1.0.0"},
-		{Repository: "example.com/plugin-a", Tag: "v1.1.0"},
+		{Repository: testRepoPluginA, Tag: testTagV1},
+		{Repository: testRepoPluginA, Tag: "v1.1.0"},
 	}
 
 	merged := MergePlugins(personalityPlugins, nil)
@@ -218,7 +229,7 @@ func TestMergePluginsDeduplicatesPersonality(t *testing.T) {
 	if len(merged) != 1 {
 		t.Fatalf("len(merged) = %d, want 1 (dedup within personality)", len(merged))
 	}
-	if merged[0].Tag != "v1.0.0" {
+	if merged[0].Tag != testTagV1 {
 		t.Errorf("merged[0].Tag = %q, want first occurrence v1.0.0", merged[0].Tag)
 	}
 }
@@ -258,7 +269,7 @@ plugins:
 	if len(spec.Plugins) != 2 {
 		t.Fatalf("len(Plugins) = %d, want 2", len(spec.Plugins))
 	}
-	if spec.Plugins[0].Repository != "gsoci.azurecr.io/giantswarm/klaus-plugins/gs-platform" {
+	if spec.Plugins[0].Repository != testRepoGSPlatform {
 		t.Errorf("Plugins[0].Repository = %q", spec.Plugins[0].Repository)
 	}
 }

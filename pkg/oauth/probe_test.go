@@ -24,7 +24,7 @@ func TestProbeServer_401WithWWWAuthenticate(t *testing.T) {
 	if challenge == nil {
 		t.Fatal("expected non-nil challenge")
 	}
-	if challenge.Realm != "https://dex.example.com" { //nolint:goconst
+	if challenge.Realm != testIssuer {
 		t.Errorf("Realm = %q, want https://dex.example.com", challenge.Realm)
 	}
 }
@@ -46,10 +46,10 @@ func TestProbeServer_401WithResourceMetadata(t *testing.T) {
 	if challenge == nil {
 		t.Fatal("expected non-nil challenge")
 	}
-	if challenge.Realm != "https://dex.example.com" {
+	if challenge.Realm != testIssuer {
 		t.Errorf("Realm = %q", challenge.Realm)
 	}
-	if challenge.ResourceMetadata != "https://mcp.example.com/.well-known/oauth-protected-resource" {
+	if challenge.ResourceMetadata != testResourceMetadataURL {
 		t.Errorf("ResourceMetadata = %q", challenge.ResourceMetadata)
 	}
 }

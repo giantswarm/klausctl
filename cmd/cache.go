@@ -67,14 +67,14 @@ registry catalog. --repo scopes it to a single repository.`,
 }
 
 func init() {
-	cacheInfoCmd.Flags().StringVar(&cacheInfoFormat, "output", "text", "output format: text|json")
+	cacheInfoCmd.Flags().StringVar(&cacheInfoFormat, "output", outputText, "output format: text|json")
 
 	cachePruneCmd.Flags().BoolVar(&cachePruneAll, "all", false, "remove all cache entries, not only stale ones")
-	cachePruneCmd.Flags().StringVar(&cachePruneFormat, "output", "text", "output format: text|json")
+	cachePruneCmd.Flags().StringVar(&cachePruneFormat, "output", outputText, "output format: text|json")
 
 	cacheRefreshCmd.Flags().StringVar(&cacheRefreshRegistry, "registry", "", "limit refresh to the given registry base (host or host/prefix)")
 	cacheRefreshCmd.Flags().StringVar(&cacheRefreshRepo, "repo", "", "limit refresh to the given repository (host/name)")
-	cacheRefreshCmd.Flags().StringVar(&cacheRefreshFormat, "output", "text", "output format: text|json")
+	cacheRefreshCmd.Flags().StringVar(&cacheRefreshFormat, "output", outputText, "output format: text|json")
 
 	cacheCmd.AddCommand(cacheInfoCmd)
 	cacheCmd.AddCommand(cachePruneCmd)
@@ -94,7 +94,7 @@ func runCacheInfo(cmd *cobra.Command, _ []string) error {
 }
 
 func writeCacheInfo(w io.Writer, info *ocicache.Info, format string) error {
-	if format == "json" { //nolint:goconst
+	if format == outputJSON {
 		return writeJSON(w, info)
 	}
 	_, _ = fmt.Fprintf(w, "Cache directory: %s\n", displayDir(info.Dir))
@@ -133,7 +133,7 @@ func runCachePrune(cmd *cobra.Command, _ []string) error {
 }
 
 func writePruneResult(w io.Writer, res *ocicache.PruneResult, all bool, format string) error {
-	if format == "json" {
+	if format == outputJSON {
 		return writeJSON(w, res)
 	}
 	if res.Dir == "" {
@@ -171,7 +171,7 @@ func runCacheRefresh(cmd *cobra.Command, _ []string) error {
 }
 
 func writeRefreshResult(w io.Writer, res *ocicache.RefreshResult, format string) error {
-	if format == "json" {
+	if format == outputJSON {
 		return writeJSON(w, res)
 	}
 	if res.Dir == "" {

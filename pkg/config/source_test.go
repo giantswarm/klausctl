@@ -8,9 +8,23 @@ import (
 	"testing"
 )
 
+// Source registry fixtures local to source_test.go.
+const (
+	testOrgGiantSwarm    = "giantswarm"
+	testRegistryTeamA    = "reg.example.com/a"
+	testRegistryNew      = "new-reg.example.com/a"
+	testRegistryAX       = "a.io/x"
+	testRegistryWhatever = "whatever"
+	testSourceDefaultSrc = "default-src"
+	testSourceOnly       = "only"
+	testSourceTeam       = "team"
+	testSourceTeamA      = "team-a"
+	testRegistryTeamIO   = "team.io/x"
+)
+
 func TestSourceRegistryMethods(t *testing.T) {
 	s := Source{
-		Name:     "test",
+		Name:     testNameTest,
 		Registry: "myregistry.example.com/team",
 	}
 
@@ -27,7 +41,7 @@ func TestSourceRegistryMethods(t *testing.T) {
 
 func TestSourceRegistryOverrides(t *testing.T) {
 	s := Source{
-		Name:          "custom",
+		Name:          testNameCustom,
 		Registry:      "myregistry.example.com/custom",
 		Toolchains:    "myregistry.example.com/custom/tools",
 		Personalities: "myregistry.example.com/custom/personas",
@@ -132,7 +146,7 @@ func TestSourceConfigSaveAndLoad(t *testing.T) {
 	path := filepath.Join(dir, "sources.yaml")
 
 	sc := DefaultSourceConfig()
-	if err := sc.Add(Source{Name: "team-a", Registry: "reg.example.com/a"}); err != nil {
+	if err := sc.Add(Source{Name: testSourceTeamA, Registry: testRegistryTeamA}); err != nil {
 		t.Fatal(err)
 	}
 	if err := sc.SaveTo(path); err != nil {
@@ -146,14 +160,14 @@ func TestSourceConfigSaveAndLoad(t *testing.T) {
 	if len(loaded.Sources) != 2 {
 		t.Fatalf("expected 2 sources, got %d", len(loaded.Sources))
 	}
-	if loaded.Sources[1].Name != "team-a" {
+	if loaded.Sources[1].Name != testSourceTeamA {
 		t.Errorf("expected team-a, got %q", loaded.Sources[1].Name)
 	}
 }
 
 func TestSourceConfigAdd_Duplicate(t *testing.T) {
 	sc := DefaultSourceConfig()
-	err := sc.Add(Source{Name: DefaultSourceName, Registry: "whatever"})
+	err := sc.Add(Source{Name: DefaultSourceName, Registry: testRegistryWhatever})
 	if err == nil {
 		t.Fatal("expected error when adding duplicate source")
 	}
@@ -161,7 +175,7 @@ func TestSourceConfigAdd_Duplicate(t *testing.T) {
 
 func TestSourceConfigAdd_InvalidName(t *testing.T) {
 	sc := DefaultSourceConfig()
-	err := sc.Add(Source{Name: "123invalid", Registry: "whatever"})
+	err := sc.Add(Source{Name: "123invalid", Registry: testRegistryWhatever})
 	if err == nil {
 		t.Fatal("expected error for invalid name")
 	}
@@ -319,8 +333,8 @@ func TestNewSourceResolver_Default(t *testing.T) {
 
 func TestSourceResolverResolvePluginRef(t *testing.T) {
 	r := NewSourceResolver([]Source{
-		{Name: "custom", Registry: "custom.io/org"},
-		{Name: "giantswarm", Registry: "gsoci.azurecr.io/giantswarm"},
+		{Name: testNameCustom, Registry: "custom.io/org"},
+		{Name: testOrgGiantSwarm, Registry: "gsoci.azurecr.io/giantswarm"},
 	})
 
 	tests := []struct {
@@ -362,10 +376,10 @@ func TestSourceResolverResolvePluginRef(t *testing.T) {
 
 func TestSourceResolverResolvePersonalityRef(t *testing.T) {
 	r := NewSourceResolver([]Source{
-		{Name: "team", Registry: "team.io/x"},
+		{Name: testSourceTeam, Registry: testRegistryTeamIO},
 	})
 
-	got := r.ResolvePersonalityRef("sre")
+	got := r.ResolvePersonalityRef(testPersonalitySRE)
 	want := "team.io/x/klaus-personalities/sre"
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
@@ -374,7 +388,7 @@ func TestSourceResolverResolvePersonalityRef(t *testing.T) {
 
 func TestSourceResolverResolveToolchainRef(t *testing.T) {
 	r := NewSourceResolver([]Source{
-		{Name: "team", Registry: "team.io/x"},
+		{Name: testSourceTeam, Registry: testRegistryTeamIO},
 	})
 
 	got := r.ResolveToolchainRef("go")
@@ -386,11 +400,11 @@ func TestSourceResolverResolveToolchainRef(t *testing.T) {
 
 func TestSourceResolverForSource(t *testing.T) {
 	r := NewSourceResolver([]Source{
-		{Name: "giantswarm", Registry: "gsoci.azurecr.io/giantswarm"},
-		{Name: "team", Registry: "team.io/x"},
+		{Name: testOrgGiantSwarm, Registry: "gsoci.azurecr.io/giantswarm"},
+		{Name: testSourceTeam, Registry: testRegistryTeamIO},
 	})
 
-	filtered, err := r.ForSource("team")
+	filtered, err := r.ForSource(testSourceTeam)
 	if err != nil {
 		t.Fatalf("ForSource() returned error: %v", err)
 	}
@@ -447,7 +461,7 @@ func TestSourceResolverRegistries(t *testing.T) {
 func TestSourceResolverDefaultFirst(t *testing.T) {
 	r := NewSourceResolver([]Source{
 		{Name: "first", Registry: "first.io/x"},
-		{Name: "default-src", Registry: "default.io/x", Default: true},
+		{Name: testSourceDefaultSrc, Registry: "default.io/x", Default: true},
 		{Name: "last", Registry: "last.io/x"},
 	})
 
@@ -458,7 +472,7 @@ func TestSourceResolverDefaultFirst(t *testing.T) {
 	}
 
 	sources := r.Sources()
-	if sources[0].Name != "default-src" {
+	if sources[0].Name != testSourceDefaultSrc {
 		t.Errorf("expected default source first, got %q", sources[0].Name)
 	}
 }
@@ -466,7 +480,7 @@ func TestSourceResolverDefaultFirst(t *testing.T) {
 func TestSourceResolverDefaultOnly(t *testing.T) {
 	r := NewSourceResolver([]Source{
 		{Name: "first", Registry: "first.io/x"},
-		{Name: "default-src", Registry: "default.io/x", Default: true},
+		{Name: testSourceDefaultSrc, Registry: "default.io/x", Default: true},
 		{Name: "last", Registry: "last.io/x"},
 	})
 
@@ -475,7 +489,7 @@ func TestSourceResolverDefaultOnly(t *testing.T) {
 	if len(sources) != 1 {
 		t.Fatalf("expected 1 source, got %d", len(sources))
 	}
-	if sources[0].Name != "default-src" {
+	if sources[0].Name != testSourceDefaultSrc {
 		t.Errorf("expected default source, got %q", sources[0].Name)
 	}
 
@@ -493,21 +507,21 @@ func TestSourceResolverDefaultOnly(t *testing.T) {
 
 func TestSourceResolverDefaultOnly_SingleSource(t *testing.T) {
 	r := NewSourceResolver([]Source{
-		{Name: "only", Registry: "only.io/x", Default: true},
+		{Name: testSourceOnly, Registry: "only.io/x", Default: true},
 	})
 
 	d := r.DefaultOnly()
 	if len(d.Sources()) != 1 {
 		t.Fatal("expected 1 source")
 	}
-	if d.Sources()[0].Name != "only" {
+	if d.Sources()[0].Name != testSourceOnly {
 		t.Errorf("expected 'only', got %q", d.Sources()[0].Name)
 	}
 }
 
 func TestSourceResolverSourcesReturnsCopy(t *testing.T) {
 	r := NewSourceResolver([]Source{
-		{Name: "a", Registry: "a.io/x", Default: true},
+		{Name: "a", Registry: testRegistryAX, Default: true},
 	})
 	sources := r.Sources()
 	sources[0].Name = "mutated"
@@ -534,14 +548,14 @@ func TestDefaultSourceResolver_ResolvesBuiltinRefs(t *testing.T) {
 		{
 			name: "personality short name",
 			fn:   r.ResolvePersonalityRef,
-			ref:  "sre",
-			want: "gsoci.azurecr.io/giantswarm/klaus-personalities/sre",
+			ref:  testPersonalitySRE,
+			want: testPersonalityRef,
 		},
 		{
 			name: "toolchain short name",
 			fn:   r.ResolveToolchainRef,
 			ref:  "go",
-			want: "gsoci.azurecr.io/giantswarm/klaus-toolchains/go",
+			want: testToolchainRef,
 		},
 	}
 
@@ -557,7 +571,7 @@ func TestDefaultSourceResolver_ResolvesBuiltinRefs(t *testing.T) {
 
 func TestAggregateFromSources(t *testing.T) {
 	registries := []SourceRegistry{
-		{Source: "a", Registry: "a.io/x"},
+		{Source: "a", Registry: testRegistryAX},
 		{Source: "b", Registry: "b.io/y"},
 	}
 
@@ -600,7 +614,7 @@ func TestAggregateFromSources_PartialFailure(t *testing.T) {
 
 func TestAggregateFromSources_AllFail(t *testing.T) {
 	registries := []SourceRegistry{
-		{Source: "a", Registry: "a.io/x"},
+		{Source: "a", Registry: testRegistryAX},
 		{Source: "b", Registry: "b.io/y"},
 	}
 
@@ -614,7 +628,7 @@ func TestAggregateFromSources_AllFail(t *testing.T) {
 
 func TestAggregateFromSources_SingleSourceFails(t *testing.T) {
 	registries := []SourceRegistry{
-		{Source: "only", Registry: "only.io/x"},
+		{Source: testSourceOnly, Registry: "only.io/x"},
 	}
 
 	_, _, err := AggregateFromSources(registries, "widgets", func(sr SourceRegistry) ([]string, error) {
@@ -626,7 +640,7 @@ func TestAggregateFromSources_SingleSourceFails(t *testing.T) {
 }
 
 func TestValidateSourceName(t *testing.T) {
-	valid := []string{"giantswarm", "my-team", "A1", "x"}
+	valid := []string{testOrgGiantSwarm, "my-team", "A1", "x"}
 	for _, name := range valid {
 		if err := ValidateSourceName(name); err != nil {
 			t.Errorf("ValidateSourceName(%q) returned error: %v", name, err)
@@ -653,15 +667,15 @@ func TestValidateSourceName_ErrorMentionsUnderscores(t *testing.T) {
 
 func TestSourceConfigUpdate(t *testing.T) {
 	sc := DefaultSourceConfig()
-	_ = sc.Add(Source{Name: "team-a", Registry: "reg.example.com/a"})
+	_ = sc.Add(Source{Name: testSourceTeamA, Registry: testRegistryTeamA})
 
-	err := sc.Update("team-a", Source{Registry: "new-reg.example.com/a"})
+	err := sc.Update(testSourceTeamA, Source{Registry: testRegistryNew})
 	if err != nil {
 		t.Fatalf("Update() returned error: %v", err)
 	}
 
-	s := sc.Get("team-a")
-	if s.Registry != "new-reg.example.com/a" {
+	s := sc.Get(testSourceTeamA)
+	if s.Registry != testRegistryNew {
 		t.Errorf("registry not updated: got %q", s.Registry)
 	}
 }
@@ -669,19 +683,19 @@ func TestSourceConfigUpdate(t *testing.T) {
 func TestSourceConfigUpdate_PartialPatch(t *testing.T) {
 	sc := DefaultSourceConfig()
 	_ = sc.Add(Source{
-		Name:          "team-a",
-		Registry:      "reg.example.com/a",
+		Name:          testSourceTeamA,
+		Registry:      testRegistryTeamA,
 		Toolchains:    "reg.example.com/a/my-toolchains",
 		Personalities: "reg.example.com/a/my-personalities",
 	})
 
-	err := sc.Update("team-a", Source{Toolchains: "reg.example.com/a/new-toolchains"})
+	err := sc.Update(testSourceTeamA, Source{Toolchains: "reg.example.com/a/new-toolchains"})
 	if err != nil {
 		t.Fatalf("Update() returned error: %v", err)
 	}
 
-	s := sc.Get("team-a")
-	if s.Registry != "reg.example.com/a" {
+	s := sc.Get(testSourceTeamA)
+	if s.Registry != testRegistryTeamA {
 		t.Errorf("registry changed unexpectedly: got %q", s.Registry)
 	}
 	if s.Toolchains != "reg.example.com/a/new-toolchains" {
@@ -695,17 +709,17 @@ func TestSourceConfigUpdate_PartialPatch(t *testing.T) {
 func TestSourceConfigUpdate_ClearOverride(t *testing.T) {
 	sc := DefaultSourceConfig()
 	_ = sc.Add(Source{
-		Name:       "team-a",
-		Registry:   "reg.example.com/a",
+		Name:       testSourceTeamA,
+		Registry:   testRegistryTeamA,
 		Toolchains: "reg.example.com/a/custom-toolchains",
 	})
 
-	err := sc.Update("team-a", Source{Toolchains: ClearOverride})
+	err := sc.Update(testSourceTeamA, Source{Toolchains: ClearOverride})
 	if err != nil {
 		t.Fatalf("Update() returned error: %v", err)
 	}
 
-	s := sc.Get("team-a")
+	s := sc.Get(testSourceTeamA)
 	if s.Toolchains != "" {
 		t.Errorf("toolchains should be cleared, got %q", s.Toolchains)
 	}
@@ -716,7 +730,7 @@ func TestSourceConfigUpdate_ClearOverride(t *testing.T) {
 
 func TestSourceConfigUpdate_NotFound(t *testing.T) {
 	sc := DefaultSourceConfig()
-	err := sc.Update("nonexistent", Source{Registry: "whatever"})
+	err := sc.Update("nonexistent", Source{Registry: testRegistryWhatever})
 	if err == nil {
 		t.Fatal("expected error when updating nonexistent source")
 	}
@@ -727,11 +741,11 @@ func TestSourceConfigUpdate_SaveAndReload(t *testing.T) {
 	path := filepath.Join(dir, "sources.yaml")
 
 	sc := DefaultSourceConfig()
-	_ = sc.Add(Source{Name: "team-a", Registry: "reg.example.com/a"})
+	_ = sc.Add(Source{Name: testSourceTeamA, Registry: testRegistryTeamA})
 	_ = sc.SaveTo(path)
 
 	loaded, _ := LoadSourceConfig(path)
-	_ = loaded.Update("team-a", Source{Registry: "new-reg.example.com/a"})
+	_ = loaded.Update(testSourceTeamA, Source{Registry: testRegistryNew})
 	_ = loaded.Save()
 
 	reloaded, err := LoadSourceConfig(path)
@@ -739,11 +753,11 @@ func TestSourceConfigUpdate_SaveAndReload(t *testing.T) {
 		t.Fatalf("LoadSourceConfig() returned error: %v", err)
 	}
 
-	s := reloaded.Get("team-a")
+	s := reloaded.Get(testSourceTeamA)
 	if s == nil {
 		t.Fatal("expected team-a source")
 	}
-	if s.Registry != "new-reg.example.com/a" {
+	if s.Registry != testRegistryNew {
 		t.Errorf("registry not persisted: got %q", s.Registry)
 	}
 }

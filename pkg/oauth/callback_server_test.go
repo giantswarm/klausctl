@@ -75,7 +75,7 @@ func TestCallbackServer_StateMismatch(t *testing.T) {
 }
 
 func TestCallbackServer_OAuthError(t *testing.T) {
-	cs := NewCallbackServer("test-state")
+	cs := NewCallbackServer(testState)
 
 	redirectURI, err := cs.Start()
 	if err != nil {
@@ -102,7 +102,7 @@ func TestCallbackServer_OAuthError(t *testing.T) {
 }
 
 func TestCallbackServer_MissingCode(t *testing.T) {
-	state := "test-state"
+	state := testState
 	cs := NewCallbackServer(state)
 
 	redirectURI, err := cs.Start()
@@ -130,7 +130,7 @@ func TestCallbackServer_MissingCode(t *testing.T) {
 }
 
 func TestCallbackServer_ContextCancelled(t *testing.T) {
-	cs := NewCallbackServer("test-state")
+	cs := NewCallbackServer(testState)
 
 	_, err := cs.Start()
 	if err != nil {
@@ -147,7 +147,7 @@ func TestCallbackServer_ContextCancelled(t *testing.T) {
 }
 
 func TestCallbackServer_OnlyProcessesFirstCallback(t *testing.T) {
-	state := "test-state"
+	state := testState
 	cs := NewCallbackServer(state)
 
 	redirectURI, err := cs.Start()
@@ -173,7 +173,7 @@ func TestCallbackServer_OnlyProcessesFirstCallback(t *testing.T) {
 }
 
 func TestCallbackServer_ErrorWithoutDescription(t *testing.T) {
-	cs := NewCallbackServer("test-state")
+	cs := NewCallbackServer(testState)
 
 	redirectURI, err := cs.Start()
 	if err != nil {

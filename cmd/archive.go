@@ -35,7 +35,7 @@ var archiveCmd = &cobra.Command{
 }
 
 var archiveListCmd = &cobra.Command{
-	Use:   "list",
+	Use:   useList,
 	Short: "List all archived transcripts",
 	Args:  cobra.NoArgs,
 	RunE:  runArchiveList,
@@ -59,7 +59,7 @@ var archiveTagCmd = &cobra.Command{
 }
 
 func init() {
-	archiveCmd.PersistentFlags().StringVarP(&archiveOutput, "output", "o", "text", "output format: text, json")
+	archiveCmd.PersistentFlags().StringVarP(&archiveOutput, "output", "o", outputText, "output format: text, json")
 	archiveShowCmd.Flags().BoolVar(&archiveShowFull, "full", false, "include the full messages array in the output")
 
 	archiveListCmd.Flags().IntVar(&archiveListLimit, "limit", 20, "max entries to return")
@@ -133,7 +133,7 @@ func runArchiveList(cmd *cobra.Command, _ []string) error {
 
 	out := cmd.OutOrStdout()
 
-	if archiveOutput == "json" { //nolint:goconst
+	if archiveOutput == outputJSON {
 		summaries := make([]archive.ListSummary, 0, len(entries))
 		for _, e := range entries {
 			summaries = append(summaries, e.ToListSummary())
@@ -184,7 +184,7 @@ func runArchiveShow(cmd *cobra.Command, args []string) error {
 
 	out := cmd.OutOrStdout()
 
-	if archiveOutput == "json" {
+	if archiveOutput == outputJSON {
 		enc := json.NewEncoder(out)
 		enc.SetIndent("", "  ")
 		return enc.Encode(entry)
@@ -302,7 +302,7 @@ func runArchiveTag(cmd *cobra.Command, args []string) error {
 
 	out := cmd.OutOrStdout()
 
-	if archiveOutput == "json" {
+	if archiveOutput == outputJSON {
 		enc := json.NewEncoder(out)
 		enc.SetIndent("", "  ")
 		return enc.Encode(entry)

@@ -10,12 +10,24 @@ import (
 	"github.com/giantswarm/klausctl/pkg/instance"
 )
 
+// Archive entry fixtures shared across tests.
+const (
+	testNameDev         = "dev"
+	testNameTest        = "test"
+	testNameOld         = "old"
+	testNameNew         = "new"
+	testStatusCompleted = "completed"
+	testTagEnv          = "env"
+	testTeamPlatform    = "platform"
+	testEnvProd         = "prod"
+)
+
 func TestSaveAndLoad(t *testing.T) {
 	dir := t.TempDir()
 
 	entry := &Entry{
 		UUID:         "test-uuid-1234",
-		Name:         "dev",
+		Name:         testNameDev,
 		Image:        "test:latest",
 		Workspace:    "/tmp/ws",
 		Port:         8080,
@@ -23,7 +35,7 @@ func TestSaveAndLoad(t *testing.T) {
 		StoppedAt:    time.Now(),
 		ResultText:   "All tests passed.",
 		MessageCount: 42,
-		Status:       "completed",
+		Status:       testStatusCompleted,
 	}
 
 	if err := Save(dir, entry); err != nil {
@@ -71,15 +83,15 @@ func TestLoadAll(t *testing.T) {
 	// Save two entries with different stop times.
 	older := &Entry{
 		UUID:      "uuid-older",
-		Name:      "old",
+		Name:      testNameOld,
 		StoppedAt: time.Now().Add(-1 * time.Hour),
-		Status:    "completed",
+		Status:    testStatusCompleted,
 	}
 	newer := &Entry{
 		UUID:      "uuid-newer",
-		Name:      "new",
+		Name:      testNameNew,
 		StoppedAt: time.Now(),
-		Status:    "completed",
+		Status:    testStatusCompleted,
 	}
 
 	if err := Save(dir, older); err != nil {
@@ -137,7 +149,7 @@ func TestExists(t *testing.T) {
 		t.Error("Exists() should return false for empty UUID")
 	}
 
-	entry := &Entry{UUID: "exists-test", Name: "test", Status: "completed"}
+	entry := &Entry{UUID: "exists-test", Name: testNameTest, Status: testStatusCompleted}
 	if err := Save(dir, entry); err != nil {
 		t.Fatalf("Save() error: %v", err)
 	}
@@ -150,7 +162,7 @@ func TestExists(t *testing.T) {
 func TestEntryFromResult_FullJSON(t *testing.T) {
 	inst := &instance.Instance{
 		UUID:      "inst-uuid",
-		Name:      "dev",
+		Name:      testNameDev,
 		Image:     "test:v1",
 		Workspace: "/ws",
 		Port:      8080,
@@ -159,7 +171,7 @@ func TestEntryFromResult_FullJSON(t *testing.T) {
 
 	cost := 0.42
 	resultJSON := mustMarshal(t, map[string]any{
-		"status":         "completed",
+		"status":         testStatusCompleted,
 		"result_text":    "All done.",
 		"message_count":  50,
 		"session_id":     "sess-123",
@@ -178,8 +190,8 @@ func TestEntryFromResult_FullJSON(t *testing.T) {
 	if entry.UUID != "inst-uuid" {
 		t.Errorf("UUID = %q, want %q", entry.UUID, "inst-uuid")
 	}
-	if entry.Status != "completed" {
-		t.Errorf("Status = %q, want %q", entry.Status, "completed")
+	if entry.Status != testStatusCompleted {
+		t.Errorf("Status = %q, want %q", entry.Status, testStatusCompleted)
 	}
 	if entry.ResultText != "All done." {
 		t.Errorf("ResultText = %q, want %q", entry.ResultText, "All done.")
@@ -201,30 +213,30 @@ func TestEntryFromResult_FullJSON(t *testing.T) {
 func TestEntryFromResult_EmptyJSON(t *testing.T) {
 	inst := &instance.Instance{
 		UUID: "empty-uuid",
-		Name: "test",
+		Name: testNameTest,
 	}
 
 	entry, err := EntryFromResult(inst, "")
 	if err != nil {
 		t.Fatalf("EntryFromResult() error: %v", err)
 	}
-	if entry.Status != "unknown" {
-		t.Errorf("Status = %q, want %q", entry.Status, "unknown")
+	if entry.Status != statusUnknown {
+		t.Errorf("Status = %q, want %q", entry.Status, statusUnknown)
 	}
 }
 
 func TestEntryFromResult_InvalidJSON(t *testing.T) {
 	inst := &instance.Instance{
 		UUID: "bad-uuid",
-		Name: "test",
+		Name: testNameTest,
 	}
 
 	entry, err := EntryFromResult(inst, "not json at all")
 	if err != nil {
 		t.Fatalf("EntryFromResult() error: %v", err)
 	}
-	if entry.Status != "unknown" {
-		t.Errorf("Status = %q, want %q", entry.Status, "unknown")
+	if entry.Status != statusUnknown {
+		t.Errorf("Status = %q, want %q", entry.Status, statusUnknown)
 	}
 	if entry.ResultText != "not json at all" {
 		t.Errorf("ResultText = %q, want raw text", entry.ResultText)
@@ -235,8 +247,8 @@ func TestToListSummary(t *testing.T) {
 	cost := 1.23
 	entry := &Entry{
 		UUID:         "summary-uuid",
-		Name:         "dev",
-		Status:       "completed",
+		Name:         testNameDev,
+		Status:       testStatusCompleted,
 		StoppedAt:    time.Date(2025, 6, 15, 10, 30, 0, 0, time.UTC),
 		MessageCount: 42,
 		TotalCostUSD: &cost,
@@ -246,11 +258,11 @@ func TestToListSummary(t *testing.T) {
 	if s.UUID != "summary-uuid" {
 		t.Errorf("UUID = %q, want %q", s.UUID, "summary-uuid")
 	}
-	if s.Name != "dev" {
-		t.Errorf("Name = %q, want %q", s.Name, "dev")
+	if s.Name != testNameDev {
+		t.Errorf("Name = %q, want %q", s.Name, testNameDev)
 	}
-	if s.Status != "completed" {
-		t.Errorf("Status = %q, want %q", s.Status, "completed")
+	if s.Status != testStatusCompleted {
+		t.Errorf("Status = %q, want %q", s.Status, testStatusCompleted)
 	}
 	if s.MessageCount != 42 {
 		t.Errorf("MessageCount = %d, want %d", s.MessageCount, 42)
@@ -266,20 +278,20 @@ func TestToListSummary(t *testing.T) {
 func TestTag_NewTags(t *testing.T) {
 	dir := t.TempDir()
 
-	entry := &Entry{UUID: "tag-uuid", Name: "dev", Status: "completed"}
+	entry := &Entry{UUID: "tag-uuid", Name: testNameDev, Status: testStatusCompleted}
 	if err := Save(dir, entry); err != nil {
 		t.Fatalf("Save() error: %v", err)
 	}
 
-	updated, err := Tag(dir, "tag-uuid", map[string]string{"env": "prod", "team": "platform"})
+	updated, err := Tag(dir, "tag-uuid", map[string]string{testTagEnv: testEnvProd, "team": testTeamPlatform})
 	if err != nil {
 		t.Fatalf("Tag() error: %v", err)
 	}
-	if updated.Tags["env"] != "prod" { //nolint:goconst
-		t.Errorf("Tags[env] = %q, want %q", updated.Tags["env"], "prod")
+	if updated.Tags[testTagEnv] != testEnvProd {
+		t.Errorf("Tags[env] = %q, want %q", updated.Tags[testTagEnv], testEnvProd)
 	}
-	if updated.Tags["team"] != "platform" { //nolint:goconst
-		t.Errorf("Tags[team] = %q, want %q", updated.Tags["team"], "platform")
+	if updated.Tags["team"] != testTeamPlatform { //nolint:goconst
+		t.Errorf("Tags[team] = %q, want %q", updated.Tags["team"], testTeamPlatform)
 	}
 
 	// Verify persistence by reloading.
@@ -287,11 +299,11 @@ func TestTag_NewTags(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load() error: %v", err)
 	}
-	if reloaded.Tags["env"] != "prod" {
-		t.Errorf("reloaded Tags[env] = %q, want %q", reloaded.Tags["env"], "prod")
+	if reloaded.Tags[testTagEnv] != testEnvProd {
+		t.Errorf("reloaded Tags[env] = %q, want %q", reloaded.Tags[testTagEnv], testEnvProd)
 	}
-	if reloaded.Tags["team"] != "platform" {
-		t.Errorf("reloaded Tags[team] = %q, want %q", reloaded.Tags["team"], "platform")
+	if reloaded.Tags["team"] != testTeamPlatform {
+		t.Errorf("reloaded Tags[team] = %q, want %q", reloaded.Tags["team"], testTeamPlatform)
 	}
 }
 
@@ -300,25 +312,25 @@ func TestTag_MergeOverwrite(t *testing.T) {
 
 	entry := &Entry{
 		UUID:   "merge-uuid",
-		Name:   "dev",
-		Status: "completed",
-		Tags:   map[string]string{"env": "staging", "team": "platform"},
+		Name:   testNameDev,
+		Status: testStatusCompleted,
+		Tags:   map[string]string{testTagEnv: "staging", "team": testTeamPlatform},
 	}
 	if err := Save(dir, entry); err != nil {
 		t.Fatalf("Save() error: %v", err)
 	}
 
-	updated, err := Tag(dir, "merge-uuid", map[string]string{"env": "prod", "region": "eu"})
+	updated, err := Tag(dir, "merge-uuid", map[string]string{testTagEnv: testEnvProd, "region": "eu"})
 	if err != nil {
 		t.Fatalf("Tag() error: %v", err)
 	}
 	// "env" should be overwritten.
-	if updated.Tags["env"] != "prod" {
-		t.Errorf("Tags[env] = %q, want %q", updated.Tags["env"], "prod")
+	if updated.Tags[testTagEnv] != testEnvProd {
+		t.Errorf("Tags[env] = %q, want %q", updated.Tags[testTagEnv], testEnvProd)
 	}
 	// "team" should be preserved.
-	if updated.Tags["team"] != "platform" {
-		t.Errorf("Tags[team] = %q, want %q", updated.Tags["team"], "platform")
+	if updated.Tags["team"] != testTeamPlatform {
+		t.Errorf("Tags[team] = %q, want %q", updated.Tags["team"], testTeamPlatform)
 	}
 	// "region" should be added.
 	if updated.Tags["region"] != "eu" {
@@ -364,11 +376,11 @@ func TestLoadEntryWithoutTags(t *testing.T) {
 func TestFilterEntries_Since(t *testing.T) {
 	now := time.Now()
 	entries := []*Entry{
-		{UUID: "old", StoppedAt: now.Add(-2 * time.Hour)},
-		{UUID: "new", StoppedAt: now},
+		{UUID: testNameOld, StoppedAt: now.Add(-2 * time.Hour)},
+		{UUID: testNameNew, StoppedAt: now},
 	}
 	result := FilterEntries(entries, Filter{Since: now.Add(-1 * time.Hour)})
-	if len(result) != 1 || result[0].UUID != "new" {
+	if len(result) != 1 || result[0].UUID != testNameNew {
 		t.Errorf("expected only 'new', got %v", result)
 	}
 }
@@ -379,7 +391,7 @@ func TestFilterEntries_Name(t *testing.T) {
 		{UUID: "2", Name: "prod-beta"},
 		{UUID: "3", Name: "dev-gamma"},
 	}
-	result := FilterEntries(entries, Filter{Name: "dev"})
+	result := FilterEntries(entries, Filter{Name: testNameDev})
 	if len(result) != 2 {
 		t.Fatalf("expected 2 entries, got %d", len(result))
 	}
@@ -389,9 +401,9 @@ func TestFilterEntries_Tagged(t *testing.T) {
 	tagged := true
 	untagged := false
 	entries := []*Entry{
-		{UUID: "1", Tags: map[string]string{"env": "prod"}},
+		{UUID: "1", Tags: map[string]string{testTagEnv: testEnvProd}},
 		{UUID: "2"},
-		{UUID: "3", Tags: map[string]string{"outcome": "success"}},
+		{UUID: "3", Tags: map[string]string{tagOutcome: outcomeSuccess}},
 	}
 
 	onlyTagged := FilterEntries(entries, Filter{Tagged: &tagged})
@@ -407,11 +419,11 @@ func TestFilterEntries_Tagged(t *testing.T) {
 
 func TestFilterEntries_Outcome(t *testing.T) {
 	entries := []*Entry{
-		{UUID: "1", Tags: map[string]string{"outcome": "success"}},
-		{UUID: "2", Tags: map[string]string{"outcome": "failed"}},
+		{UUID: "1", Tags: map[string]string{tagOutcome: outcomeSuccess}},
+		{UUID: "2", Tags: map[string]string{tagOutcome: outcomeFailed}},
 		{UUID: "3"},
 	}
-	result := FilterEntries(entries, Filter{Outcome: "success"})
+	result := FilterEntries(entries, Filter{Outcome: outcomeSuccess})
 	if len(result) != 1 || result[0].UUID != "1" {
 		t.Errorf("expected only entry 1, got %v", result)
 	}
@@ -421,16 +433,16 @@ func TestFilterEntries_Combined(t *testing.T) {
 	now := time.Now()
 	tagged := true
 	entries := []*Entry{
-		{UUID: "1", Name: "dev-one", StoppedAt: now, Tags: map[string]string{"outcome": "success"}},
-		{UUID: "2", Name: "dev-two", StoppedAt: now.Add(-2 * time.Hour), Tags: map[string]string{"outcome": "success"}},
-		{UUID: "3", Name: "prod", StoppedAt: now, Tags: map[string]string{"outcome": "success"}},
+		{UUID: "1", Name: "dev-one", StoppedAt: now, Tags: map[string]string{tagOutcome: outcomeSuccess}},
+		{UUID: "2", Name: "dev-two", StoppedAt: now.Add(-2 * time.Hour), Tags: map[string]string{tagOutcome: outcomeSuccess}},
+		{UUID: "3", Name: testEnvProd, StoppedAt: now, Tags: map[string]string{tagOutcome: outcomeSuccess}},
 		{UUID: "4", Name: "dev-three", StoppedAt: now},
 	}
 	result := FilterEntries(entries, Filter{
 		Since:   now.Add(-1 * time.Hour),
-		Name:    "dev",
+		Name:    testNameDev,
 		Tagged:  &tagged,
-		Outcome: "success",
+		Outcome: outcomeSuccess,
 	})
 	if len(result) != 1 || result[0].UUID != "1" {
 		t.Errorf("expected only entry 1, got %v", result)

@@ -12,6 +12,10 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// permissionModeBypass is the Claude permission mode that skips all
+// permission prompts.
+const permissionModeBypass = "bypassPermissions"
+
 const (
 	// DefaultImageRepository is the OCI repository for the base klaus image.
 	DefaultImageRepository = "gsoci.azurecr.io/giantswarm/klaus"
@@ -295,7 +299,7 @@ type Plugin struct {
 
 // validPermissionModes lists valid permission mode values.
 var validPermissionModes = []string{
-	"default", "acceptEdits", "bypassPermissions", "dontAsk", "plan", "delegate",
+	"default", "acceptEdits", permissionModeBypass, "dontAsk", "plan", "delegate",
 }
 
 // validEffortLevels lists valid effort level values.
@@ -345,7 +349,7 @@ func (c *Config) applyDefaults() {
 		c.Port = 8080
 	}
 	if c.Claude.PermissionMode == "" {
-		c.Claude.PermissionMode = "bypassPermissions" //nolint:goconst
+		c.Claude.PermissionMode = permissionModeBypass
 	}
 	if c.Claude.Mode == "" {
 		c.Claude.Mode = "agent" //nolint:goconst

@@ -11,6 +11,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// versionDev is the version string of non-release (development) builds.
+const versionDev = "dev"
+
 // githubRepoSlug specifies the GitHub repository (owner/repo) to check for updates.
 const githubRepoSlug = "giantswarm/klausctl"
 
@@ -38,7 +41,7 @@ func runSelfUpdate(cmd *cobra.Command, _ []string) error {
 	out := cmd.OutOrStdout()
 
 	currentVersion := rootCmd.Version
-	if currentVersion == "" || currentVersion == "dev" { //nolint:goconst
+	if currentVersion == "" || currentVersion == versionDev {
 		return fmt.Errorf("cannot self-update a development version")
 	}
 

@@ -27,13 +27,13 @@ func TestRefreshSuccess(t *testing.T) {
 			"token_type":    "Bearer",
 			"refresh_token": "new-refresh",
 			"expires_in":    3600,
-			"scope":         "openid profile",
+			"scope":         testScopes,
 		})
 	}))
 	defer srv.Close()
 
 	rec := AuthRecord{
-		ServerURL:     "https://gw.example.com",
+		ServerURL:     testGatewayURL,
 		RefreshToken:  "old-refresh",
 		TokenEndpoint: srv.URL,
 		ClientID:      "cid-123",
@@ -48,7 +48,7 @@ func TestRefreshSuccess(t *testing.T) {
 	if updated.RefreshToken != "new-refresh" {
 		t.Errorf("RefreshToken = %q, want new-refresh", updated.RefreshToken)
 	}
-	if updated.Scope != "openid profile" {
+	if updated.Scope != testScopes {
 		t.Errorf("Scope = %q, want openid profile", updated.Scope)
 	}
 	if updated.ExpiresAt.IsZero() || time.Until(updated.ExpiresAt) < 30*time.Minute {
@@ -68,7 +68,7 @@ func TestRefreshSuccess(t *testing.T) {
 
 func TestRefreshNoRefreshToken(t *testing.T) {
 	rec := AuthRecord{ // #nosec G101 -- constant identifier, not a credential
-		ServerURL:     "https://gw.example.com",
+		ServerURL:     testGatewayURL,
 		TokenEndpoint: "https://auth.example.com/token",
 	}
 	_, err := Refresh(context.Background(), http.DefaultClient, rec)
@@ -80,7 +80,7 @@ func TestRefreshNoRefreshToken(t *testing.T) {
 
 func TestRefreshNoTokenEndpoint(t *testing.T) {
 	rec := AuthRecord{
-		ServerURL:    "https://gw.example.com",
+		ServerURL:    testGatewayURL,
 		RefreshToken: "rt",
 	}
 	_, err := Refresh(context.Background(), http.DefaultClient, rec)
@@ -98,7 +98,7 @@ func TestRefresh401YieldsReloginRequired(t *testing.T) {
 	defer srv.Close()
 
 	rec := AuthRecord{
-		ServerURL:     "https://gw.example.com",
+		ServerURL:     testGatewayURL,
 		RefreshToken:  "rt",
 		TokenEndpoint: srv.URL,
 	}
@@ -117,7 +117,7 @@ func TestRefresh400YieldsReloginRequired(t *testing.T) {
 	defer srv.Close()
 
 	rec := AuthRecord{
-		ServerURL:     "https://gw.example.com",
+		ServerURL:     testGatewayURL,
 		RefreshToken:  "rt",
 		TokenEndpoint: srv.URL,
 	}
@@ -135,7 +135,7 @@ func TestRefresh500ReturnsGenericError(t *testing.T) {
 	defer srv.Close()
 
 	rec := AuthRecord{
-		ServerURL:     "https://gw.example.com",
+		ServerURL:     testGatewayURL,
 		RefreshToken:  "rt",
 		TokenEndpoint: srv.URL,
 	}

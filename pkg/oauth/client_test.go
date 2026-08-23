@@ -11,14 +11,26 @@ import (
 	"time"
 )
 
+// Shared OAuth test fixtures.
+const (
+	testIssuer              = "https://dex.example.com"
+	testAuthEndpoint        = testIssuer + "/auth"
+	testTokenEndpoint       = testIssuer + "/token"
+	testResourceMetadataURL = "https://mcp.example.com/.well-known/oauth-protected-resource"
+	testServerURL           = "https://muster.example.com/mcp"
+	testState               = "test-state"
+	testAccessToken         = "test"
+	testTokenTypeBearer     = "Bearer"
+)
+
 func TestBuildAuthURL(t *testing.T) {
 	pkce := PKCEChallenge{
 		Verifier:        "test-verifier",
 		Challenge:       "test-challenge",
-		ChallengeMethod: "S256",
+		ChallengeMethod: challengeMethodS256,
 	}
 
-	result := buildAuthURL("https://dex.example.com/auth", DefaultClientIDMetadataURL, "http://127.0.0.1:3001/callback", "test-state", pkce)
+	result := buildAuthURL(testAuthEndpoint, DefaultClientIDMetadataURL, "http://127.0.0.1:3001/callback", testState, pkce)
 
 	u, err := url.Parse(result)
 	if err != nil {
@@ -34,9 +46,9 @@ func TestBuildAuthURL(t *testing.T) {
 		"response_type":         "code",
 		"client_id":             DefaultClientIDMetadataURL,
 		"redirect_uri":          "http://127.0.0.1:3001/callback",
-		"state":                 "test-state",
+		"state":                 testState,
 		"code_challenge":        "test-challenge",
-		"code_challenge_method": "S256",
+		"code_challenge_method": challengeMethodS256,
 	}
 	for key, want := range checks {
 		if got := params.Get(key); got != want {
@@ -76,7 +88,7 @@ func TestExchangeCode_Success(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(Token{ // #nosec G117 -- values are bounded by validation upstream
 			AccessToken:  "access-token-xyz",
-			TokenType:    "Bearer",
+			TokenType:    testTokenTypeBearer,
 			RefreshToken: "refresh-token-xyz",
 			ExpiresIn:    3600,
 		})
@@ -117,7 +129,7 @@ func TestExchangeCode_ServerError(t *testing.T) {
 func TestExchangeCode_MissingAccessToken(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(Token{TokenType: "Bearer"}) // #nosec G117 -- values are bounded by validation upstream
+		_ = json.NewEncoder(w).Encode(Token{TokenType: testTokenTypeBearer}) // #nosec G117 -- values are bounded by validation upstream
 	}))
 	defer server.Close()
 
@@ -144,11 +156,11 @@ func TestClientAuthStatus_NoToken(t *testing.T) {
 	store := NewTokenStore(t.TempDir())
 	client := NewClient(store)
 
-	status := client.AuthStatus("https://muster.example.com/mcp")
+	status := client.AuthStatus(testServerURL)
 	if status.Status != "none" {
 		t.Errorf("Status = %q, want none", status.Status)
 	}
-	if status.ServerURL != "https://muster.example.com/mcp" {
+	if status.ServerURL != testServerURL {
 		t.Errorf("ServerURL = %q", status.ServerURL)
 	}
 }
@@ -156,10 +168,10 @@ func TestClientAuthStatus_NoToken(t *testing.T) {
 func TestClientAuthStatus_ValidToken(t *testing.T) {
 	dir := t.TempDir()
 	store := NewTokenStore(dir)
-	serverURL := "https://muster.example.com/mcp" //nolint:goconst
+	serverURL := testServerURL
 
-	if err := store.StoreToken(serverURL, "https://dex.example.com", Token{
-		AccessToken: "valid",
+	if err := store.StoreToken(serverURL, testIssuer, Token{
+		AccessToken: tokenStatusValid,
 		ExpiresIn:   3600,
 	}); err != nil {
 		t.Fatal(err)
@@ -167,10 +179,10 @@ func TestClientAuthStatus_ValidToken(t *testing.T) {
 
 	client := NewClient(store)
 	status := client.AuthStatus(serverURL)
-	if status.Status != "valid" { //nolint:goconst
+	if status.Status != tokenStatusValid {
 		t.Errorf("Status = %q, want valid", status.Status)
 	}
-	if status.Issuer != "https://dex.example.com" {
+	if status.Issuer != testIssuer {
 		t.Errorf("Issuer = %q", status.Issuer)
 	}
 }
@@ -178,12 +190,12 @@ func TestClientAuthStatus_ValidToken(t *testing.T) {
 func TestClientAuthStatus_ExpiredToken(t *testing.T) {
 	dir := t.TempDir()
 	store := NewTokenStore(dir)
-	serverURL := "https://muster.example.com/mcp"
+	serverURL := testServerURL
 
 	origNow := nowFunc
 	nowFunc = func() time.Time { return time.Now().Add(-2 * time.Hour) }
-	if err := store.StoreToken(serverURL, "https://dex.example.com", Token{
-		AccessToken: "expired",
+	if err := store.StoreToken(serverURL, testIssuer, Token{
+		AccessToken: tokenStatusExpired,
 		ExpiresIn:   3600,
 	}); err != nil {
 		t.Fatal(err)
@@ -193,7 +205,7 @@ func TestClientAuthStatus_ExpiredToken(t *testing.T) {
 
 	client := NewClient(store)
 	status := client.AuthStatus(serverURL)
-	if status.Status != "expired" { //nolint:goconst
+	if status.Status != tokenStatusExpired {
 		t.Errorf("Status = %q, want expired", status.Status)
 	}
 }
@@ -201,9 +213,9 @@ func TestClientAuthStatus_ExpiredToken(t *testing.T) {
 func TestClientLogout(t *testing.T) {
 	dir := t.TempDir()
 	store := NewTokenStore(dir)
-	serverURL := "https://muster.example.com/mcp"
+	serverURL := testServerURL
 
-	if err := store.StoreToken(serverURL, "https://dex.example.com", Token{AccessToken: "test"}); err != nil {
+	if err := store.StoreToken(serverURL, testIssuer, Token{AccessToken: testAccessToken}); err != nil {
 		t.Fatal(err)
 	}
 

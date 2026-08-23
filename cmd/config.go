@@ -17,7 +17,7 @@ var configCmd = &cobra.Command{
 }
 
 var configInitCmd = &cobra.Command{
-	Use:   "init",
+	Use:   useInit,
 	Short: "Create a default configuration file",
 	Long:  `Create a default configuration file at ~/.config/klausctl/instances/default/config.yaml.`,
 	RunE:  runConfigInit,

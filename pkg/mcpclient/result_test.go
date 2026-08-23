@@ -6,6 +6,9 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
+// contentTypeText is the MCP content type used in test fixtures.
+const contentTypeText = "text"
+
 func TestExtractText(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -26,7 +29,7 @@ func TestExtractText(t *testing.T) {
 			name: "single text content",
 			result: &mcp.CallToolResult{
 				Content: []mcp.Content{
-					mcp.TextContent{Type: "text", Text: "hello"},
+					mcp.TextContent{Type: contentTypeText, Text: "hello"},
 				},
 			},
 			want: "hello",
@@ -35,8 +38,8 @@ func TestExtractText(t *testing.T) {
 			name: "multiple text content items",
 			result: &mcp.CallToolResult{
 				Content: []mcp.Content{
-					mcp.TextContent{Type: "text", Text: "line1"},
-					mcp.TextContent{Type: "text", Text: "line2"},
+					mcp.TextContent{Type: contentTypeText, Text: "line1"},
+					mcp.TextContent{Type: contentTypeText, Text: "line2"},
 				},
 			},
 			want: "line1\nline2",
@@ -54,9 +57,9 @@ func TestExtractText(t *testing.T) {
 			name: "mixed content types",
 			result: &mcp.CallToolResult{
 				Content: []mcp.Content{
-					mcp.TextContent{Type: "text", Text: "before"},
+					mcp.TextContent{Type: contentTypeText, Text: "before"},
 					mcp.ImageContent{Type: "image", MIMEType: "image/png", Data: "abc"},
-					mcp.TextContent{Type: "text", Text: "after"},
+					mcp.TextContent{Type: contentTypeText, Text: "after"},
 				},
 			},
 			want: "before\nafter",

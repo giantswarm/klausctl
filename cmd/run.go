@@ -100,7 +100,7 @@ func init() {
 
 	runCmd.Flags().StringVarP(&runMessage, "message", "m", "", "prompt message to send to the agent (required)")
 	runCmd.Flags().BoolVar(&runBlocking, "blocking", false, "wait for the agent to complete and return the result")
-	runCmd.Flags().StringVarP(&runOutput, "output", "o", "text", "output format: text, json")
+	runCmd.Flags().StringVarP(&runOutput, "output", "o", outputText, "output format: text, json")
 
 	runCmd.Flags().StringVar(&runRemote, remoteFlagName("remote"), "", remoteFlagDesc("remote"))
 	runCmd.Flags().StringVar(&runSession, remoteFlagName("session"), "", remoteFlagDesc("session"))
@@ -207,7 +207,7 @@ func runBlocked(ctx context.Context, out io.Writer, httpClient *http.Client, age
 
 	return renderRunResult(out, promptCLIResult{
 		Instance: instanceName,
-		Status:   "completed",
+		Status:   statusCompleted,
 	})
 }
 
@@ -228,7 +228,7 @@ func runNonBlocking(ctx context.Context, out io.Writer, httpClient *http.Client,
 
 	result := promptCLIResult{
 		Instance: instanceName,
-		Status:   "started",
+		Status:   statusStarted,
 	}
 	return renderRunResult(out, result)
 }
@@ -264,7 +264,7 @@ func runRunRemote(ctx context.Context, cmd *cobra.Command, args []string) error 
 		}()
 		return renderRunResult(out, promptCLIResult{
 			Instance: instanceName,
-			Status:   "started",
+			Status:   statusStarted,
 		})
 	}
 
@@ -278,12 +278,12 @@ func runRunRemote(ctx context.Context, cmd *cobra.Command, args []string) error 
 
 	return renderRunResult(out, promptCLIResult{
 		Instance: instanceName,
-		Status:   "completed",
+		Status:   statusCompleted,
 	})
 }
 
 func renderRunResult(out io.Writer, result promptCLIResult) error {
-	if runOutput == "json" { //nolint:goconst
+	if runOutput == outputJSON {
 		enc := json.NewEncoder(out)
 		enc.SetIndent("", "  ")
 		return enc.Encode(result)

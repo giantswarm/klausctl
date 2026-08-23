@@ -18,6 +18,45 @@ import (
 	runtimepkg "github.com/giantswarm/klausctl/pkg/runtime"
 )
 
+// Fixtures shared across the cmd package tests.
+const (
+	testInstanceDev      = "dev"
+	testNameTest         = "test"
+	testNameExisting     = "existing"
+	testCaseEmpty        = "empty"
+	testContainerID      = "abc-123-def"
+	testContainerName    = "klausctl-dev"
+	testRuntimeDocker    = "docker"
+	testImageRef         = "test:latest"
+	testWorkspaceWS      = "/tmp/ws"
+	testWorkspaceRoot    = "/tmp"
+	testErrMsg           = "something went wrong"
+	testAgentResult      = "All tests passed."
+	testInstanceHeader   = "Instance: dev"
+	testHello            = "hello"
+	testHelloWorld       = "hello world"
+	testNilResultMsg     = "nil result"
+	testDigestABC        = "sha256:abc"
+	testDigestDef        = "sha256:def"
+	testPersonalitySRE   = "sre"
+	testPluginGSBase     = "gs-base"
+	testSubcmdDescribe   = "describe"
+	testSubcmdPull       = "pull"
+	testSubcmdPush       = "push"
+	testSubcmdValidate   = "validate"
+	testVersion010       = "v0.1.0"
+	testVersion020       = "v0.2.0"
+	testVersionV100      = "v1.0.0"
+	testVersion100       = "1.0.0"
+	testTagLatest        = "latest"
+	testPluginRefGS      = "gsoci.azurecr.io/giantswarm/klaus-plugins/gs-base:v0.6.0"
+	testPluginRefExample = "example.com/plugins/gs-base:v0.0.7"
+	testRefShort         = "example.com/p:v1"
+	testToolchainRepo    = "gsoci.azurecr.io/giantswarm/klaus-toolchains/go"
+	testMusterURL        = "https://muster.example.com/mcp"
+	testTargetRT1        = "rt-1"
+)
+
 func TestCreateFailsOnExplicitPortCollision(t *testing.T) {
 	configHome := filepath.Join(t.TempDir(), "config-home")
 	t.Setenv("XDG_CONFIG_HOME", configHome)
@@ -44,7 +83,7 @@ func TestCreateFailsOnExplicitPortCollision(t *testing.T) {
 	cmd.SetOut(io.Discard)
 	cmd.SetErr(io.Discard)
 
-	err := runCreate(cmd, []string{"dev", workspace})
+	err := runCreate(cmd, []string{testInstanceDev, workspace})
 	if err == nil {
 		t.Fatal("expected port collision error")
 	}
@@ -57,7 +96,7 @@ func TestListJSONOutputIncludesContractFields(t *testing.T) {
 	configHome := filepath.Join(t.TempDir(), "config-home")
 	t.Setenv("XDG_CONFIG_HOME", configHome)
 
-	instanceDir := filepath.Join(configHome, "klausctl", "instances", "dev")
+	instanceDir := filepath.Join(configHome, "klausctl", "instances", testInstanceDev)
 	if err := os.MkdirAll(instanceDir, 0o750); err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +106,7 @@ func TestListJSONOutputIncludesContractFields(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	listOutput = "json"
+	listOutput = outputJSON
 	var out bytes.Buffer
 	cmd := &cobra.Command{}
 	cmd.SetOut(&out)
@@ -85,10 +124,10 @@ func TestListJSONOutputIncludesContractFields(t *testing.T) {
 	}
 
 	entry := entries[0]
-	if entry["name"] != "dev" { //nolint:goconst
+	if entry["name"] != testInstanceDev { //nolint:goconst
 		t.Fatalf("unexpected name: %v", entry["name"])
 	}
-	if entry["status"] != "stopped" {
+	if entry["status"] != statusStopped {
 		t.Fatalf("unexpected status: %v", entry["status"])
 	}
 	if entry["toolchain"] != "go" {
@@ -103,7 +142,7 @@ func TestDeleteRemovesInstanceDirectoryWithYes(t *testing.T) {
 	configHome := filepath.Join(t.TempDir(), "config-home")
 	t.Setenv("XDG_CONFIG_HOME", configHome)
 
-	instanceDir := filepath.Join(configHome, "klausctl", "instances", "dev")
+	instanceDir := filepath.Join(configHome, "klausctl", "instances", testInstanceDev)
 	if err := os.MkdirAll(instanceDir, 0o750); err != nil {
 		t.Fatal(err)
 	}
@@ -117,7 +156,7 @@ func TestDeleteRemovesInstanceDirectoryWithYes(t *testing.T) {
 	cmd.SetOut(&out)
 	cmd.SetErr(io.Discard)
 
-	if err := runDelete(cmd, []string{"dev"}); err != nil {
+	if err := runDelete(cmd, []string{testInstanceDev}); err != nil {
 		t.Fatalf("runDelete() error = %v", err)
 	}
 
@@ -152,7 +191,7 @@ func TestRunStopRejectsNameWithAll(t *testing.T) {
 	cmd.SetOut(io.Discard)
 	cmd.SetErr(io.Discard)
 
-	err := runStop(cmd, []string{"dev"})
+	err := runStop(cmd, []string{testInstanceDev})
 	if err == nil {
 		t.Fatal("expected argument conflict error")
 	}
@@ -176,8 +215,8 @@ func TestApplyWorkspaceOverride(t *testing.T) {
 }
 
 func TestStopAndRemoveContainerIfExistsRunning(t *testing.T) {
-	rt := &fakeRuntime{status: "running"}
-	if err := stopAndRemoveContainerIfExists(context.Background(), rt, "klausctl-dev"); err != nil {
+	rt := &fakeRuntime{status: statusRunning}
+	if err := stopAndRemoveContainerIfExists(context.Background(), rt, testContainerName); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if rt.stopCalls != 1 {
@@ -190,7 +229,7 @@ func TestStopAndRemoveContainerIfExistsRunning(t *testing.T) {
 
 func TestStopAndRemoveContainerIfExistsMissing(t *testing.T) {
 	rt := &fakeRuntime{status: ""}
-	if err := stopAndRemoveContainerIfExists(context.Background(), rt, "klausctl-dev"); err != nil {
+	if err := stopAndRemoveContainerIfExists(context.Background(), rt, testContainerName); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if rt.stopCalls != 0 {
@@ -272,7 +311,7 @@ func TestParseGitAuthor(t *testing.T) {
 		wantEmail string
 		wantErr   bool
 	}{
-		{name: "empty", input: "", wantName: "", wantEmail: ""},
+		{name: testCaseEmpty, input: "", wantName: "", wantEmail: ""},
 		{name: "valid", input: "Klaus Agent <klaus@example.com>", wantName: "Klaus Agent", wantEmail: "klaus@example.com"},
 		{name: "extra spaces", input: "  Klaus  <klaus@test.com> ", wantName: "Klaus", wantEmail: "klaus@test.com"},
 		{name: "missing angle brackets", input: "Klaus klaus@test.com", wantErr: true},
@@ -414,7 +453,7 @@ func TestCreateCollisionStoppedAbortWithoutYes(t *testing.T) {
 	}
 
 	// Create a pre-existing stopped instance (directory exists, no instance.json).
-	instanceDir := filepath.Join(configHome, "klausctl", "instances", "existing")
+	instanceDir := filepath.Join(configHome, "klausctl", "instances", testNameExisting)
 	if err := os.MkdirAll(instanceDir, 0o750); err != nil {
 		t.Fatal(err)
 	}
@@ -439,7 +478,7 @@ func TestCreateCollisionStoppedAbortWithoutYes(t *testing.T) {
 	// Provide "n" as stdin to decline the prompt.
 	cmd.SetIn(strings.NewReader("n\n"))
 
-	err := runCreate(cmd, []string{"existing", workspace})
+	err := runCreate(cmd, []string{testNameExisting, workspace})
 	if err == nil {
 		t.Fatal("expected error when declining collision prompt")
 	}
@@ -458,7 +497,7 @@ func TestCreateCollisionStoppedAutoConfirmWithYes(t *testing.T) {
 	}
 
 	// Create a pre-existing stopped instance with a marker file.
-	instanceDir := filepath.Join(configHome, "klausctl", "instances", "existing")
+	instanceDir := filepath.Join(configHome, "klausctl", "instances", testNameExisting)
 	if err := os.MkdirAll(instanceDir, 0o750); err != nil {
 		t.Fatal(err)
 	}
@@ -487,7 +526,7 @@ func TestCreateCollisionStoppedAutoConfirmWithYes(t *testing.T) {
 	// With -y, the old instance directory should be cleaned up first.
 	// runCreate will fail at startInstance (no runtime), but the old marker
 	// file should be gone because cleanup removed the old directory.
-	_ = runCreate(cmd, []string{"existing", workspace})
+	_ = runCreate(cmd, []string{testNameExisting, workspace})
 
 	// The old marker file should have been removed by cleanup.
 	if _, err := os.Stat(markerFile); !os.IsNotExist(err) {

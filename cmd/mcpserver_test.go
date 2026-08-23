@@ -16,7 +16,7 @@ import (
 func TestAuthLabel_Secret(t *testing.T) {
 	store := oauth.NewTokenStore(t.TempDir())
 	def := mcpserverstore.McpServerDef{
-		URL:    "https://muster.example.com/mcp",
+		URL:    testMusterURL,
 		Secret: "my-secret",
 	}
 
@@ -29,7 +29,7 @@ func TestAuthLabel_Secret(t *testing.T) {
 func TestAuthLabel_NoAuth(t *testing.T) {
 	store := oauth.NewTokenStore(t.TempDir())
 	def := mcpserverstore.McpServerDef{
-		URL: "https://muster.example.com/mcp",
+		URL: testMusterURL,
 	}
 
 	got := authLabel(def, store)
@@ -41,7 +41,7 @@ func TestAuthLabel_NoAuth(t *testing.T) {
 func TestAuthLabel_ValidOAuth(t *testing.T) {
 	dir := t.TempDir()
 	store := oauth.NewTokenStore(dir)
-	serverURL := "https://muster.example.com/mcp" //nolint:goconst
+	serverURL := testMusterURL
 
 	if err := store.StoreToken(serverURL, "https://dex.example.com", oauth.Token{
 		AccessToken: "valid-token",
@@ -63,7 +63,7 @@ func TestAuthLabel_ExpiredOAuth(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	serverURL := "https://muster.example.com/mcp"
+	serverURL := testMusterURL
 	writeExpiredToken(t, dir, serverURL, "https://dex.example.com")
 
 	store := oauth.NewTokenStore(dir)
@@ -102,7 +102,7 @@ func writeExpiredToken(t *testing.T, dir, serverURL, issuer string) {
 func TestAuthLabel_SecretTakesPrecedence(t *testing.T) {
 	dir := t.TempDir()
 	store := oauth.NewTokenStore(dir)
-	serverURL := "https://muster.example.com/mcp"
+	serverURL := testMusterURL
 
 	if err := store.StoreToken(serverURL, "https://dex.example.com", oauth.Token{
 		AccessToken: "valid-token",

@@ -53,14 +53,14 @@ func TestHandleArchiveListWithEntries(t *testing.T) {
 	entry1 := &archive.Entry{
 		UUID:         "uuid-1",
 		Name:         "dev",
-		Status:       "completed",
+		Status:       statusCompleted,
 		MessageCount: 10,
 		StoppedAt:    time.Now().Add(-1 * time.Hour),
 	}
 	entry2 := &archive.Entry{
 		UUID:         "uuid-2",
-		Name:         "prod",
-		Status:       "error",
+		Name:         testEnvProd,
+		Status:       testStatusError,
 		MessageCount: 5,
 		StoppedAt:    time.Now(),
 	}
@@ -98,7 +98,7 @@ func TestHandleArchiveListLimit(t *testing.T) {
 		e := &archive.Entry{
 			UUID:      fmt.Sprintf("uuid-%d", i),
 			Name:      fmt.Sprintf("inst-%d", i),
-			Status:    "completed",
+			Status:    statusCompleted,
 			StoppedAt: time.Now().Add(time.Duration(i) * time.Minute),
 		}
 		if err := archive.Save(sc.Paths.ArchivesDir, e); err != nil {
@@ -106,7 +106,7 @@ func TestHandleArchiveListLimit(t *testing.T) {
 		}
 	}
 
-	req := callToolRequest(map[string]any{"limit": float64(2)})
+	req := callToolRequest(map[string]any{paramLimit: float64(2)})
 	result, err := handleArchiveList(context.Background(), req, sc)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -128,7 +128,7 @@ func TestHandleArchiveListOffset(t *testing.T) {
 		e := &archive.Entry{
 			UUID:      fmt.Sprintf("uuid-%d", i),
 			Name:      fmt.Sprintf("inst-%d", i),
-			Status:    "completed",
+			Status:    statusCompleted,
 			StoppedAt: time.Now().Add(time.Duration(i) * time.Minute),
 		}
 		if err := archive.Save(sc.Paths.ArchivesDir, e); err != nil {
@@ -136,7 +136,7 @@ func TestHandleArchiveListOffset(t *testing.T) {
 		}
 	}
 
-	req := callToolRequest(map[string]any{"offset": float64(3), "limit": float64(10)})
+	req := callToolRequest(map[string]any{"offset": float64(3), paramLimit: float64(10)})
 	result, err := handleArchiveList(context.Background(), req, sc)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -155,13 +155,13 @@ func TestHandleArchiveListNameFilter(t *testing.T) {
 	sc := testServerContext(t)
 
 	for _, name := range []string{"dev-alpha", "prod-beta", "dev-gamma"} {
-		e := &archive.Entry{UUID: name, Name: name, Status: "completed", StoppedAt: time.Now()}
+		e := &archive.Entry{UUID: name, Name: name, Status: statusCompleted, StoppedAt: time.Now()}
 		if err := archive.Save(sc.Paths.ArchivesDir, e); err != nil {
 			t.Fatalf("saving entry: %v", err)
 		}
 	}
 
-	req := callToolRequest(map[string]any{"name": "dev"})
+	req := callToolRequest(map[string]any{paramName: "dev"})
 	result, err := handleArchiveList(context.Background(), req, sc)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -176,8 +176,8 @@ func TestHandleArchiveListNameFilter(t *testing.T) {
 func TestHandleArchiveListTaggedFilter(t *testing.T) {
 	sc := testServerContext(t)
 
-	tagged := &archive.Entry{UUID: "tagged", Name: "tagged", Status: "completed", StoppedAt: time.Now(), Tags: map[string]string{"env": "prod"}}
-	untagged := &archive.Entry{UUID: "untagged", Name: "untagged", Status: "completed", StoppedAt: time.Now()}
+	tagged := &archive.Entry{UUID: testUUIDTagged, Name: testUUIDTagged, Status: statusCompleted, StoppedAt: time.Now(), Tags: map[string]string{testTagEnv: testEnvProd}}
+	untagged := &archive.Entry{UUID: "untagged", Name: "untagged", Status: statusCompleted, StoppedAt: time.Now()}
 	if err := archive.Save(sc.Paths.ArchivesDir, tagged); err != nil {
 		t.Fatalf("saving entry: %v", err)
 	}
@@ -185,14 +185,14 @@ func TestHandleArchiveListTaggedFilter(t *testing.T) {
 		t.Fatalf("saving entry: %v", err)
 	}
 
-	req := callToolRequest(map[string]any{"tagged": true})
+	req := callToolRequest(map[string]any{testUUIDTagged: true})
 	result, err := handleArchiveList(context.Background(), req, sc)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
 	resp := decodeArchiveListResp(t, result)
-	if resp.Total != 1 || resp.Items[0].UUID != "tagged" {
+	if resp.Total != 1 || resp.Items[0].UUID != testUUIDTagged {
 		t.Errorf("expected only tagged entry, got %+v", resp)
 	}
 }
@@ -200,8 +200,8 @@ func TestHandleArchiveListTaggedFilter(t *testing.T) {
 func TestHandleArchiveListOutcomeFilter(t *testing.T) {
 	sc := testServerContext(t)
 
-	e1 := &archive.Entry{UUID: "s1", Name: "s1", Status: "completed", StoppedAt: time.Now(), Tags: map[string]string{"outcome": "success"}}
-	e2 := &archive.Entry{UUID: "f1", Name: "f1", Status: "completed", StoppedAt: time.Now(), Tags: map[string]string{"outcome": "failed"}}
+	e1 := &archive.Entry{UUID: "s1", Name: "s1", Status: statusCompleted, StoppedAt: time.Now(), Tags: map[string]string{paramOutcome: outcomeSuccess}}
+	e2 := &archive.Entry{UUID: "f1", Name: "f1", Status: statusCompleted, StoppedAt: time.Now(), Tags: map[string]string{paramOutcome: testStatusFailed}}
 	if err := archive.Save(sc.Paths.ArchivesDir, e1); err != nil {
 		t.Fatalf("saving entry: %v", err)
 	}
@@ -209,7 +209,7 @@ func TestHandleArchiveListOutcomeFilter(t *testing.T) {
 		t.Fatalf("saving entry: %v", err)
 	}
 
-	req := callToolRequest(map[string]any{"outcome": "success"})
+	req := callToolRequest(map[string]any{paramOutcome: outcomeSuccess})
 	result, err := handleArchiveList(context.Background(), req, sc)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -224,8 +224,8 @@ func TestHandleArchiveListOutcomeFilter(t *testing.T) {
 func TestHandleArchiveListSinceFilter(t *testing.T) {
 	sc := testServerContext(t)
 
-	old := &archive.Entry{UUID: "old", Name: "old", Status: "completed", StoppedAt: time.Now().Add(-48 * time.Hour)}
-	recent := &archive.Entry{UUID: "recent", Name: "recent", Status: "completed", StoppedAt: time.Now()}
+	old := &archive.Entry{UUID: testUUIDOld, Name: testUUIDOld, Status: statusCompleted, StoppedAt: time.Now().Add(-48 * time.Hour)}
+	recent := &archive.Entry{UUID: testUUIDRecent, Name: testUUIDRecent, Status: statusCompleted, StoppedAt: time.Now()}
 	if err := archive.Save(sc.Paths.ArchivesDir, old); err != nil {
 		t.Fatalf("saving entry: %v", err)
 	}
@@ -234,14 +234,14 @@ func TestHandleArchiveListSinceFilter(t *testing.T) {
 	}
 
 	since := time.Now().Add(-24 * time.Hour).Format(time.RFC3339)
-	req := callToolRequest(map[string]any{"since": since})
+	req := callToolRequest(map[string]any{paramSince: since})
 	result, err := handleArchiveList(context.Background(), req, sc)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
 	resp := decodeArchiveListResp(t, result)
-	if resp.Total != 1 || resp.Items[0].UUID != "recent" {
+	if resp.Total != 1 || resp.Items[0].UUID != testUUIDRecent {
 		t.Errorf("expected only recent entry, got %+v", resp)
 	}
 }
@@ -249,7 +249,7 @@ func TestHandleArchiveListSinceFilter(t *testing.T) {
 func TestHandleArchiveListInvalidSince(t *testing.T) {
 	sc := testServerContext(t)
 
-	req := callToolRequest(map[string]any{"since": "not-a-date"})
+	req := callToolRequest(map[string]any{paramSince: "not-a-date"})
 	result, err := handleArchiveList(context.Background(), req, sc)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -261,9 +261,9 @@ func TestHandleArchiveShowByUUID(t *testing.T) {
 	sc := testServerContext(t)
 
 	entry := &archive.Entry{
-		UUID:         "show-uuid",
-		Name:         "test",
-		Status:       "completed",
+		UUID:         testUUIDShow,
+		Name:         testNameTest,
+		Status:       statusCompleted,
 		ResultText:   "All done.",
 		MessageCount: 42,
 		StoppedAt:    time.Now(),
@@ -272,7 +272,7 @@ func TestHandleArchiveShowByUUID(t *testing.T) {
 		t.Fatalf("saving entry: %v", err)
 	}
 
-	req := callToolRequest(map[string]any{"uuid": "show-uuid"})
+	req := callToolRequest(map[string]any{paramUUID: testUUIDShow})
 	result, err := handleArchiveShow(context.Background(), req, sc)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -283,8 +283,8 @@ func TestHandleArchiveShowByUUID(t *testing.T) {
 	if err := json.Unmarshal([]byte(text), &loaded); err != nil {
 		t.Fatalf("expected JSON object, got: %s", text)
 	}
-	if loaded.UUID != "show-uuid" {
-		t.Errorf("UUID = %q, want %q", loaded.UUID, "show-uuid")
+	if loaded.UUID != testUUIDShow {
+		t.Errorf("UUID = %q, want %q", loaded.UUID, testUUIDShow)
 	}
 	if loaded.ResultText != "All done." {
 		t.Errorf("ResultText = %q, want %q", loaded.ResultText, "All done.")
@@ -296,8 +296,8 @@ func TestHandleArchiveShowOmitsMessagesByDefault(t *testing.T) {
 
 	entry := &archive.Entry{
 		UUID:         "msg-uuid",
-		Name:         "test",
-		Status:       "completed",
+		Name:         testNameTest,
+		Status:       statusCompleted,
 		MessageCount: 5,
 		Messages:     json.RawMessage(`[{"role":"user","content":"hello"}]`),
 		StoppedAt:    time.Now(),
@@ -307,7 +307,7 @@ func TestHandleArchiveShowOmitsMessagesByDefault(t *testing.T) {
 	}
 
 	// Without full=true, messages should be omitted.
-	req := callToolRequest(map[string]any{"uuid": "msg-uuid"})
+	req := callToolRequest(map[string]any{paramUUID: "msg-uuid"})
 	result, err := handleArchiveShow(context.Background(), req, sc)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -328,8 +328,8 @@ func TestHandleArchiveShowIncludesMessagesWhenFull(t *testing.T) {
 
 	entry := &archive.Entry{
 		UUID:         "full-uuid",
-		Name:         "test",
-		Status:       "completed",
+		Name:         testNameTest,
+		Status:       statusCompleted,
 		MessageCount: 5,
 		Messages:     json.RawMessage(`[{"role":"user","content":"hello"}]`),
 		StoppedAt:    time.Now(),
@@ -338,7 +338,7 @@ func TestHandleArchiveShowIncludesMessagesWhenFull(t *testing.T) {
 		t.Fatalf("saving entry: %v", err)
 	}
 
-	req := callToolRequest(map[string]any{"uuid": "full-uuid", "full": true})
+	req := callToolRequest(map[string]any{paramUUID: "full-uuid", "full": true})
 	result, err := handleArchiveShow(context.Background(), req, sc)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -357,7 +357,7 @@ func TestHandleArchiveShowIncludesMessagesWhenFull(t *testing.T) {
 func TestHandleArchiveShowNotFound(t *testing.T) {
 	sc := testServerContext(t)
 
-	req := callToolRequest(map[string]any{"uuid": "nonexistent"})
+	req := callToolRequest(map[string]any{paramUUID: testNameMissing})
 	result, err := handleArchiveShow(context.Background(), req, sc)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -371,8 +371,8 @@ func TestHandleArchiveTag(t *testing.T) {
 
 	entry := &archive.Entry{
 		UUID:      "tag-uuid",
-		Name:      "test",
-		Status:    "completed",
+		Name:      testNameTest,
+		Status:    statusCompleted,
 		StoppedAt: time.Now(),
 	}
 	if err := archive.Save(sc.Paths.ArchivesDir, entry); err != nil {
@@ -380,8 +380,8 @@ func TestHandleArchiveTag(t *testing.T) {
 	}
 
 	req := callToolRequest(map[string]any{
-		"uuid": "tag-uuid",
-		"tags": map[string]any{"env": "prod", "team": "platform"},
+		paramUUID: "tag-uuid",
+		paramTags: map[string]any{testTagEnv: testEnvProd, "team": "platform"},
 	})
 	result, err := handleArchiveTag(context.Background(), req, sc)
 	if err != nil {
@@ -393,8 +393,8 @@ func TestHandleArchiveTag(t *testing.T) {
 	if err := json.Unmarshal([]byte(text), &loaded); err != nil {
 		t.Fatalf("expected JSON object, got: %s", text)
 	}
-	if loaded.Tags["env"] != "prod" {
-		t.Errorf("Tags[env] = %q, want %q", loaded.Tags["env"], "prod")
+	if loaded.Tags[testTagEnv] != testEnvProd {
+		t.Errorf("Tags[env] = %q, want %q", loaded.Tags[testTagEnv], testEnvProd)
 	}
 	if loaded.Tags["team"] != "platform" {
 		t.Errorf("Tags[team] = %q, want %q", loaded.Tags["team"], "platform")
@@ -406,18 +406,18 @@ func TestHandleArchiveTagMerge(t *testing.T) {
 
 	entry := &archive.Entry{
 		UUID:      "merge-uuid",
-		Name:      "test",
-		Status:    "completed",
+		Name:      testNameTest,
+		Status:    statusCompleted,
 		StoppedAt: time.Now(),
-		Tags:      map[string]string{"env": "staging", "team": "old"},
+		Tags:      map[string]string{testTagEnv: "staging", "team": testUUIDOld},
 	}
 	if err := archive.Save(sc.Paths.ArchivesDir, entry); err != nil {
 		t.Fatalf("saving entry: %v", err)
 	}
 
 	req := callToolRequest(map[string]any{
-		"uuid": "merge-uuid",
-		"tags": map[string]any{"env": "prod"},
+		paramUUID: "merge-uuid",
+		paramTags: map[string]any{testTagEnv: testEnvProd},
 	})
 	result, err := handleArchiveTag(context.Background(), req, sc)
 	if err != nil {
@@ -429,11 +429,11 @@ func TestHandleArchiveTagMerge(t *testing.T) {
 	if err := json.Unmarshal([]byte(text), &loaded); err != nil {
 		t.Fatalf("expected JSON object, got: %s", text)
 	}
-	if loaded.Tags["env"] != "prod" {
-		t.Errorf("Tags[env] = %q, want %q", loaded.Tags["env"], "prod")
+	if loaded.Tags[testTagEnv] != testEnvProd {
+		t.Errorf("Tags[env] = %q, want %q", loaded.Tags[testTagEnv], testEnvProd)
 	}
-	if loaded.Tags["team"] != "old" {
-		t.Errorf("Tags[team] = %q, want %q (should be preserved)", loaded.Tags["team"], "old")
+	if loaded.Tags["team"] != testUUIDOld {
+		t.Errorf("Tags[team] = %q, want %q (should be preserved)", loaded.Tags["team"], testUUIDOld)
 	}
 }
 
@@ -441,8 +441,8 @@ func TestHandleArchiveTagNotFound(t *testing.T) {
 	sc := testServerContext(t)
 
 	req := callToolRequest(map[string]any{
-		"uuid": "nonexistent",
-		"tags": map[string]any{"k": "v"},
+		paramUUID: testNameMissing,
+		paramTags: map[string]any{"k": "v"},
 	})
 	result, err := handleArchiveTag(context.Background(), req, sc)
 	if err != nil {
@@ -455,8 +455,8 @@ func TestHandleArchiveTagEmptyTags(t *testing.T) {
 	sc := testServerContext(t)
 
 	req := callToolRequest(map[string]any{
-		"uuid": "some-uuid",
-		"tags": map[string]any{},
+		paramUUID: "some-uuid",
+		paramTags: map[string]any{},
 	})
 	result, err := handleArchiveTag(context.Background(), req, sc)
 	if err != nil {
@@ -469,7 +469,7 @@ func TestHandleArchiveTagMissingUUID(t *testing.T) {
 	sc := testServerContext(t)
 
 	req := callToolRequest(map[string]any{
-		"tags": map[string]any{"k": "v"},
+		paramTags: map[string]any{"k": "v"},
 	})
 	result, err := handleArchiveTag(context.Background(), req, sc)
 	if err != nil {

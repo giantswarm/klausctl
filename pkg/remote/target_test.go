@@ -13,14 +13,14 @@ func TestNormalizeBaseURL(t *testing.T) {
 		want    string
 		wantErr bool
 	}{
-		{"https root", "https://gw.example.com", "https://gw.example.com", false},
-		{"trailing slash", "https://gw.example.com/", "https://gw.example.com", false},
-		{"trailing v1", "https://gw.example.com/v1", "https://gw.example.com", false},
-		{"trailing v1 slash", "https://gw.example.com/v1/", "https://gw.example.com", false},
+		{"https root", testGatewayURL, testGatewayURL, false},
+		{"trailing slash", "https://gw.example.com/", testGatewayURL, false},
+		{"trailing v1", "https://gw.example.com/v1", testGatewayURL, false},
+		{"trailing v1 slash", "https://gw.example.com/v1/", testGatewayURL, false},
 		{"with subpath", "https://gw.example.com/klaus", "https://gw.example.com/klaus", false},
-		{"query and fragment dropped", "https://gw.example.com/?x=1#f", "https://gw.example.com", false},
-		{"whitespace trimmed", "  https://gw.example.com  ", "https://gw.example.com", false},
-		{"http allowed", "http://localhost:8080", "http://localhost:8080", false},
+		{"query and fragment dropped", "https://gw.example.com/?x=1#f", testGatewayURL, false},
+		{"whitespace trimmed", "  https://gw.example.com  ", testGatewayURL, false},
+		{"http allowed", testLocalGatewayURL, testLocalGatewayURL, false},
 		{"empty", "", "", true},
 		{"no scheme", "gw.example.com", "", true},
 		{"ftp scheme", "ftp://gw.example.com", "", true},
@@ -56,7 +56,7 @@ func TestTargetURLComposition(t *testing.T) {
 	if got, want := tgt.MCPURL(), "https://gw.example.com/v1/dev-abc/mcp"; got != want {
 		t.Errorf("MCPURL = %q, want %q", got, want)
 	}
-	if got, want := tgt.BaseURL, "https://gw.example.com"; got != want {
+	if got, want := tgt.BaseURL, testGatewayURL; got != want {
 		t.Errorf("BaseURL = %q, want %q (trailing /v1 should have been stripped)", got, want)
 	}
 	if tgt.ThreadID != "feature-x" {
@@ -65,7 +65,7 @@ func TestTargetURLComposition(t *testing.T) {
 }
 
 func TestTargetURLEscapesInstance(t *testing.T) {
-	tgt, err := NewTarget("https://gw.example.com", "name with space", "s", "")
+	tgt, err := NewTarget(testGatewayURL, "name with space", "s", "")
 	if err != nil {
 		t.Fatalf("NewTarget: %v", err)
 	}
@@ -75,14 +75,14 @@ func TestTargetURLEscapesInstance(t *testing.T) {
 }
 
 func TestNewTargetRequiresInstance(t *testing.T) {
-	if _, err := NewTarget("https://gw.example.com", "", "", ""); err == nil {
+	if _, err := NewTarget(testGatewayURL, "", "", ""); err == nil {
 		t.Fatalf("expected error when instance is empty")
 	}
 }
 
 func TestTargetHeaders(t *testing.T) {
 	tgt := Target{
-		BaseURL:   "https://gw.example.com",
+		BaseURL:   testGatewayURL,
 		Instance:  "dev",
 		ChannelID: "laptop.local",
 		UserID:    "alice",
@@ -104,7 +104,7 @@ func TestTargetHeaders(t *testing.T) {
 }
 
 func TestTargetHeadersOmitsEmptyFields(t *testing.T) {
-	tgt := Target{BaseURL: "https://gw.example.com", Instance: "dev"}
+	tgt := Target{BaseURL: testGatewayURL, Instance: "dev"}
 	h := tgt.Headers()
 	if _, ok := h[ChannelIDHeader]; ok {
 		t.Errorf("channel-id should be omitted when empty: %v", h)
@@ -164,7 +164,7 @@ func TestDefaultSessionStableFromCwd(t *testing.T) {
 }
 
 func TestNewTargetUsesExplicitSession(t *testing.T) {
-	tgt, err := NewTarget("https://gw.example.com", "dev", "   my-thread  ", "")
+	tgt, err := NewTarget(testGatewayURL, "dev", "   my-thread  ", "")
 	if err != nil {
 		t.Fatalf("NewTarget: %v", err)
 	}

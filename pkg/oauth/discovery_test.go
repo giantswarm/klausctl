@@ -12,9 +12,9 @@ func TestDiscoverMetadata_RFC8414(t *testing.T) {
 	ClearMetadataCache()
 
 	meta := Metadata{ // #nosec G101 -- constant identifier, not a credential
-		Issuer:                "https://dex.example.com",
-		AuthorizationEndpoint: "https://dex.example.com/auth",
-		TokenEndpoint:         "https://dex.example.com/token",
+		Issuer:                testIssuer,
+		AuthorizationEndpoint: testAuthEndpoint,
+		TokenEndpoint:         testTokenEndpoint,
 		ScopesSupported:       []string{"openid", "profile"},
 	}
 
@@ -44,9 +44,9 @@ func TestDiscoverMetadata_OpenIDConnect(t *testing.T) {
 	ClearMetadataCache()
 
 	meta := Metadata{ // #nosec G101 -- constant identifier, not a credential
-		Issuer:                "https://dex.example.com",
-		AuthorizationEndpoint: "https://dex.example.com/auth",
-		TokenEndpoint:         "https://dex.example.com/token",
+		Issuer:                testIssuer,
+		AuthorizationEndpoint: testAuthEndpoint,
+		TokenEndpoint:         testTokenEndpoint,
 	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -106,7 +106,7 @@ func TestDiscoverMetadata_MissingEndpoints(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(Metadata{Issuer: "https://dex.example.com"})
+		_ = json.NewEncoder(w).Encode(Metadata{Issuer: testIssuer})
 	}))
 	defer server.Close()
 
@@ -138,9 +138,9 @@ func TestDiscoverMetadata_CachesResults(t *testing.T) {
 		callCount++
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(Metadata{ // #nosec G101 -- constant identifier, not a credential
-			Issuer:                "https://dex.example.com",
-			AuthorizationEndpoint: "https://dex.example.com/auth",
-			TokenEndpoint:         "https://dex.example.com/token",
+			Issuer:                testIssuer,
+			AuthorizationEndpoint: testAuthEndpoint,
+			TokenEndpoint:         testTokenEndpoint,
 		})
 	}))
 	defer server.Close()
@@ -167,9 +167,9 @@ func TestDiscoverMetadata_TrailingSlash(t *testing.T) {
 		if r.URL.Path == "/.well-known/oauth-authorization-server" {
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(Metadata{ // #nosec G101 -- constant identifier, not a credential
-				Issuer:                "https://dex.example.com",
-				AuthorizationEndpoint: "https://dex.example.com/auth",
-				TokenEndpoint:         "https://dex.example.com/token",
+				Issuer:                testIssuer,
+				AuthorizationEndpoint: testAuthEndpoint,
+				TokenEndpoint:         testTokenEndpoint,
 			})
 			return
 		}
@@ -181,7 +181,7 @@ func TestDiscoverMetadata_TrailingSlash(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DiscoverMetadata with trailing slash: %v", err)
 	}
-	if got.AuthorizationEndpoint != "https://dex.example.com/auth" {
+	if got.AuthorizationEndpoint != testAuthEndpoint {
 		t.Errorf("AuthorizationEndpoint = %q", got.AuthorizationEndpoint)
 	}
 }

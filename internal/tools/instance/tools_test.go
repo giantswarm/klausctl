@@ -18,6 +18,26 @@ import (
 	"github.com/giantswarm/klausctl/pkg/mcpclient"
 )
 
+// Fixtures shared across the instance tool tests.
+const (
+	testNameTest        = "test"
+	testNameMissing     = "nonexistent"
+	testStatusError     = "error"
+	testStatusFailed    = "failed"
+	testEnvProd         = "prod"
+	testTagEnv          = "env"
+	testUUIDOld         = "old"
+	testUUIDRecent      = "recent"
+	testUUIDShow        = "show-uuid"
+	testValueInvalid    = "invalid"
+	testRepoFrontend    = "frontend"
+	testTagComplexity   = "complexity"
+	testTagFirstAttempt = "first_attempt"
+	testTagRework       = "rework"
+	testValueYes        = "yes"
+	testUUIDTagged      = "tagged"
+)
+
 // hideContainerRuntimes points PATH at an empty directory so runtime auto
 // detection (which uses exec.LookPath for docker/podman) fails. Use this in
 // tests that assert on the "no runtime available" failure path; otherwise the
@@ -39,12 +59,12 @@ func testServerContext(t *testing.T) *server.ServerContext {
 	if err := config.EnsureDir(paths.InstancesDir); err != nil {
 		t.Fatal(err)
 	}
-	return &server.ServerContext{Paths: paths, MCPClient: mcpclient.New("test")}
+	return &server.ServerContext{Paths: paths, MCPClient: mcpclient.New(testNameTest)}
 }
 
 func TestRegisterTools(t *testing.T) {
 	sc := testServerContext(t)
-	srv := mcpserver.NewMCPServer("test", "1.0.0",
+	srv := mcpserver.NewMCPServer(testNameTest, "1.0.0",
 		mcpserver.WithToolCapabilities(false),
 	)
 	RegisterTools(srv, sc)
@@ -65,7 +85,7 @@ func TestHandleListEmpty(t *testing.T) {
 func TestHandleStatusMissingInstance(t *testing.T) {
 	sc := testServerContext(t)
 
-	req := callToolRequest(map[string]any{"name": "nonexistent"})
+	req := callToolRequest(map[string]any{paramName: testNameMissing})
 	result, err := handleStatus(context.Background(), req, sc)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -93,7 +113,7 @@ func TestHandleStatusStoppedInstance(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	req := callToolRequest(map[string]any{"name": "stopped-inst"})
+	req := callToolRequest(map[string]any{paramName: "stopped-inst"})
 	result, err := handleStatus(context.Background(), req, sc)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -104,18 +124,18 @@ func TestHandleStatusStoppedInstance(t *testing.T) {
 	if err := json.Unmarshal([]byte(text), &obj); err != nil {
 		t.Fatalf("expected JSON object, got: %s", text)
 	}
-	if obj["status"] != "stopped" {
-		t.Errorf("expected 'stopped' status, got %q", obj["status"])
+	if obj[keyStatus] != statusStopped {
+		t.Errorf("expected 'stopped' status, got %q", obj[keyStatus])
 	}
-	if obj["instance"] != "stopped-inst" {
-		t.Errorf("expected instance 'stopped-inst', got %q", obj["instance"])
+	if obj[keyInstance] != "stopped-inst" {
+		t.Errorf("expected instance 'stopped-inst', got %q", obj[keyInstance])
 	}
 }
 
 func TestHandleLogsMissingInstance(t *testing.T) {
 	sc := testServerContext(t)
 
-	req := callToolRequest(map[string]any{"name": "nonexistent"})
+	req := callToolRequest(map[string]any{paramName: testNameMissing})
 	result, err := handleLogs(context.Background(), req, sc)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -127,7 +147,7 @@ func TestHandleLogsMissingInstance(t *testing.T) {
 func TestHandleDeleteMissingInstance(t *testing.T) {
 	sc := testServerContext(t)
 
-	req := callToolRequest(map[string]any{"name": "nonexistent"})
+	req := callToolRequest(map[string]any{paramName: testNameMissing})
 	result, err := handleDelete(context.Background(), req, sc)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -154,9 +174,9 @@ func TestHandleCreatePortConflict(t *testing.T) {
 	}
 
 	req := callToolRequest(map[string]any{
-		"name":      "porttest",
-		"workspace": workspace,
-		"port":      float64(9090),
+		paramName:      "porttest",
+		paramWorkspace: workspace,
+		paramPort:      float64(9090),
 	})
 	result, err := handleCreate(context.Background(), req, sc)
 	if err != nil {
@@ -179,9 +199,9 @@ func TestHandleCreateCustomPort(t *testing.T) {
 	}
 
 	req := callToolRequest(map[string]any{
-		"name":      "portcustom",
-		"workspace": workspace,
-		"port":      float64(9999),
+		paramName:      "portcustom",
+		paramWorkspace: workspace,
+		paramPort:      float64(9999),
 	})
 	result, err := handleCreate(context.Background(), req, sc)
 	if err != nil {
@@ -208,7 +228,7 @@ func TestHandleCreateCustomPort(t *testing.T) {
 	if err := yaml.Unmarshal(data, &cfgMap); err != nil {
 		t.Fatalf("failed to parse config: %v", err)
 	}
-	if port, ok := cfgMap["port"]; !ok {
+	if port, ok := cfgMap[paramPort]; !ok {
 		t.Fatal("port not found in config")
 	} else if portInt, ok := port.(int); !ok || portInt != 9999 {
 		t.Fatalf("expected port 9999 in config, got %v", port)
@@ -234,9 +254,9 @@ func TestHandleCreatePortOutOfRange(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			req := callToolRequest(map[string]any{
-				"name":      "rangetest",
-				"workspace": workspace,
-				"port":      tt.port,
+				paramName:      "rangetest",
+				paramWorkspace: workspace,
+				paramPort:      tt.port,
 			})
 			result, err := handleCreate(context.Background(), req, sc)
 			if err != nil {
@@ -254,7 +274,7 @@ func TestHandleCreatePortOutOfRange(t *testing.T) {
 func TestHandleCreateInvalidName(t *testing.T) {
 	sc := testServerContext(t)
 
-	req := callToolRequest(map[string]any{"name": "INVALID NAME!"})
+	req := callToolRequest(map[string]any{paramName: "INVALID NAME!"})
 	result, err := handleCreate(context.Background(), req, sc)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -280,9 +300,9 @@ func TestHandleCreateDuplicateInstance(t *testing.T) {
 	}
 
 	req := callToolRequest(map[string]any{
-		"name":           "existing",
-		"workspace":      workspace,
-		"generateSuffix": false,
+		paramName:           "existing",
+		paramWorkspace:      workspace,
+		paramGenerateSuffix: false,
 	})
 	result, err := handleCreate(context.Background(), req, sc)
 	if err != nil {
@@ -304,7 +324,7 @@ func TestHandleCreateMCPCollisionStoppedWithoutConfirm(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	instanceDir := filepath.Join(sc.Paths.InstancesDir, "stopped")
+	instanceDir := filepath.Join(sc.Paths.InstancesDir, statusStopped)
 	if err := os.MkdirAll(instanceDir, 0o750); err != nil {
 		t.Fatal(err)
 	}
@@ -313,9 +333,9 @@ func TestHandleCreateMCPCollisionStoppedWithoutConfirm(t *testing.T) {
 	}
 
 	req := callToolRequest(map[string]any{
-		"name":           "stopped",
-		"workspace":      workspace,
-		"generateSuffix": false,
+		paramName:           statusStopped,
+		paramWorkspace:      workspace,
+		paramGenerateSuffix: false,
 	})
 	result, err := handleCreate(context.Background(), req, sc)
 	if err != nil {
@@ -338,12 +358,12 @@ func TestHandleCreateMCPCollisionStoppedWithConfirm(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	instanceDir := filepath.Join(sc.Paths.InstancesDir, "stopped")
+	instanceDir := filepath.Join(sc.Paths.InstancesDir, statusStopped)
 	if err := os.MkdirAll(instanceDir, 0o750); err != nil {
 		t.Fatal(err)
 	}
 	markerFile := filepath.Join(instanceDir, "old-marker.txt")
-	if err := os.WriteFile(markerFile, []byte("old"), 0o600); err != nil {
+	if err := os.WriteFile(markerFile, []byte(testUUIDOld), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(instanceDir, "config.yaml"), []byte("workspace: /tmp\n"), 0o600); err != nil {
@@ -351,10 +371,10 @@ func TestHandleCreateMCPCollisionStoppedWithConfirm(t *testing.T) {
 	}
 
 	req := callToolRequest(map[string]any{
-		"name":           "stopped",
-		"workspace":      workspace,
-		"generateSuffix": false,
-		"confirm":        true,
+		paramName:           statusStopped,
+		paramWorkspace:      workspace,
+		paramGenerateSuffix: false,
+		"confirm":           true,
 	})
 	result, err := handleCreate(context.Background(), req, sc)
 	if err != nil {
@@ -395,9 +415,9 @@ func TestHandleCreateMCPCollisionSuffixAvoidsCollision(t *testing.T) {
 	}
 
 	req := callToolRequest(map[string]any{
-		"name":           "myinst",
-		"workspace":      workspace,
-		"generateSuffix": true,
+		paramName:           "myinst",
+		paramWorkspace:      workspace,
+		paramGenerateSuffix: true,
 	})
 	result, err := handleCreate(context.Background(), req, sc)
 	if err != nil {
@@ -421,9 +441,9 @@ func TestHandleCreateGitAuthor(t *testing.T) {
 	}
 
 	req := callToolRequest(map[string]any{
-		"name":      "gitauthor",
-		"workspace": workspace,
-		"gitAuthor": "Test User <test@example.com>",
+		paramName:      "gitauthor",
+		paramWorkspace: workspace,
+		paramGitAuthor: "Test User <test@example.com>",
 	})
 	result, err := handleCreate(context.Background(), req, sc)
 	if err != nil {
@@ -435,7 +455,7 @@ func TestHandleCreateGitAuthor(t *testing.T) {
 	if readErr != nil {
 		if result.IsError {
 			text := extractResultText(t, result)
-			if strings.Contains(text, "gitAuthor") {
+			if strings.Contains(text, paramGitAuthor) {
 				t.Fatalf("unexpected git author error: %s", text)
 			}
 		}
@@ -467,9 +487,9 @@ func TestHandleCreateGitAuthorInvalidFormat(t *testing.T) {
 	}
 
 	req := callToolRequest(map[string]any{
-		"name":      "gitbad",
-		"workspace": workspace,
-		"gitAuthor": "no angle brackets",
+		paramName:      "gitbad",
+		paramWorkspace: workspace,
+		paramGitAuthor: "no angle brackets",
 	})
 	result, err := handleCreate(context.Background(), req, sc)
 	if err != nil {
@@ -478,7 +498,7 @@ func TestHandleCreateGitAuthorInvalidFormat(t *testing.T) {
 
 	assertIsError(t, result)
 	text := extractResultText(t, result)
-	if !strings.Contains(text, "gitAuthor") {
+	if !strings.Contains(text, paramGitAuthor) {
 		t.Fatalf("expected gitAuthor format error, got: %s", text)
 	}
 }
@@ -492,8 +512,8 @@ func TestHandleCreateGitCredentialHelper(t *testing.T) {
 	}
 
 	req := callToolRequest(map[string]any{
-		"name":                "gitcred",
-		"workspace":           workspace,
+		paramName:             "gitcred",
+		paramWorkspace:        workspace,
 		"gitCredentialHelper": "gh",
 	})
 	result, err := handleCreate(context.Background(), req, sc)
@@ -535,8 +555,8 @@ func TestHandleCreateGitHttpsInsteadOfSsh(t *testing.T) {
 	}
 
 	req := callToolRequest(map[string]any{
-		"name":                 "githttps",
-		"workspace":            workspace,
+		paramName:              "githttps",
+		paramWorkspace:         workspace,
 		"gitHttpsInsteadOfSsh": true,
 	})
 	result, err := handleCreate(context.Background(), req, sc)
@@ -578,9 +598,9 @@ func TestHandleCreateModeChat(t *testing.T) {
 	}
 
 	req := callToolRequest(map[string]any{
-		"name":      "chatmode",
-		"workspace": workspace,
-		"mode":      "chat",
+		paramName:      "chatmode",
+		paramWorkspace: workspace,
+		"mode":         "chat",
 	})
 	result, err := handleCreate(context.Background(), req, sc)
 	if err != nil {
@@ -621,8 +641,8 @@ func TestHandleCreateModeDefaultAgent(t *testing.T) {
 	}
 
 	req := callToolRequest(map[string]any{
-		"name":      "agentmode",
-		"workspace": workspace,
+		paramName:      "agentmode",
+		paramWorkspace: workspace,
 	})
 	result, err := handleCreate(context.Background(), req, sc)
 	if err != nil {
@@ -663,9 +683,9 @@ func TestHandleCreateAllGitParams(t *testing.T) {
 	}
 
 	req := callToolRequest(map[string]any{
-		"name":                 "gitall",
-		"workspace":            workspace,
-		"gitAuthor":            "Dev User <dev@example.com>",
+		paramName:              "gitall",
+		paramWorkspace:         workspace,
+		paramGitAuthor:         "Dev User <dev@example.com>",
 		"gitCredentialHelper":  "gh",
 		"gitHttpsInsteadOfSsh": true,
 	})
@@ -679,7 +699,7 @@ func TestHandleCreateAllGitParams(t *testing.T) {
 	if readErr != nil {
 		if result.IsError {
 			text := extractResultText(t, result)
-			if strings.Contains(text, "gitAuthor") || strings.Contains(text, "credential") {
+			if strings.Contains(text, paramGitAuthor) || strings.Contains(text, "credential") {
 				t.Fatalf("unexpected git config error: %s", text)
 			}
 		}
@@ -760,8 +780,8 @@ func TestHandleStopNameAndAllMutuallyExclusive(t *testing.T) {
 	sc := testServerContext(t)
 
 	req := callToolRequest(map[string]any{
-		"name": "test",
-		"all":  true,
+		paramName: testNameTest,
+		"all":     true,
 	})
 	result, err := handleStop(context.Background(), req, sc)
 	if err != nil {
@@ -774,7 +794,7 @@ func TestHandleStopNameAndAllMutuallyExclusive(t *testing.T) {
 func TestHandleStopNotRunning(t *testing.T) {
 	sc := testServerContext(t)
 
-	req := callToolRequest(map[string]any{"name": "nonexistent"})
+	req := callToolRequest(map[string]any{paramName: testNameMissing})
 	result, err := handleStop(context.Background(), req, sc)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -785,8 +805,8 @@ func TestHandleStopNotRunning(t *testing.T) {
 	if err := json.Unmarshal([]byte(data), &obj); err != nil {
 		t.Fatalf("expected JSON object, got: %s", data)
 	}
-	if obj["status"] != "not running" {
-		t.Errorf("expected 'not running' status, got %q", obj["status"])
+	if obj[keyStatus] != "not running" {
+		t.Errorf("expected 'not running' status, got %q", obj[keyStatus])
 	}
 }
 
@@ -804,8 +824,8 @@ func TestHandleStopAllEmpty(t *testing.T) {
 	if err := json.Unmarshal([]byte(data), &obj); err != nil {
 		t.Fatalf("expected JSON object, got: %s", data)
 	}
-	if obj["status"] != "all stopped" {
-		t.Errorf("expected 'all stopped', got %v", obj["status"])
+	if obj[keyStatus] != "all stopped" {
+		t.Errorf("expected 'all stopped', got %v", obj[keyStatus])
 	}
 }
 

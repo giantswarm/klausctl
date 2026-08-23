@@ -17,8 +17,8 @@ func TestRenderArchiveListText_CostColumn(t *testing.T) {
 	entries := []*archive.Entry{
 		{
 			UUID:         "uuid-1",
-			Name:         "dev",
-			Status:       "completed",
+			Name:         testInstanceDev,
+			Status:       statusCompleted,
 			MessageCount: 10,
 			TotalCostUSD: &cost,
 			StoppedAt:    time.Date(2025, 1, 15, 10, 30, 0, 0, time.UTC),
@@ -26,7 +26,7 @@ func TestRenderArchiveListText_CostColumn(t *testing.T) {
 		{
 			UUID:         "uuid-2",
 			Name:         "prod",
-			Status:       "error",
+			Status:       statusError,
 			MessageCount: 5,
 			TotalCostUSD: nil,
 			StoppedAt:    time.Date(2025, 1, 15, 11, 0, 0, 0, time.UTC),
@@ -75,10 +75,10 @@ func TestRenderArchiveShowText_Metrics(t *testing.T) {
 
 	entry := &archive.Entry{
 		UUID:         "test-uuid",
-		Name:         "dev",
-		Status:       "completed",
-		Image:        "test:latest",
-		Workspace:    "/tmp/ws",
+		Name:         testInstanceDev,
+		Status:       statusCompleted,
+		Image:        testImageRef,
+		Workspace:    testWorkspaceWS,
 		Port:         8080,
 		StartedAt:    time.Date(2025, 1, 15, 10, 0, 0, 0, time.UTC),
 		StoppedAt:    time.Date(2025, 1, 15, 10, 30, 0, 0, time.UTC),
@@ -88,7 +88,7 @@ func TestRenderArchiveShowText_Metrics(t *testing.T) {
 		ModelUsage:   map[string]int{"opus": 30, "haiku": 12},
 		TokenUsage:   tokenUsage,
 		ErrorCount:   2,
-		ErrorMessage: "something went wrong",
+		ErrorMessage: testErrMsg,
 		ResultText:   "All done.",
 	}
 
@@ -153,10 +153,10 @@ func TestRenderArchiveShowText_Metrics(t *testing.T) {
 func TestRenderArchiveShowText_Tags(t *testing.T) {
 	entry := &archive.Entry{
 		UUID:      "tag-uuid",
-		Name:      "dev",
-		Status:    "completed",
-		Image:     "test:latest",
-		Workspace: "/tmp/ws",
+		Name:      testInstanceDev,
+		Status:    statusCompleted,
+		Image:     testImageRef,
+		Workspace: testWorkspaceWS,
 		StartedAt: time.Date(2025, 1, 15, 10, 0, 0, 0, time.UTC),
 		StoppedAt: time.Date(2025, 1, 15, 10, 30, 0, 0, time.UTC),
 		Tags:      map[string]string{"env": "prod", "team": "platform"},
@@ -182,10 +182,10 @@ func TestRenderArchiveShowText_Tags(t *testing.T) {
 func TestRenderArchiveShowText_NoMetrics(t *testing.T) {
 	entry := &archive.Entry{
 		UUID:      "test-uuid",
-		Name:      "dev",
-		Status:    "completed",
-		Image:     "test:latest",
-		Workspace: "/tmp/ws",
+		Name:      testInstanceDev,
+		Status:    statusCompleted,
+		Image:     testImageRef,
+		Workspace: testWorkspaceWS,
 		StartedAt: time.Date(2025, 1, 15, 10, 0, 0, 0, time.UTC),
 		StoppedAt: time.Date(2025, 1, 15, 10, 30, 0, 0, time.UTC),
 	}
@@ -298,7 +298,7 @@ func TestBuildArchiveFilter_NameAndOutcome(t *testing.T) {
 	cmd.Flags().BoolVar(&archiveListUntagged, "untagged", false, "")
 
 	archiveListSince = ""
-	archiveListName = "dev"
+	archiveListName = testInstanceDev
 	archiveListOutcome = "success" //nolint:goconst
 	archiveListTagged = false
 	archiveListUntagged = false
@@ -307,7 +307,7 @@ func TestBuildArchiveFilter_NameAndOutcome(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if f.Name != "dev" {
+	if f.Name != testInstanceDev {
 		t.Errorf("expected Name=dev, got %q", f.Name)
 	}
 	if f.Outcome != "success" { //nolint:goconst

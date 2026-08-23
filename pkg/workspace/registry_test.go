@@ -8,6 +8,9 @@ import (
 	"testing"
 )
 
+// testOrgGiantSwarm is the organization name used in registry test fixtures.
+const testOrgGiantSwarm = "giantswarm"
+
 func TestIsRepoIdentifier(t *testing.T) {
 	tests := []struct {
 		input string
@@ -38,17 +41,17 @@ func TestIsRepoIdentifier(t *testing.T) {
 
 func TestIsAllowed(t *testing.T) {
 	cfg := &WorkspaceConfig{
-		Organizations: []string{"giantswarm"},
+		Organizations: []string{testOrgGiantSwarm},
 		Repos: []RepoEntry{
 			{Name: "external/special-repo"},
 		},
 	}
 
 	// Org-based: any repo under giantswarm is allowed.
-	if !IsAllowed(cfg, "giantswarm", "klausctl") {
+	if !IsAllowed(cfg, testOrgGiantSwarm, "klausctl") {
 		t.Error("expected giantswarm/klausctl to be allowed via org")
 	}
-	if !IsAllowed(cfg, "giantswarm", "anything") {
+	if !IsAllowed(cfg, testOrgGiantSwarm, "anything") {
 		t.Error("expected giantswarm/anything to be allowed via org")
 	}
 	// Case-insensitive org match.
@@ -79,7 +82,7 @@ func TestLoadSaveRoundTrip(t *testing.T) {
 	path := filepath.Join(dir, "workspaces.yaml")
 
 	cfg := &WorkspaceConfig{
-		Organizations: []string{"giantswarm", "acme"},
+		Organizations: []string{testOrgGiantSwarm, "acme"},
 		Repos: []RepoEntry{
 			{Name: "external/tool"},
 			{Name: "other/lib"},
@@ -95,7 +98,7 @@ func TestLoadSaveRoundTrip(t *testing.T) {
 		t.Fatalf("Load() error: %v", err)
 	}
 
-	if len(loaded.Organizations) != 2 || loaded.Organizations[0] != "giantswarm" || loaded.Organizations[1] != "acme" {
+	if len(loaded.Organizations) != 2 || loaded.Organizations[0] != testOrgGiantSwarm || loaded.Organizations[1] != "acme" {
 		t.Errorf("unexpected organizations: %v", loaded.Organizations)
 	}
 	if len(loaded.Repos) != 2 || loaded.Repos[0].Name != "external/tool" || loaded.Repos[1].Name != "other/lib" {

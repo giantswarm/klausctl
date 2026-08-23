@@ -7,6 +7,26 @@ import (
 	"time"
 )
 
+// Tag keys recognised by the stats computations.
+const (
+	tagOutcome      = "outcome"
+	tagComplexity   = "complexity"
+	tagScope        = "scope"
+	tagRework       = "rework"
+	tagFirstAttempt = "first_attempt"
+	tagRepo         = "repo"
+)
+
+// tagValueYes is the affirmative value of boolean-ish tags.
+const tagValueYes = "yes"
+
+// Values of the outcome tag.
+const (
+	outcomeSuccess = "success"
+	outcomePartial = "partial"
+	outcomeFailed  = "failed"
+)
+
 // SummaryFilters controls which entries are included in the summary.
 type SummaryFilters struct {
 	Since      time.Time // zero means no lower bound
@@ -117,31 +137,31 @@ func ComputeSummary(entries []*Entry, filters SummaryFilters) *SummaryStats {
 	complexityMap := make(map[string]*complexityAcc)
 
 	for _, e := range filtered {
-		outcome := e.Tags["outcome"]
+		outcome := e.Tags[tagOutcome]
 		switch outcome {
-		case "success": //nolint:goconst
+		case outcomeSuccess:
 			s.Success++
-		case "partial":
+		case outcomePartial:
 			s.Partial++
-		case "failed":
+		case outcomeFailed:
 			s.Failure++
 		}
 
 		// First attempt
-		if e.Tags["first_attempt"] == "yes" { //nolint:goconst
+		if e.Tags[tagFirstAttempt] == tagValueYes {
 			s.FirstAttempt++
 		}
 
 		// Scope adherence (only count entries that have the scope tag)
-		if scope := e.Tags["scope"]; scope != "" {
+		if scope := e.Tags[tagScope]; scope != "" {
 			s.ScopeTotal++
-			if scope == "yes" {
+			if scope == tagValueYes {
 				s.ScopeAdherence++
 			}
 		}
 
 		// Rework distribution
-		switch e.Tags["rework"] {
+		switch e.Tags[tagRework] {
 		case "none":
 			s.ReworkNone++
 		case "minor":
@@ -185,7 +205,7 @@ func ComputeSummary(entries []*Entry, filters SummaryFilters) *SummaryStats {
 		}
 
 		// Complexity breakdown
-		if cplx := e.Tags["complexity"]; cplx != "" {
+		if cplx := e.Tags[tagComplexity]; cplx != "" {
 			acc, ok := complexityMap[cplx]
 			if !ok {
 				acc = &complexityAcc{}
@@ -195,7 +215,7 @@ func ComputeSummary(entries []*Entry, filters SummaryFilters) *SummaryStats {
 			if e.TotalCostUSD != nil {
 				acc.cost += *e.TotalCostUSD
 			}
-			if outcome == "success" {
+			if outcome == outcomeSuccess {
 				acc.success++
 			}
 		}
@@ -283,13 +303,13 @@ func ComputeSpend(entries []*Entry, groupBy string, weeks int, filters ...Summar
 	for _, e := range filtered {
 		var key string
 		switch groupBy {
-		case "repo":
-			key = e.Tags["repo"]
+		case tagRepo:
+			key = e.Tags[tagRepo]
 			if key == "" {
 				key = "untagged"
 			}
-		case "complexity":
-			key = e.Tags["complexity"]
+		case tagComplexity:
+			key = e.Tags[tagComplexity]
 			if key == "" {
 				key = "untagged"
 			}
@@ -363,10 +383,10 @@ func ComputeTrends(entries []*Entry, weeks int, filters ...SummaryFilters) []Tre
 			weekMap[key] = acc
 		}
 		acc.runs++
-		if e.Tags["outcome"] == "success" {
+		if e.Tags[tagOutcome] == outcomeSuccess {
 			acc.success++
 		}
-		if e.Tags["first_attempt"] == "yes" {
+		if e.Tags[tagFirstAttempt] == tagValueYes {
 			acc.firstAttempt++
 		}
 		if e.TotalCostUSD != nil {
@@ -379,7 +399,7 @@ func ComputeTrends(entries []*Entry, weeks int, filters ...SummaryFilters) []Tre
 			acc.durCount++
 		}
 
-		if v := complexityToNumeric(e.Tags["complexity"]); v > 0 {
+		if v := complexityToNumeric(e.Tags[tagComplexity]); v > 0 {
 			acc.complexSum += v
 			acc.complexCount++
 		}
@@ -431,13 +451,13 @@ func ComputeList(entries []*Entry, filters SummaryFilters, sortBy string, limit 
 		result = append(result, ListEntry{
 			Date:       e.StoppedAt.Format("2006-01-02"),
 			Name:       e.Name,
-			Repo:       e.Tags["repo"],
+			Repo:       e.Tags[tagRepo],
 			Issue:      e.Tags["issue"],
-			Outcome:    e.Tags["outcome"],
+			Outcome:    e.Tags[tagOutcome],
 			Cost:       cost,
 			Messages:   e.MessageCount,
 			Duration:   dur,
-			Complexity: e.Tags["complexity"],
+			Complexity: e.Tags[tagComplexity],
 			duration:   rawDur,
 		})
 	}
@@ -475,13 +495,13 @@ func matchesFilters(e *Entry, f SummaryFilters) bool {
 	if !f.Since.IsZero() && e.StoppedAt.Before(f.Since) {
 		return false
 	}
-	if f.Repo != "" && e.Tags["repo"] != f.Repo {
+	if f.Repo != "" && e.Tags[tagRepo] != f.Repo {
 		return false
 	}
-	if f.Outcome != "" && e.Tags["outcome"] != f.Outcome {
+	if f.Outcome != "" && e.Tags[tagOutcome] != f.Outcome {
 		return false
 	}
-	if f.Complexity != "" && e.Tags["complexity"] != f.Complexity {
+	if f.Complexity != "" && e.Tags[tagComplexity] != f.Complexity {
 		return false
 	}
 	return true

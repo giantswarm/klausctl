@@ -99,7 +99,7 @@ func collectMCPToolProperties(t *testing.T, toolName string) map[string]struct{}
 // host filesystem is touched.
 func newToolsServer(t *testing.T) *server.MCPServer {
 	t.Helper()
-	srv := server.NewMCPServer("klausctl-test", "test")
+	srv := server.NewMCPServer("klausctl-test", testNameTest)
 	sc := &internalserver.ServerContext{
 		Paths: &config.Paths{
 			ConfigDir: t.TempDir(),

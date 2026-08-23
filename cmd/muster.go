@@ -41,7 +41,7 @@ var musterStopCmd = &cobra.Command{
 }
 
 var musterStatusCmd = &cobra.Command{
-	Use:   "status",
+	Use:   useStatus,
 	Short: "Show muster bridge status",
 	Args:  cobra.NoArgs,
 	RunE:  runMusterStatus,
@@ -115,7 +115,7 @@ func runMusterStatus(cmd *cobra.Command, _ []string) error {
 		return nil
 	}
 
-	_, _ = fmt.Fprintln(out, "Muster bridge:", green("running"))
+	_, _ = fmt.Fprintln(out, "Muster bridge:", green(statusRunning))
 	printBridgeStatus(out, st)
 	return nil
 }

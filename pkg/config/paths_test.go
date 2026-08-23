@@ -71,8 +71,8 @@ func TestExpandPath(t *testing.T) {
 		},
 		{
 			name: "absolute path unchanged",
-			path: "/tmp/test",
-			want: "/tmp/test",
+			path: testWorkspaceDir,
+			want: testWorkspaceDir,
 		},
 		{
 			name: "relative path unchanged",
@@ -123,8 +123,8 @@ func TestForInstance(t *testing.T) {
 		t.Fatalf("DefaultPaths() returned error: %v", err)
 	}
 
-	custom := paths.ForInstance("dev")
-	if got := filepath.Base(custom.InstanceDir); got != "dev" {
+	custom := paths.ForInstance(testInstanceDev)
+	if got := filepath.Base(custom.InstanceDir); got != testInstanceDev {
 		t.Fatalf("InstanceDir base = %q, want dev", got)
 	}
 	if got := filepath.Base(custom.ConfigFile); got != "config.yaml" {
@@ -331,8 +331,8 @@ func TestResolveRefs(t *testing.T) {
 		{
 			name: "personality short name",
 			fn:   r.ResolvePersonalityRef,
-			ref:  "sre",
-			want: "gsoci.azurecr.io/giantswarm/klaus-personalities/sre",
+			ref:  testPersonalitySRE,
+			want: testPersonalityRef,
 		},
 		{
 			name: "personality short name with tag",
@@ -356,13 +356,13 @@ func TestResolveRefs(t *testing.T) {
 			name: "toolchain short name without tag",
 			fn:   r.ResolveToolchainRef,
 			ref:  "go",
-			want: "gsoci.azurecr.io/giantswarm/klaus-toolchains/go",
+			want: testToolchainRef,
 		},
 		{
 			name: "plugin short name",
 			fn:   r.ResolvePluginRef,
 			ref:  "gs-platform",
-			want: "gsoci.azurecr.io/giantswarm/klaus-plugins/gs-platform",
+			want: testPluginRef,
 		},
 		{
 			name: "plugin short name with tag",

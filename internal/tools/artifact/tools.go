@@ -24,6 +24,12 @@ import (
 	"github.com/giantswarm/klausctl/pkg/secret"
 )
 
+// Shared MCP parameter and result-map key names.
+const (
+	paramName = "name"
+	keyStatus = "status"
+)
+
 // RegisterTools registers all artifact discovery tools on the MCP server.
 func RegisterTools(s *mcpserver.MCPServer, sc *server.ServerContext) {
 	registerToolchainList(s, sc)
@@ -447,7 +453,7 @@ func handleSecretList(_ context.Context, _ mcp.CallToolRequest, sc *server.Serve
 func registerMcpServerAdd(s *mcpserver.MCPServer, sc *server.ServerContext) {
 	tool := mcp.NewTool("klaus_mcpserver_add",
 		mcp.WithDescription("Add a managed MCP server definition (name, url, optional secret reference)"),
-		mcp.WithString("name", mcp.Required(), mcp.Description("Server name")),
+		mcp.WithString(paramName, mcp.Required(), mcp.Description("Server name")),
 		mcp.WithString("url", mcp.Required(), mcp.Description("MCP server URL")),
 		mcp.WithString("secret", mcp.Description("Secret name for Bearer token authentication")),
 	)
@@ -457,7 +463,7 @@ func registerMcpServerAdd(s *mcpserver.MCPServer, sc *server.ServerContext) {
 }
 
 func handleMcpServerAdd(_ context.Context, req mcp.CallToolRequest, sc *server.ServerContext) (*mcp.CallToolResult, error) {
-	name, err := req.RequireString("name")
+	name, err := req.RequireString(paramName)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
@@ -482,8 +488,8 @@ func handleMcpServerAdd(_ context.Context, req mcp.CallToolRequest, sc *server.S
 	}
 
 	return server.JSONResult(map[string]string{
-		"name":   name,
-		"status": "added",
+		paramName: name,
+		keyStatus: "added",
 	})
 }
 
@@ -526,7 +532,7 @@ func handleMcpServerList(_ context.Context, _ mcp.CallToolRequest, sc *server.Se
 func registerMcpServerRemove(s *mcpserver.MCPServer, sc *server.ServerContext) {
 	tool := mcp.NewTool("klaus_mcpserver_remove",
 		mcp.WithDescription("Remove a managed MCP server by name"),
-		mcp.WithString("name", mcp.Required(), mcp.Description("Server name")),
+		mcp.WithString(paramName, mcp.Required(), mcp.Description("Server name")),
 	)
 	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		return handleMcpServerRemove(ctx, req, sc)
@@ -534,7 +540,7 @@ func registerMcpServerRemove(s *mcpserver.MCPServer, sc *server.ServerContext) {
 }
 
 func handleMcpServerRemove(_ context.Context, req mcp.CallToolRequest, sc *server.ServerContext) (*mcp.CallToolResult, error) {
-	name, err := req.RequireString("name")
+	name, err := req.RequireString(paramName)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
@@ -553,15 +559,15 @@ func handleMcpServerRemove(_ context.Context, req mcp.CallToolRequest, sc *serve
 	}
 
 	return server.JSONResult(map[string]string{
-		"name":   name,
-		"status": "removed",
+		paramName: name,
+		keyStatus: "removed",
 	})
 }
 
 func registerMcpServerAuthStatus(s *mcpserver.MCPServer, sc *server.ServerContext) {
 	tool := mcp.NewTool("klaus_mcpserver_auth_status",
 		mcp.WithDescription("Show OAuth authentication status for managed MCP servers (does NOT trigger browser flows)"),
-		mcp.WithString("name", mcp.Description("Server name (omit for all servers)")),
+		mcp.WithString(paramName, mcp.Description("Server name (omit for all servers)")),
 	)
 	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		return handleMcpServerAuthStatus(ctx, req, sc)
@@ -584,7 +590,7 @@ func handleMcpServerAuthStatus(_ context.Context, req mcp.CallToolRequest, sc *s
 
 	tokenStore := oauth.NewTokenStore(sc.Paths.TokensDir)
 
-	nameFilter := req.GetString("name", "")
+	nameFilter := req.GetString(paramName, "")
 	if nameFilter != "" {
 		def, err := store.Get(nameFilter)
 		if err != nil {
@@ -669,7 +675,7 @@ func handleSourceList(_ context.Context, _ mcp.CallToolRequest, sc *server.Serve
 func registerSourceShow(s *mcpserver.MCPServer, sc *server.ServerContext) {
 	tool := mcp.NewTool("klaus_source_show",
 		mcp.WithDescription("Show details of a source including derived registry paths"),
-		mcp.WithString("name", mcp.Required(), mcp.Description("Source name")),
+		mcp.WithString(paramName, mcp.Required(), mcp.Description("Source name")),
 	)
 	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		return handleSourceShow(ctx, req, sc)
@@ -686,7 +692,7 @@ type sourceDetail struct {
 }
 
 func handleSourceShow(_ context.Context, req mcp.CallToolRequest, sc *server.ServerContext) (*mcp.CallToolResult, error) {
-	name, err := req.RequireString("name")
+	name, err := req.RequireString(paramName)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
@@ -710,7 +716,7 @@ func handleSourceShow(_ context.Context, req mcp.CallToolRequest, sc *server.Ser
 func registerSourceAdd(s *mcpserver.MCPServer, sc *server.ServerContext) {
 	tool := mcp.NewTool("klaus_source_add",
 		mcp.WithDescription("Add a new artifact source (name + registry base URL)"),
-		mcp.WithString("name", mcp.Required(), mcp.Description("Source name")),
+		mcp.WithString(paramName, mcp.Required(), mcp.Description("Source name")),
 		mcp.WithString("registry", mcp.Required(), mcp.Description("Registry base URL")),
 		mcp.WithString("toolchains", mcp.Description("Override toolchain registry path")),
 		mcp.WithString("personalities", mcp.Description("Override personality registry path")),
@@ -723,7 +729,7 @@ func registerSourceAdd(s *mcpserver.MCPServer, sc *server.ServerContext) {
 }
 
 func handleSourceAdd(_ context.Context, req mcp.CallToolRequest, sc *server.ServerContext) (*mcp.CallToolResult, error) {
-	name, err := req.RequireString("name")
+	name, err := req.RequireString(paramName)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
@@ -768,15 +774,15 @@ func handleSourceAdd(_ context.Context, req mcp.CallToolRequest, sc *server.Serv
 	}
 
 	return server.JSONResult(map[string]string{
-		"name":   name,
-		"status": "added",
+		paramName: name,
+		keyStatus: "added",
 	})
 }
 
 func registerSourceUpdate(s *mcpserver.MCPServer, sc *server.ServerContext) {
 	tool := mcp.NewTool("klaus_source_update",
 		mcp.WithDescription("Update an existing artifact source (change registry or path overrides). Use \"-\" to clear an override back to convention-based default."),
-		mcp.WithString("name", mcp.Required(), mcp.Description("Source name to update")),
+		mcp.WithString(paramName, mcp.Required(), mcp.Description("Source name to update")),
 		mcp.WithString("registry", mcp.Description("New registry base URL")),
 		mcp.WithString("toolchains", mcp.Description("New toolchain registry path override (use \"-\" to clear)")),
 		mcp.WithString("personalities", mcp.Description("New personality registry path override (use \"-\" to clear)")),
@@ -788,7 +794,7 @@ func registerSourceUpdate(s *mcpserver.MCPServer, sc *server.ServerContext) {
 }
 
 func handleSourceUpdate(_ context.Context, req mcp.CallToolRequest, sc *server.ServerContext) (*mcp.CallToolResult, error) {
-	name, err := req.RequireString("name")
+	name, err := req.RequireString(paramName)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
@@ -818,15 +824,15 @@ func handleSourceUpdate(_ context.Context, req mcp.CallToolRequest, sc *server.S
 	}
 
 	return server.JSONResult(map[string]string{
-		"name":   name,
-		"status": "updated",
+		paramName: name,
+		keyStatus: "updated",
 	})
 }
 
 func registerSourceRemove(s *mcpserver.MCPServer, sc *server.ServerContext) {
 	tool := mcp.NewTool("klaus_source_remove",
 		mcp.WithDescription("Remove an artifact source by name"),
-		mcp.WithString("name", mcp.Required(), mcp.Description("Source name")),
+		mcp.WithString(paramName, mcp.Required(), mcp.Description("Source name")),
 	)
 	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		return handleSourceRemove(ctx, req, sc)
@@ -834,7 +840,7 @@ func registerSourceRemove(s *mcpserver.MCPServer, sc *server.ServerContext) {
 }
 
 func handleSourceRemove(_ context.Context, req mcp.CallToolRequest, sc *server.ServerContext) (*mcp.CallToolResult, error) {
-	name, err := req.RequireString("name")
+	name, err := req.RequireString(paramName)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
@@ -857,15 +863,15 @@ func handleSourceRemove(_ context.Context, req mcp.CallToolRequest, sc *server.S
 	}
 
 	return server.JSONResult(map[string]string{
-		"name":   name,
-		"status": "removed",
+		paramName: name,
+		keyStatus: "removed",
 	})
 }
 
 func registerSourceSetDefault(s *mcpserver.MCPServer, sc *server.ServerContext) {
 	tool := mcp.NewTool("klaus_source_set_default",
 		mcp.WithDescription("Set a source as the default for short-name resolution"),
-		mcp.WithString("name", mcp.Required(), mcp.Description("Source name to set as default")),
+		mcp.WithString(paramName, mcp.Required(), mcp.Description("Source name to set as default")),
 	)
 	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		return handleSourceSetDefault(ctx, req, sc)
@@ -873,7 +879,7 @@ func registerSourceSetDefault(s *mcpserver.MCPServer, sc *server.ServerContext) 
 }
 
 func handleSourceSetDefault(_ context.Context, req mcp.CallToolRequest, sc *server.ServerContext) (*mcp.CallToolResult, error) {
-	name, err := req.RequireString("name")
+	name, err := req.RequireString(paramName)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
@@ -896,7 +902,7 @@ func handleSourceSetDefault(_ context.Context, req mcp.CallToolRequest, sc *serv
 	}
 
 	return server.JSONResult(map[string]string{
-		"name":   name,
-		"status": "default",
+		paramName: name,
+		keyStatus: "default",
 	})
 }

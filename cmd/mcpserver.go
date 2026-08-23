@@ -37,7 +37,7 @@ var mcpserverAddCmd = &cobra.Command{
 }
 
 var mcpserverListCmd = &cobra.Command{
-	Use:   "list",
+	Use:   useList,
 	Short: "List managed MCP servers",
 	Args:  cobra.NoArgs,
 	RunE:  runMcpserverList,

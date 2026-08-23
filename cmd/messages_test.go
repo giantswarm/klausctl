@@ -9,6 +9,12 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
+// Message roles used in transcript fixtures.
+const (
+	roleUser      = "user"
+	roleAssistant = "assistant"
+)
+
 func TestParseMessagesResponse(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -21,7 +27,7 @@ func TestParseMessagesResponse(t *testing.T) {
 			result: &mcp.CallToolResult{
 				Content: []mcp.Content{
 					mcp.TextContent{
-						Type: "text",
+						Type: outputText,
 						Text: `{"messages":[{"role":"user","content":"hello"},{"role":"assistant","content":"hi"}],"total":2}`,
 					},
 				},
@@ -34,7 +40,7 @@ func TestParseMessagesResponse(t *testing.T) {
 			result: &mcp.CallToolResult{
 				Content: []mcp.Content{
 					mcp.TextContent{
-						Type: "text",
+						Type: outputText,
 						Text: `{"messages":[{"type":"user","message":{"role":"user","content":[{"type":"text","text":"hello"}]}},{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"hi there"}]}}],"total":2}`,
 					},
 				},
@@ -47,7 +53,7 @@ func TestParseMessagesResponse(t *testing.T) {
 			result: &mcp.CallToolResult{
 				Content: []mcp.Content{
 					mcp.TextContent{
-						Type: "text",
+						Type: outputText,
 						Text: `{"messages":[{"type":"system","subtype":"hook_started"},{"type":"system","subtype":"init"},{"type":"user","message":{"role":"user","content":[{"type":"text","text":"hello"}]}}],"total":3}`,
 					},
 				},
@@ -60,7 +66,7 @@ func TestParseMessagesResponse(t *testing.T) {
 			result: &mcp.CallToolResult{
 				Content: []mcp.Content{
 					mcp.TextContent{
-						Type: "text",
+						Type: outputText,
 						Text: `{"messages":[{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","name":"Bash"}]}}],"total":1}`,
 					},
 				},
@@ -73,7 +79,7 @@ func TestParseMessagesResponse(t *testing.T) {
 			result: &mcp.CallToolResult{
 				Content: []mcp.Content{
 					mcp.TextContent{
-						Type: "text",
+						Type: outputText,
 						Text: `{"messages":[{"type":"result","result":"All done."}],"total":1}`,
 					},
 				},
@@ -86,7 +92,7 @@ func TestParseMessagesResponse(t *testing.T) {
 			result: &mcp.CallToolResult{
 				Content: []mcp.Content{
 					mcp.TextContent{
-						Type: "text",
+						Type: outputText,
 						Text: `{"messages":[{"role":"user","content":"hello"}],"metadata":{"session_id":"abc","model":"claude-opus-4-6"},"total":5}`,
 					},
 				},
@@ -99,7 +105,7 @@ func TestParseMessagesResponse(t *testing.T) {
 			result: &mcp.CallToolResult{
 				Content: []mcp.Content{
 					mcp.TextContent{
-						Type: "text",
+						Type: outputText,
 						Text: `{"messages":[],"total":0}`,
 					},
 				},
@@ -111,7 +117,7 @@ func TestParseMessagesResponse(t *testing.T) {
 			name: "error from IsError flag",
 			result: &mcp.CallToolResult{
 				Content: []mcp.Content{
-					mcp.TextContent{Type: "text", Text: "something went wrong"},
+					mcp.TextContent{Type: outputText, Text: testErrMsg},
 				},
 				IsError: true,
 			},
@@ -119,7 +125,7 @@ func TestParseMessagesResponse(t *testing.T) {
 			wantTotal: 0,
 		},
 		{
-			name:      "nil result",
+			name:      testNilResultMsg,
 			result:    nil,
 			wantCount: 0,
 			wantTotal: 0,
@@ -128,7 +134,7 @@ func TestParseMessagesResponse(t *testing.T) {
 			name: "non-JSON fallback",
 			result: &mcp.CallToolResult{
 				Content: []mcp.Content{
-					mcp.TextContent{Type: "text", Text: "plain text"},
+					mcp.TextContent{Type: outputText, Text: "plain text"},
 				},
 			},
 			wantCount: 0,
@@ -161,42 +167,42 @@ func TestConvertRawMessage(t *testing.T) {
 			name:        "flat role/content",
 			input:       `{"role":"user","content":"hello"}`,
 			wantOk:      true,
-			wantRole:    "user",
-			wantContent: "hello",
+			wantRole:    roleUser,
+			wantContent: testHello,
 		},
 		{
 			name:        "nested assistant with text block",
 			input:       `{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"hello world"}]}}`,
 			wantOk:      true,
-			wantRole:    "assistant",
-			wantContent: "hello world",
+			wantRole:    roleAssistant,
+			wantContent: testHelloWorld,
 		},
 		{
 			name:        "nested user with text block",
 			input:       `{"type":"user","message":{"role":"user","content":[{"type":"text","text":"do something"}]}}`,
 			wantOk:      true,
-			wantRole:    "user",
+			wantRole:    roleUser,
 			wantContent: "do something",
 		},
 		{
 			name:        "nested assistant with tool_use",
 			input:       `{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","name":"Bash"}]}}`,
 			wantOk:      true,
-			wantRole:    "assistant",
+			wantRole:    roleAssistant,
 			wantContent: "[tool_use: Bash]",
 		},
 		{
 			name:        "nested assistant with mixed content",
 			input:       `{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Let me check"},{"type":"tool_use","name":"Read"}]}}`,
 			wantOk:      true,
-			wantRole:    "assistant",
+			wantRole:    roleAssistant,
 			wantContent: "Let me check\n[tool_use: Read]",
 		},
 		{
 			name:        "nested assistant with string content",
 			input:       `{"type":"assistant","message":{"role":"assistant","content":"plain string"}}`,
 			wantOk:      true,
-			wantRole:    "assistant",
+			wantRole:    roleAssistant,
 			wantContent: "plain string",
 		},
 		{
@@ -218,8 +224,8 @@ func TestConvertRawMessage(t *testing.T) {
 			name:        "result message",
 			input:       `{"type":"result","result":"All tests passed."}`,
 			wantOk:      true,
-			wantRole:    "system",
-			wantContent: "All tests passed.",
+			wantRole:    roleSystem,
+			wantContent: testAgentResult,
 		},
 		{
 			name:   "result without text is skipped",
@@ -264,25 +270,25 @@ func TestRenderMessages_Text(t *testing.T) {
 	result := &mcp.CallToolResult{
 		Content: []mcp.Content{
 			mcp.TextContent{
-				Type: "text",
+				Type: outputText,
 				Text: `{"messages":[{"role":"user","content":"hello world"},{"role":"assistant","content":"hi there"}],"total":2}`,
 			},
 		},
 	}
 
-	messagesOutput = "text" //nolint:goconst
+	messagesOutput = outputText
 	var buf bytes.Buffer
-	err := renderMessages(&buf, "dev", result)
+	err := renderMessages(&buf, testInstanceDev, result)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
 	output := buf.String()
 	for _, want := range []string{
-		"Instance: dev",
+		testInstanceHeader,
 		"Messages: 2",
 		"[user]",
-		"hello world",
+		testHelloWorld,
 		"[assistant]",
 		"hi there",
 	} {
@@ -299,25 +305,25 @@ func TestRenderMessages_NestedFormat(t *testing.T) {
 	result := &mcp.CallToolResult{
 		Content: []mcp.Content{
 			mcp.TextContent{
-				Type: "text",
+				Type: outputText,
 				Text: `{"messages":[{"type":"user","message":{"role":"user","content":[{"type":"text","text":"hello world"}]}},{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"hi there"}]}}],"total":2}`,
 			},
 		},
 	}
 
-	messagesOutput = "text"
+	messagesOutput = outputText
 	var buf bytes.Buffer
-	err := renderMessages(&buf, "dev", result)
+	err := renderMessages(&buf, testInstanceDev, result)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
 	output := buf.String()
 	for _, want := range []string{
-		"Instance: dev",
+		testInstanceHeader,
 		"Messages: 2",
 		"[user]",
-		"hello world",
+		testHelloWorld,
 		"[assistant]",
 		"hi there",
 	} {
@@ -328,20 +334,20 @@ func TestRenderMessages_NestedFormat(t *testing.T) {
 }
 
 func TestRenderMessages_JSON(t *testing.T) {
-	messagesOutput = "json"
-	t.Cleanup(func() { messagesOutput = "text" })
+	messagesOutput = outputJSON
+	t.Cleanup(func() { messagesOutput = outputText })
 
 	result := &mcp.CallToolResult{
 		Content: []mcp.Content{
 			mcp.TextContent{
-				Type: "text",
+				Type: outputText,
 				Text: `{"messages":[{"role":"user","content":"hello"},{"role":"assistant","content":"world"}],"total":2}`,
 			},
 		},
 	}
 
 	var buf bytes.Buffer
-	err := renderMessages(&buf, "dev", result)
+	err := renderMessages(&buf, testInstanceDev, result)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -351,8 +357,8 @@ func TestRenderMessages_JSON(t *testing.T) {
 		t.Fatalf("output is not valid JSON: %v\ngot:\n%s", err, buf.String())
 	}
 
-	if decoded.Instance != "dev" {
-		t.Errorf("Instance = %q, want %q", decoded.Instance, "dev")
+	if decoded.Instance != testInstanceDev {
+		t.Errorf("Instance = %q, want %q", decoded.Instance, testInstanceDev)
 	}
 	if decoded.Count != 2 {
 		t.Errorf("Count = %d, want %d", decoded.Count, 2)
@@ -360,8 +366,8 @@ func TestRenderMessages_JSON(t *testing.T) {
 	if len(decoded.Messages) != 2 {
 		t.Fatalf("Messages length = %d, want %d", len(decoded.Messages), 2)
 	}
-	if decoded.Messages[0].Role != "user" {
-		t.Errorf("Messages[0].Role = %q, want %q", decoded.Messages[0].Role, "user")
+	if decoded.Messages[0].Role != roleUser {
+		t.Errorf("Messages[0].Role = %q, want %q", decoded.Messages[0].Role, roleUser)
 	}
 	if decoded.Messages[1].Content != "world" {
 		t.Errorf("Messages[1].Content = %q, want %q", decoded.Messages[1].Content, "world")
@@ -375,15 +381,15 @@ func TestRenderMessages_Empty(t *testing.T) {
 	result := &mcp.CallToolResult{
 		Content: []mcp.Content{
 			mcp.TextContent{
-				Type: "text",
+				Type: outputText,
 				Text: `{"messages":[],"total":0}`,
 			},
 		},
 	}
 
-	messagesOutput = "text"
+	messagesOutput = outputText
 	var buf bytes.Buffer
-	err := renderMessages(&buf, "dev", result)
+	err := renderMessages(&buf, testInstanceDev, result)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -401,15 +407,15 @@ func TestRenderMessages_TotalGreaterThanMessages(t *testing.T) {
 	result := &mcp.CallToolResult{
 		Content: []mcp.Content{
 			mcp.TextContent{
-				Type: "text",
+				Type: outputText,
 				Text: `{"messages":[{"role":"user","content":"hello"}],"total":42}`,
 			},
 		},
 	}
 
-	messagesOutput = "text"
+	messagesOutput = outputText
 	var buf bytes.Buffer
-	err := renderMessages(&buf, "dev", result)
+	err := renderMessages(&buf, testInstanceDev, result)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

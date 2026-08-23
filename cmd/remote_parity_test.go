@@ -85,7 +85,7 @@ func remoteMCPNames() map[string]struct{} {
 // nothing on the host filesystem is touched.
 func newInstanceToolsServer(t *testing.T) *server.MCPServer {
 	t.Helper()
-	srv := server.NewMCPServer("klausctl-test", "test")
+	srv := server.NewMCPServer("klausctl-test", testNameTest)
 	sc := &internalserver.ServerContext{
 		Paths: &config.Paths{
 			ConfigDir: t.TempDir(),

@@ -10,18 +10,25 @@ import (
 	"time"
 )
 
+// Shared remote-target test fixtures.
+const (
+	testGatewayURL      = "https://gw.example.com"
+	testLocalGatewayURL = "http://localhost:8080"
+	testScopes          = "openid profile"
+)
+
 func TestAuthStoreRoundtrip(t *testing.T) {
 	dir := t.TempDir()
 	store := NewAuthStore(filepath.Join(dir, "auth"))
 
 	rec := AuthRecord{ // #nosec G101 -- constant identifier, not a credential
-		ServerURL:     "https://gw.example.com",
+		ServerURL:     testGatewayURL,
 		Issuer:        "https://auth.example.com",
 		AccessToken:   "at-123",
 		TokenType:     "Bearer",
 		RefreshToken:  "rt-abc",
 		ExpiresAt:     time.Now().Add(1 * time.Hour).UTC().Round(time.Second),
-		Scope:         "openid profile",
+		Scope:         testScopes,
 		TokenEndpoint: "https://auth.example.com/oauth/token",
 		ClientID:      "cimd://client-id-url",
 	}
@@ -49,7 +56,7 @@ func TestAuthStoreRoundtrip(t *testing.T) {
 
 func TestAuthStoreGetMissingReturnsNil(t *testing.T) {
 	store := NewAuthStore(t.TempDir())
-	got, err := store.Get("https://gw.example.com")
+	got, err := store.Get(testGatewayURL)
 	if err != nil {
 		t.Fatalf("Get on empty store: %v", err)
 	}
@@ -64,7 +71,7 @@ func TestAuthStoreFilePermissions(t *testing.T) {
 	}
 	dir := filepath.Join(t.TempDir(), "auth")
 	store := NewAuthStore(dir)
-	rec := AuthRecord{ServerURL: "https://gw.example.com", AccessToken: "tok"}
+	rec := AuthRecord{ServerURL: testGatewayURL, AccessToken: "tok"}
 	if err := store.Put(rec); err != nil {
 		t.Fatalf("Put: %v", err)
 	}
@@ -89,7 +96,7 @@ func TestAuthStoreFilePermissions(t *testing.T) {
 
 func TestAuthStoreDelete(t *testing.T) {
 	store := NewAuthStore(t.TempDir())
-	rec := AuthRecord{ServerURL: "https://gw.example.com", AccessToken: "tok"}
+	rec := AuthRecord{ServerURL: testGatewayURL, AccessToken: "tok"}
 	if err := store.Put(rec); err != nil {
 		t.Fatalf("Put: %v", err)
 	}
@@ -158,10 +165,10 @@ func TestHostFilename(t *testing.T) {
 		in   string
 		want string
 	}{
-		{"https://gw.example.com", "gw.example.com.yaml"},
+		{testGatewayURL, "gw.example.com.yaml"},
 		{"https://GW.Example.com", "gw.example.com.yaml"},
 		{"https://gw.example.com:8080", "gw.example.com_8080.yaml"},
-		{"http://localhost:8080", "localhost_8080.yaml"},
+		{testLocalGatewayURL, "localhost_8080.yaml"},
 	}
 	for _, tc := range cases {
 		got, err := hostFilename(tc.in)

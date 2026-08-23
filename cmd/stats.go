@@ -70,7 +70,7 @@ var statsListSort string
 var statsListLimit int
 
 var statsListCmd = &cobra.Command{
-	Use:   "list",
+	Use:   useList,
 	Short: "Tabular view of individual archive entries",
 	Args:  cobra.NoArgs,
 	RunE:  runStatsList,
@@ -89,7 +89,7 @@ var statsTopCmd = &cobra.Command{
 }
 
 func init() {
-	statsCmd.PersistentFlags().StringVarP(&statsOutput, "output", "o", "text", "output format: text, json")
+	statsCmd.PersistentFlags().StringVarP(&statsOutput, "output", "o", outputText, "output format: text, json")
 
 	statsSummaryCmd.Flags().StringVar(&statsSummarySince, "since", "", "include entries stopped after this date (YYYY-MM-DD)")
 	statsSummaryCmd.Flags().StringVar(&statsSummaryRepo, "repo", "", "filter by repo tag")
@@ -151,7 +151,7 @@ func runStatsSummary(cmd *cobra.Command, _ []string) error {
 	stats := archive.ComputeSummary(entries, filters)
 
 	out := cmd.OutOrStdout()
-	if statsOutput == "json" {
+	if statsOutput == outputJSON {
 		enc := json.NewEncoder(out)
 		enc.SetIndent("", "  ")
 		return enc.Encode(stats)
@@ -240,7 +240,7 @@ func runStatsSpend(cmd *cobra.Command, _ []string) error {
 	groups := archive.ComputeSpend(entries, statsSpendBy, statsSpendWeeks, filters)
 
 	out := cmd.OutOrStdout()
-	if statsOutput == "json" {
+	if statsOutput == outputJSON {
 		enc := json.NewEncoder(out)
 		enc.SetIndent("", "  ")
 		return enc.Encode(groups)
@@ -284,7 +284,7 @@ func runStatsTrends(cmd *cobra.Command, _ []string) error {
 	trends := archive.ComputeTrends(entries, statsTrendsWeeks, filters)
 
 	out := cmd.OutOrStdout()
-	if statsOutput == "json" {
+	if statsOutput == outputJSON {
 		enc := json.NewEncoder(out)
 		enc.SetIndent("", "  ")
 		return enc.Encode(trends)
@@ -344,7 +344,7 @@ func runStatsList(cmd *cobra.Command, _ []string) error {
 	list := archive.ComputeList(entries, filters, statsListSort, statsListLimit)
 
 	out := cmd.OutOrStdout()
-	if statsOutput == "json" {
+	if statsOutput == outputJSON {
 		enc := json.NewEncoder(out)
 		enc.SetIndent("", "  ")
 		return enc.Encode(list)
@@ -389,7 +389,7 @@ func runStatsTop(cmd *cobra.Command, _ []string) error {
 	list := archive.ComputeList(entries, archive.SummaryFilters{}, sortBy, statsTopLimit)
 
 	out := cmd.OutOrStdout()
-	if statsOutput == "json" {
+	if statsOutput == outputJSON {
 		enc := json.NewEncoder(out)
 		enc.SetIndent("", "  ")
 		return enc.Encode(list)

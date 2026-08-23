@@ -22,7 +22,7 @@ func TestHandlePromptMissingName(t *testing.T) {
 
 func TestHandlePromptMissingMessage(t *testing.T) {
 	sc := testServerContext(t)
-	req := callToolRequest(map[string]any{"name": "test"})
+	req := callToolRequest(map[string]any{paramName: testNameTest})
 	result, err := handlePrompt(context.Background(), req, sc)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -33,7 +33,7 @@ func TestHandlePromptMissingMessage(t *testing.T) {
 func TestHandlePromptInstanceNotFound(t *testing.T) {
 	sc := testServerContext(t)
 	req := callToolRequest(map[string]any{
-		"name":    "nonexistent",
+		paramName: testNameMissing,
 		"message": "hello",
 	})
 	result, err := handlePrompt(context.Background(), req, sc)
@@ -55,7 +55,7 @@ func TestHandleResultMissingName(t *testing.T) {
 
 func TestHandleResultInstanceNotFound(t *testing.T) {
 	sc := testServerContext(t)
-	req := callToolRequest(map[string]any{"name": "nonexistent"})
+	req := callToolRequest(map[string]any{paramName: testNameMissing})
 	result, err := handleResult(context.Background(), req, sc)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -114,12 +114,12 @@ func TestParseStatusField(t *testing.T) {
 		{
 			name:   "json with status field",
 			result: mcp.NewToolResultText(`{"status":"completed","detail":"all done"}`),
-			want:   "completed",
+			want:   statusCompleted,
 		},
 		{
 			name:   "json with error status",
 			result: mcp.NewToolResultText(`{"status":"error","message":"something broke"}`),
-			want:   "error",
+			want:   testStatusError,
 		},
 		{
 			name:   "non-json text returns empty",
@@ -143,12 +143,12 @@ func TestParseStatusField(t *testing.T) {
 }
 
 func TestTerminalStatuses(t *testing.T) {
-	for _, status := range []string{"completed", "error", "failed"} {
+	for _, status := range []string{statusCompleted, testStatusError, testStatusFailed} {
 		if !mcpclient.IsTerminalStatus(status) {
 			t.Errorf("expected %q to be terminal", status)
 		}
 	}
-	for _, status := range []string{"running", "idle", "processing"} {
+	for _, status := range []string{statusRunning, "idle", "processing"} {
 		if mcpclient.IsTerminalStatus(status) {
 			t.Errorf("expected %q to NOT be terminal", status)
 		}
@@ -166,7 +166,7 @@ func TestParseAgentToolResponse(t *testing.T) {
 		{
 			name:             "completed with result",
 			text:             `{"status":"completed","message_count":42,"result_text":"All tests passed."}`,
-			wantStatus:       "completed",
+			wantStatus:       statusCompleted,
 			wantMessageCount: 42,
 			wantResult:       "All tests passed.",
 		},
@@ -216,7 +216,7 @@ func TestHandleMessagesMissingName(t *testing.T) {
 
 func TestHandleMessagesInvalidName(t *testing.T) {
 	sc := testServerContext(t)
-	req := callToolRequest(map[string]any{"name": "../../etc"})
+	req := callToolRequest(map[string]any{paramName: "../../etc"})
 	result, err := handleMessages(context.Background(), req, sc)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -226,7 +226,7 @@ func TestHandleMessagesInvalidName(t *testing.T) {
 
 func TestHandleMessagesInstanceNotFound(t *testing.T) {
 	sc := testServerContext(t)
-	req := callToolRequest(map[string]any{"name": "nonexistent"})
+	req := callToolRequest(map[string]any{paramName: testNameMissing})
 	result, err := handleMessages(context.Background(), req, sc)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -236,7 +236,7 @@ func TestHandleMessagesInstanceNotFound(t *testing.T) {
 
 func TestAgentBaseURLInstanceNotFound(t *testing.T) {
 	sc := testServerContext(t)
-	_, err := agentBaseURL(context.Background(), "nonexistent", sc)
+	_, err := agentBaseURL(context.Background(), testNameMissing, sc)
 	if err == nil {
 		t.Fatal("expected error for missing instance")
 	}

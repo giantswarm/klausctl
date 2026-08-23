@@ -47,7 +47,7 @@ responsibility.`,
 }
 
 var toolchainListCmd = &cobra.Command{
-	Use:   "list",
+	Use:   useList,
 	Short: "List toolchain images",
 	Long: `List available toolchain images from the remote OCI registry.
 
@@ -59,7 +59,7 @@ With --local, shows Docker/Podman images matching the klaus-* naming pattern.`,
 }
 
 var toolchainInitCmd = &cobra.Command{
-	Use:   "init",
+	Use:   useInit,
 	Short: "Scaffold a new toolchain image repository",
 	Long: `Scaffold a new toolchain image repository with example Dockerfiles and CI config.
 
@@ -70,7 +70,7 @@ klausctl is not involved in ongoing builds.`,
 }
 
 var toolchainValidateCmd = &cobra.Command{
-	Use:   "validate <directory>",
+	Use:   useValidateDirectory,
 	Short: "Validate a local toolchain directory",
 	Long: `Validate a local toolchain image directory against the expected structure.
 
@@ -80,7 +80,7 @@ A valid toolchain directory must contain a Dockerfile.`,
 }
 
 var toolchainPullCmd = &cobra.Command{
-	Use:   "pull <reference>",
+	Use:   usePullReference,
 	Short: "Pull a toolchain image from the registry",
 	Long: `Pull a toolchain container image from the registry using Docker/Podman.
 
@@ -92,7 +92,7 @@ The reference should be a full image reference:
 }
 
 var toolchainDescribeCmd = &cobra.Command{
-	Use:   "describe <reference>",
+	Use:   useDescribeReference,
 	Short: "Describe a toolchain image from the OCI registry",
 	Long: `Fetch and display metadata for a toolchain image without pulling it.
 
@@ -118,10 +118,10 @@ type toolchainPullResult struct {
 }
 
 func init() {
-	toolchainValidateCmd.Flags().StringVarP(&toolchainValidateOut, "output", "o", "text", "output format: text, json")
-	toolchainPullCmd.Flags().StringVarP(&toolchainPullOut, "output", "o", "text", "output format: text, json")
+	toolchainValidateCmd.Flags().StringVarP(&toolchainValidateOut, "output", "o", outputText, "output format: text, json")
+	toolchainPullCmd.Flags().StringVarP(&toolchainPullOut, "output", "o", outputText, "output format: text, json")
 	toolchainPullCmd.Flags().StringVar(&toolchainPullSource, "source", "", "resolve against a specific source")
-	toolchainListCmd.Flags().StringVarP(&toolchainListOut, "output", "o", "text", "output format: text, json")
+	toolchainListCmd.Flags().StringVarP(&toolchainListOut, "output", "o", outputText, "output format: text, json")
 	toolchainListCmd.Flags().BoolVar(&toolchainListWide, "wide", false, "show additional columns (ID, size) in --local mode")
 	toolchainListCmd.Flags().BoolVar(&toolchainListLocal, "local", false, "list only locally pulled toolchain images")
 	toolchainListCmd.Flags().StringVar(&toolchainListSource, "source", "", "list toolchains from a specific source only")
@@ -130,7 +130,7 @@ func init() {
 	toolchainInitCmd.Flags().StringVar(&toolchainInitName, "name", "", "toolchain name (required)")
 	toolchainInitCmd.Flags().StringVar(&toolchainInitDir, "dir", "", "output directory (default: ./klaus-<name>)")
 	_ = toolchainInitCmd.MarkFlagRequired("name")
-	toolchainDescribeCmd.Flags().StringVarP(&toolchainDescribeOut, "output", "o", "text", "output format: text, json")
+	toolchainDescribeCmd.Flags().StringVarP(&toolchainDescribeOut, "output", "o", outputText, "output format: text, json")
 	toolchainDescribeCmd.Flags().StringVar(&toolchainDescribeSource, "source", "", "resolve against a specific source")
 
 	toolchainCmd.AddCommand(toolchainListCmd)
@@ -228,7 +228,7 @@ func toolchainList(ctx context.Context, out io.Writer, rt runtime.Runtime, opts 
 		)
 	}
 
-	if opts.output == "json" {
+	if opts.output == outputJSON {
 		enc := json.NewEncoder(out)
 		enc.SetIndent("", "  ")
 		return enc.Encode(images)
@@ -281,7 +281,7 @@ func validateToolchainDir(dir string, out io.Writer, outputFmt string) error {
 		return fmt.Errorf("checking Dockerfile: %w", err)
 	}
 
-	if outputFmt == "json" {
+	if outputFmt == outputJSON {
 		enc := json.NewEncoder(out)
 		enc.SetIndent("", "  ")
 		return enc.Encode(toolchainValidation{
@@ -317,7 +317,7 @@ func runToolchainPull(cmd *cobra.Command, args []string) error {
 	ref := resolver.ResolveToolchainRef(args[0])
 
 	progressOut := out
-	if toolchainPullOut == "json" {
+	if toolchainPullOut == outputJSON {
 		progressOut = cmd.ErrOrStderr()
 	}
 
@@ -326,7 +326,7 @@ func runToolchainPull(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("pulling image: %w", err)
 	}
 
-	if toolchainPullOut == "json" {
+	if toolchainPullOut == outputJSON {
 		enc := json.NewEncoder(out)
 		enc.SetIndent("", "  ")
 		return enc.Encode(toolchainPullResult{
@@ -361,7 +361,7 @@ func runToolchainDescribe(cmd *cobra.Command, args []string) error {
 
 	out := cmd.OutOrStdout()
 
-	if toolchainDescribeOut == "json" {
+	if toolchainDescribeOut == outputJSON {
 		enc := json.NewEncoder(out)
 		enc.SetIndent("", "  ")
 		return enc.Encode(newDescribeToolchainJSON(dt))

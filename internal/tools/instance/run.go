@@ -18,9 +18,9 @@ import (
 func registerRun(s *mcpserver.MCPServer, sc *server.ServerContext) {
 	tool := mcp.NewTool("klaus_run",
 		mcp.WithDescription("Create a new klaus instance, wait for it to become ready, and send a prompt — all in one operation"),
-		mcp.WithString("name", mcp.Required(), mcp.Description("Instance name")),
+		mcp.WithString(paramName, mcp.Required(), mcp.Description("Instance name")),
 		mcp.WithString("message", mcp.Required(), mcp.Description("Prompt message to send to the agent after the instance is ready")),
-		mcp.WithString("workspace", mcp.Description("Workspace directory (default: current working directory)")),
+		mcp.WithString(paramWorkspace, mcp.Description("Workspace directory (default: current working directory)")),
 		mcp.WithString("personality", mcp.Description("Personality short name or OCI reference")),
 		mcp.WithString("toolchain", mcp.Description("Toolchain short name or OCI reference")),
 		mcp.WithArray("plugin", mcp.Description("Additional plugin short names or OCI references")),
@@ -38,12 +38,12 @@ func registerRun(s *mcpserver.MCPServer, sc *server.ServerContext) {
 		mcp.WithString("mode", mcp.Description(`Operating mode: "agent" (default, autonomous coding, new process per prompt) or "chat" (interactive, persistent process, saved sessions)`)),
 		mcp.WithBoolean("noIsolate", mcp.Description("Skip git worktree creation and bind-mount workspace directly (default: false)")),
 		mcp.WithBoolean("noFetch", mcp.Description("Skip git fetch origin before cloning the workspace (default: false)")),
-		mcp.WithNumber("port", mcp.Description("Override auto-selected host port for the instance MCP endpoint (0 or omitted = auto-select starting from 8080)")),
-		mcp.WithString("gitAuthor", mcp.Description("Git author identity as \"Name <email>\"; sets GIT_AUTHOR_NAME/GIT_COMMITTER_NAME and GIT_AUTHOR_EMAIL/GIT_COMMITTER_EMAIL in the container")),
+		mcp.WithNumber(paramPort, mcp.Description("Override auto-selected host port for the instance MCP endpoint (0 or omitted = auto-select starting from 8080)")),
+		mcp.WithString(paramGitAuthor, mcp.Description("Git author identity as \"Name <email>\"; sets GIT_AUTHOR_NAME/GIT_COMMITTER_NAME and GIT_AUTHOR_EMAIL/GIT_COMMITTER_EMAIL in the container")),
 		mcp.WithString("gitCredentialHelper", mcp.Description("Git credential helper (currently only \"gh\" is supported, which configures git to call \"gh auth git-credential\" for github.com)")),
 		mcp.WithBoolean("gitHttpsInsteadOfSsh", mcp.Description("Rewrite SSH git URLs (git@github.com:...) to HTTPS via container-local gitconfig (default: false)")),
 		mcp.WithBoolean("gpgSign", mcp.Description("Sign agent commits with the host GPG key via a forwarded gpg-agent socket; the private key never enters the container (default: false)")),
-		mcp.WithBoolean("generateSuffix", mcp.Description("Append a random 4-character suffix to the instance name to avoid collisions (default: true)")),
+		mcp.WithBoolean(paramGenerateSuffix, mcp.Description("Append a random 4-character suffix to the instance name to avoid collisions (default: true)")),
 		mcp.WithBoolean("force", mcp.Description("Allow replacing a running instance; requires confirm: true as well")),
 		mcp.WithBoolean("confirm", mcp.Description("Confirm replacement of an existing instance; required when a name collision is detected")),
 		mcp.WithBoolean("blocking", mcp.Description("Wait for the agent to complete and return the result (default: false)")),
@@ -94,7 +94,7 @@ func handleRun(ctx context.Context, req mcp.CallToolRequest, sc *server.ServerCo
 
 	blocking := req.GetBool("blocking", false)
 
-	if name := req.GetString("name", ""); name != "" && req.GetString("remote", "") != "" {
+	if name := req.GetString(paramName, ""); name != "" && req.GetString("remote", "") != "" {
 		return handleRunRemote(ctx, req, sc, name, message, blocking)
 	}
 
@@ -155,7 +155,7 @@ func handleRun(ctx context.Context, req mcp.CallToolRequest, sc *server.ServerCo
 		}()
 		return server.JSONResult(runResult{
 			Instance:  name,
-			Status:    "started",
+			Status:    statusStarted,
 			Container: createRes.Container,
 			Image:     createRes.Image,
 			Workspace: createRes.Workspace,
@@ -179,7 +179,7 @@ func handleRun(ctx context.Context, req mcp.CallToolRequest, sc *server.ServerCo
 	// treat a run that produced nothing as a success.
 	status := mcpclient.ParseStatusField(resultResp)
 	if status == "" {
-		status = "completed"
+		status = statusCompleted
 	}
 
 	return server.JSONResult(runResult{
@@ -224,7 +224,7 @@ func handleRunRemote(ctx context.Context, req mcp.CallToolRequest, sc *server.Se
 		}()
 		return server.JSONResult(runResult{
 			Instance:  name,
-			Status:    "started",
+			Status:    statusStarted,
 			Workspace: call.Target.BaseURL,
 		})
 	}
@@ -239,7 +239,7 @@ func handleRunRemote(ctx context.Context, req mcp.CallToolRequest, sc *server.Se
 
 	return server.JSONResult(runResult{
 		Instance:  name,
-		Status:    "completed",
+		Status:    statusCompleted,
 		Workspace: call.Target.BaseURL,
 		Result:    string(builder),
 	})

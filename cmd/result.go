@@ -36,7 +36,7 @@ Examples:
 }
 
 func init() {
-	resultCmd.Flags().StringVarP(&resultOutput, "output", "o", "text", "output format: text, json")
+	resultCmd.Flags().StringVarP(&resultOutput, "output", "o", outputText, "output format: text, json")
 	resultCmd.Flags().BoolVar(&resultFull, "full", false, "include full agent detail in JSON output (tool_calls, model_usage, token_usage, cost, etc.)")
 	rootCmd.AddCommand(resultCmd)
 }
@@ -108,7 +108,7 @@ func runResult(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("instance %q: unable to determine status: %w", instanceName, err)
 	}
-	if status != "running" {
+	if status != statusRunning {
 		return fmt.Errorf("instance %q is not running (status: %s); run 'klausctl start %s' first", instanceName, status, instanceName)
 	}
 
@@ -123,7 +123,7 @@ func runResult(cmd *cobra.Command, args []string) error {
 	}
 
 	// In full JSON mode, pass through the extended agent response.
-	if resultFull && resultOutput == "json" {
+	if resultFull && resultOutput == outputJSON {
 		return renderFullResultOutput(out, instanceName, toolResult)
 	}
 
@@ -140,7 +140,7 @@ func parseResultResponse(instanceName string, toolResult *mcp.CallToolResult) re
 	if toolResult != nil && toolResult.IsError {
 		return resultCLIResult{
 			Instance: instanceName,
-			Status:   "error",
+			Status:   statusError,
 			Result:   mcpclient.ExtractText(toolResult),
 		}
 	}
@@ -160,13 +160,13 @@ func parseResultResponse(instanceName string, toolResult *mcp.CallToolResult) re
 	// Fallback: response is not the expected JSON structure.
 	return resultCLIResult{
 		Instance: instanceName,
-		Status:   "completed",
+		Status:   statusCompleted,
 		Result:   text,
 	}
 }
 
 func renderResultOutput(out io.Writer, result resultCLIResult) error {
-	if resultOutput == "json" {
+	if resultOutput == outputJSON {
 		enc := json.NewEncoder(out)
 		enc.SetIndent("", "  ")
 		return enc.Encode(result)
@@ -175,7 +175,7 @@ func renderResultOutput(out io.Writer, result resultCLIResult) error {
 	_, _ = fmt.Fprintf(out, "Instance: %s\n", result.Instance)
 	_, _ = fmt.Fprintf(out, "Status:   %s\n", colorStatus(result.Status))
 	_, _ = fmt.Fprintf(out, "Messages: %d\n", result.MessageCount)
-	if result.Status == "busy" { //nolint:goconst
+	if result.Status == statusBusy {
 		_, _ = fmt.Fprintf(out, "\nAgent is still processing the prompt.\nRun 'klausctl result %s' again to check for updates.\n", result.Instance)
 	} else if result.Result != "" {
 		_, _ = fmt.Fprintf(out, "\n%s\n", result.Result)
@@ -212,7 +212,7 @@ func renderFullResultOutput(out io.Writer, instanceName string, toolResult *mcp.
 		}
 	} else {
 		// Not valid JSON — treat as plain text result.
-		result.Status = "completed" //nolint:goconst
+		result.Status = statusCompleted
 		result.ResultText = text
 	}
 
