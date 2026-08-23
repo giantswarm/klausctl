@@ -44,7 +44,7 @@ locally for use with klausctl.`,
 }
 
 var pluginValidateCmd = &cobra.Command{
-	Use:   "validate <directory>",
+	Use:   useValidateDirectory,
 	Short: "Validate a local plugin directory",
 	Long: `Validate a local plugin directory against the expected structure.
 
@@ -59,7 +59,7 @@ A valid plugin directory must contain at least one of:
 }
 
 var pluginPullCmd = &cobra.Command{
-	Use:   "pull <reference>",
+	Use:   usePullReference,
 	Short: "Pull a plugin from the OCI registry",
 	Long: `Pull a plugin OCI artifact from the registry to the local cache.
 
@@ -89,7 +89,7 @@ Accepts a full OCI reference with tag or a short name with tag:
 }
 
 var pluginListCmd = &cobra.Command{
-	Use:   "list",
+	Use:   useList,
 	Short: "List plugins",
 	Long: `List available plugins from the remote OCI registry.
 
@@ -101,7 +101,7 @@ With --local, shows only locally cached plugins with full detail.`,
 }
 
 var pluginDescribeCmd = &cobra.Command{
-	Use:   "describe <reference>",
+	Use:   useDescribeReference,
 	Short: "Describe a plugin from the OCI registry",
 	Long: `Fetch and display metadata for a plugin OCI artifact without downloading content.
 
@@ -122,17 +122,17 @@ type pluginValidation struct {
 }
 
 func init() {
-	pluginValidateCmd.Flags().StringVarP(&pluginValidateOut, "output", "o", "text", "output format: text, json")
-	pluginPullCmd.Flags().StringVarP(&pluginPullOut, "output", "o", "text", "output format: text, json")
+	pluginValidateCmd.Flags().StringVarP(&pluginValidateOut, "output", "o", outputText, "output format: text, json")
+	pluginPullCmd.Flags().StringVarP(&pluginPullOut, "output", "o", outputText, "output format: text, json")
 	pluginPullCmd.Flags().StringVar(&pluginPullSource, "source", "", "resolve against a specific source")
-	pluginPushCmd.Flags().StringVarP(&pluginPushOut, "output", "o", "text", "output format: text, json")
+	pluginPushCmd.Flags().StringVarP(&pluginPushOut, "output", "o", outputText, "output format: text, json")
 	pluginPushCmd.Flags().StringVar(&pluginPushSource, "source", "", "use a specific source registry for the push destination")
 	pluginPushCmd.Flags().BoolVar(&pluginPushDryRun, "dry-run", false, "validate and resolve without pushing")
-	pluginListCmd.Flags().StringVarP(&pluginListOut, "output", "o", "text", "output format: text, json")
+	pluginListCmd.Flags().StringVarP(&pluginListOut, "output", "o", outputText, "output format: text, json")
 	pluginListCmd.Flags().BoolVar(&pluginListLocal, "local", false, "list only locally cached plugins")
 	pluginListCmd.Flags().StringVar(&pluginListSource, "source", "", "list plugins from a specific source only")
 	pluginListCmd.Flags().BoolVar(&pluginListAll, "all", false, "list plugins from all configured sources")
-	pluginDescribeCmd.Flags().StringVarP(&pluginDescribeOut, "output", "o", "text", "output format: text, json")
+	pluginDescribeCmd.Flags().StringVarP(&pluginDescribeOut, "output", "o", outputText, "output format: text, json")
 	pluginDescribeCmd.Flags().StringVar(&pluginDescribeSource, "source", "", "resolve against a specific source")
 
 	pluginCmd.AddCommand(pluginValidateCmd)
@@ -175,7 +175,7 @@ func validatePluginDir(dir string, out io.Writer, outputFmt string) error {
 		return fmt.Errorf("no recognized plugin content found in %s\nExpected at least one of: skills/, agents/, hooks/, commands/, .mcp.json", dir)
 	}
 
-	if outputFmt == "json" {
+	if outputFmt == outputJSON {
 		enc := json.NewEncoder(out)
 		enc.SetIndent("", "  ")
 		return enc.Encode(pluginValidation{
@@ -223,7 +223,7 @@ func runPluginPush(cmd *cobra.Command, args []string) error {
 	}
 
 	dir := args[0]
-	if err := validatePluginDir(dir, io.Discard, "text"); err != nil {
+	if err := validatePluginDir(dir, io.Discard, outputText); err != nil {
 		return err
 	}
 
@@ -318,7 +318,7 @@ func runPluginDescribe(cmd *cobra.Command, args []string) error {
 
 	out := cmd.OutOrStdout()
 
-	if pluginDescribeOut == "json" {
+	if pluginDescribeOut == outputJSON {
 		enc := json.NewEncoder(out)
 		enc.SetIndent("", "  ")
 		return enc.Encode(newDescribePluginJSON(dp))

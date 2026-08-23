@@ -11,11 +11,11 @@ func TestTokenStoreRoundTrip(t *testing.T) {
 	dir := t.TempDir()
 	store := NewTokenStore(dir)
 
-	serverURL := "https://muster.example.com/mcp" //nolint:goconst
-	issuerURL := "https://dex.example.com"
+	serverURL := testServerURL
+	issuerURL := testIssuer
 	token := Token{
 		AccessToken:  "test-access-token",
-		TokenType:    "Bearer",
+		TokenType:    testTokenTypeBearer,
 		RefreshToken: "test-refresh-token",
 		ExpiresIn:    3600,
 	}
@@ -49,8 +49,8 @@ func TestTokenStoreFilePermissions(t *testing.T) {
 	dir := t.TempDir()
 	store := NewTokenStore(dir)
 
-	serverURL := "https://muster.example.com/mcp"
-	if err := store.StoreToken(serverURL, "https://dex.example.com", Token{AccessToken: "test"}); err != nil {
+	serverURL := testServerURL
+	if err := store.StoreToken(serverURL, testIssuer, Token{AccessToken: testAccessToken}); err != nil {
 		t.Fatalf("StoreToken: %v", err)
 	}
 
@@ -83,8 +83,8 @@ func TestTokenStoreDelete(t *testing.T) {
 	dir := t.TempDir()
 	store := NewTokenStore(dir)
 
-	serverURL := "https://muster.example.com/mcp"
-	if err := store.StoreToken(serverURL, "https://dex.example.com", Token{AccessToken: "test"}); err != nil {
+	serverURL := testServerURL
+	if err := store.StoreToken(serverURL, testIssuer, Token{AccessToken: testAccessToken}); err != nil {
 		t.Fatalf("StoreToken: %v", err)
 	}
 
@@ -108,10 +108,10 @@ func TestTokenStoreGetValidToken(t *testing.T) {
 	dir := t.TempDir()
 	store := NewTokenStore(dir)
 
-	serverURL := "https://muster.example.com/mcp"
+	serverURL := testServerURL
 
 	// Store a token that expires in 1 hour.
-	if err := store.StoreToken(serverURL, "https://dex.example.com", Token{
+	if err := store.StoreToken(serverURL, testIssuer, Token{
 		AccessToken: "valid-token",
 		ExpiresIn:   3600,
 	}); err != nil {
@@ -131,13 +131,13 @@ func TestTokenStoreExpiredToken(t *testing.T) {
 	dir := t.TempDir()
 	store := NewTokenStore(dir)
 
-	serverURL := "https://muster.example.com/mcp"
+	serverURL := testServerURL
 
 	origNow := nowFunc
 	nowFunc = func() time.Time { return time.Now().Add(-2 * time.Hour) }
 	defer func() { nowFunc = origNow }()
 
-	if err := store.StoreToken(serverURL, "https://dex.example.com", Token{
+	if err := store.StoreToken(serverURL, testIssuer, Token{
 		AccessToken: "expired-token",
 		ExpiresIn:   3600,
 	}); err != nil {
@@ -191,7 +191,7 @@ func TestTokenStoreListTokens(t *testing.T) {
 	if statuses[1].ServerURL != "https://b.example.com" {
 		t.Errorf("second status server = %q, want b.example.com", statuses[1].ServerURL)
 	}
-	if statuses[0].Status != "valid" {
+	if statuses[0].Status != tokenStatusValid {
 		t.Errorf("first status = %q, want valid", statuses[0].Status)
 	}
 }
@@ -223,7 +223,7 @@ func TestTokenStoreDirectoryPermissions(t *testing.T) {
 	dir := filepath.Join(base, "tokens")
 	store := NewTokenStore(dir)
 
-	if err := store.StoreToken("https://test.example.com", "https://dex.example.com", Token{AccessToken: "test"}); err != nil {
+	if err := store.StoreToken("https://test.example.com", testIssuer, Token{AccessToken: testAccessToken}); err != nil {
 		t.Fatalf("StoreToken: %v", err)
 	}
 

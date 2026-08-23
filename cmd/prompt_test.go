@@ -15,7 +15,7 @@ func TestExtractText(t *testing.T) {
 		want   string
 	}{
 		{
-			name:   "nil result",
+			name:   testNilResultMsg,
 			result: nil,
 			want:   "",
 		},
@@ -28,17 +28,17 @@ func TestExtractText(t *testing.T) {
 			name: "single text content",
 			result: &mcp.CallToolResult{
 				Content: []mcp.Content{
-					mcp.TextContent{Type: "text", Text: "hello"},
+					mcp.TextContent{Type: outputText, Text: testHello},
 				},
 			},
-			want: "hello",
+			want: testHello,
 		},
 		{
 			name: "multiple text content items",
 			result: &mcp.CallToolResult{
 				Content: []mcp.Content{
-					mcp.TextContent{Type: "text", Text: "line1"},
-					mcp.TextContent{Type: "text", Text: "line2"},
+					mcp.TextContent{Type: outputText, Text: "line1"},
+					mcp.TextContent{Type: outputText, Text: "line2"},
 				},
 			},
 			want: "line1\nline2",
@@ -56,9 +56,9 @@ func TestExtractText(t *testing.T) {
 			name: "mixed content types",
 			result: &mcp.CallToolResult{
 				Content: []mcp.Content{
-					mcp.TextContent{Type: "text", Text: "before"},
+					mcp.TextContent{Type: outputText, Text: "before"},
 					mcp.ImageContent{Type: "image", MIMEType: "image/png", Data: "abc"},
-					mcp.TextContent{Type: "text", Text: "after"},
+					mcp.TextContent{Type: outputText, Text: "after"},
 				},
 			},
 			want: "before\nafter",
@@ -83,13 +83,13 @@ func TestColorStatus(t *testing.T) {
 		input string
 		want  string
 	}{
-		{"started", "started"},
-		{"completed", "completed"},
-		{"idle", "idle"},
-		{"busy", "busy"},
-		{"error", "error"},
-		{"failed", "failed"},
-		{"unknown", "unknown"},
+		{statusStarted, statusStarted},
+		{statusCompleted, statusCompleted},
+		{statusIdle, statusIdle},
+		{statusBusy, statusBusy},
+		{statusError, statusError},
+		{statusFailed, statusFailed},
+		{unknownValue, unknownValue},
 	}
 
 	for _, tt := range tests {

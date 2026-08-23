@@ -8,6 +8,9 @@ import (
 	"github.com/giantswarm/klausctl/pkg/config"
 )
 
+// testRuntimeDocker is the container runtime name used in test fixtures.
+const testRuntimeDocker = "docker"
+
 func testPaths(t *testing.T) *config.Paths {
 	t.Helper()
 	dir := t.TempDir()
@@ -29,7 +32,7 @@ func TestSaveAndLoad(t *testing.T) {
 		UUID:        NewUUID(),
 		Name:        "test",
 		ContainerID: "abc123",
-		Runtime:     "docker",
+		Runtime:     testRuntimeDocker,
 		Personality: "gsoci.azurecr.io/giantswarm/klaus-personalities/sre:v1.0.0",
 		Image:       "ghcr.io/giantswarm/klaus:latest",
 		Port:        8080,
@@ -90,7 +93,7 @@ func TestClear(t *testing.T) {
 	inst := &Instance{
 		Name:        "test",
 		ContainerID: "abc123",
-		Runtime:     "docker",
+		Runtime:     testRuntimeDocker,
 		Image:       "test:latest",
 		Port:        8080,
 		Workspace:   "/tmp",
@@ -143,7 +146,7 @@ func TestLoadAll(t *testing.T) {
 	first := &Instance{
 		Name:        "default",
 		ContainerID: "id-1",
-		Runtime:     "docker",
+		Runtime:     testRuntimeDocker,
 		Image:       "image:latest",
 		Port:        8080,
 		Workspace:   "/tmp/a",
@@ -156,7 +159,7 @@ func TestLoadAll(t *testing.T) {
 	second := &Instance{
 		Name:        "dev",
 		ContainerID: "id-2",
-		Runtime:     "docker",
+		Runtime:     testRuntimeDocker,
 		Image:       "image:latest",
 		Port:        8081,
 		Workspace:   "/tmp/b",

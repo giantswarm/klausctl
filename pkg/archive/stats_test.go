@@ -5,6 +5,16 @@ import (
 	"time"
 )
 
+// Stats fixtures local to stats_test.go.
+const (
+	levelUnknown     = "unknown"
+	levelComplex     = "complex"
+	levelSimple      = "simple"
+	testRepoFrontend = "frontend"
+	testRepoBackend  = "backend"
+	testNameRun2     = "run-2"
+)
+
 func f64(v float64) *float64 { return &v }
 
 func makeEntries() []*Entry {
@@ -18,28 +28,28 @@ func makeEntries() []*Entry {
 			MessageCount: 100,
 			TotalCostUSD: f64(1.50),
 			Tags: map[string]string{
-				"outcome":       "success",
-				"repo":          "frontend",
-				"complexity":    "simple",
-				"first_attempt": "yes",
-				"scope":         "yes",
-				"rework":        "none",
+				tagOutcome:      outcomeSuccess,
+				tagRepo:         testRepoFrontend,
+				tagComplexity:   levelSimple,
+				tagFirstAttempt: tagValueYes,
+				tagScope:        tagValueYes,
+				tagRework:       "none",
 			},
 		},
 		{
 			UUID:         "2",
-			Name:         "run-2",
+			Name:         testNameRun2,
 			StartedAt:    now.Add(-60 * time.Minute),
 			StoppedAt:    now.Add(-50 * time.Minute),
 			MessageCount: 200,
 			TotalCostUSD: f64(3.00),
 			Tags: map[string]string{
-				"outcome":       "partial",
-				"repo":          "backend",
-				"complexity":    "complex",
-				"first_attempt": "false",
-				"scope":         "yes",
-				"rework":        "minor",
+				tagOutcome:      outcomePartial,
+				tagRepo:         testRepoBackend,
+				tagComplexity:   levelComplex,
+				tagFirstAttempt: "false",
+				tagScope:        tagValueYes,
+				tagRework:       "minor",
 				"issue":         "backend#42",
 			},
 		},
@@ -51,11 +61,11 @@ func makeEntries() []*Entry {
 			MessageCount: 150,
 			TotalCostUSD: f64(2.00),
 			Tags: map[string]string{
-				"outcome":       "failed",
-				"repo":          "frontend",
-				"complexity":    "simple",
-				"first_attempt": "yes",
-				"rework":        "major",
+				tagOutcome:      outcomeFailed,
+				tagRepo:         testRepoFrontend,
+				tagComplexity:   levelSimple,
+				tagFirstAttempt: tagValueYes,
+				tagRework:       "major",
 			},
 		},
 		{
@@ -66,11 +76,11 @@ func makeEntries() []*Entry {
 			MessageCount: 50,
 			TotalCostUSD: nil,
 			Tags: map[string]string{
-				"outcome":       "success",
-				"repo":          "backend",
-				"first_attempt": "yes",
-				"scope":         "deviated",
-				"rework":        "none",
+				tagOutcome:      outcomeSuccess,
+				tagRepo:         testRepoBackend,
+				tagFirstAttempt: tagValueYes,
+				tagScope:        "deviated",
+				tagRework:       "none",
 			},
 		},
 	}
@@ -178,8 +188,8 @@ func TestComputeSummary_ComplexityBreakdown(t *testing.T) {
 	}
 
 	// Order should be: simple, complex (ordered by level)
-	if s.ComplexityBreakdown[0].Level != "simple" {
-		t.Errorf("first breakdown level = %q, want %q", s.ComplexityBreakdown[0].Level, "simple")
+	if s.ComplexityBreakdown[0].Level != levelSimple {
+		t.Errorf("first breakdown level = %q, want %q", s.ComplexityBreakdown[0].Level, levelSimple)
 	}
 	if s.ComplexityBreakdown[0].Runs != 2 {
 		t.Errorf("simple runs = %d, want 2", s.ComplexityBreakdown[0].Runs)
@@ -193,8 +203,8 @@ func TestComputeSummary_ComplexityBreakdown(t *testing.T) {
 		t.Errorf("simple success pct = %g, want 50", s.ComplexityBreakdown[0].SuccessPct)
 	}
 
-	if s.ComplexityBreakdown[1].Level != "complex" { //nolint:goconst
-		t.Errorf("second breakdown level = %q, want %q", s.ComplexityBreakdown[1].Level, "complex")
+	if s.ComplexityBreakdown[1].Level != levelComplex {
+		t.Errorf("second breakdown level = %q, want %q", s.ComplexityBreakdown[1].Level, levelComplex)
 	}
 	if s.ComplexityBreakdown[1].Runs != 1 {
 		t.Errorf("complex runs = %d, want 1", s.ComplexityBreakdown[1].Runs)
@@ -203,7 +213,7 @@ func TestComputeSummary_ComplexityBreakdown(t *testing.T) {
 
 func TestComputeSummary_FilterByRepo(t *testing.T) {
 	entries := makeEntries()
-	s := ComputeSummary(entries, SummaryFilters{Repo: "frontend"})
+	s := ComputeSummary(entries, SummaryFilters{Repo: testRepoFrontend})
 
 	if s.TotalRuns != 2 {
 		t.Errorf("TotalRuns = %d, want 2", s.TotalRuns)
@@ -218,7 +228,7 @@ func TestComputeSummary_FilterByRepo(t *testing.T) {
 
 func TestComputeSummary_FilterByOutcome(t *testing.T) {
 	entries := makeEntries()
-	s := ComputeSummary(entries, SummaryFilters{Outcome: "success"})
+	s := ComputeSummary(entries, SummaryFilters{Outcome: outcomeSuccess})
 
 	if s.TotalRuns != 2 {
 		t.Errorf("TotalRuns = %d, want 2", s.TotalRuns)
@@ -227,7 +237,7 @@ func TestComputeSummary_FilterByOutcome(t *testing.T) {
 
 func TestComputeSummary_FilterByComplexity(t *testing.T) {
 	entries := makeEntries()
-	s := ComputeSummary(entries, SummaryFilters{Complexity: "simple"})
+	s := ComputeSummary(entries, SummaryFilters{Complexity: levelSimple})
 
 	if s.TotalRuns != 2 {
 		t.Errorf("TotalRuns = %d, want 2", s.TotalRuns)
@@ -257,14 +267,14 @@ func TestComputeSummary_Empty(t *testing.T) {
 
 func TestComputeSpend_ByRepo(t *testing.T) {
 	entries := makeEntries()
-	groups := ComputeSpend(entries, "repo", 0)
+	groups := ComputeSpend(entries, tagRepo, 0)
 
 	byGroup := map[string]SpendGroup{}
 	for _, g := range groups {
 		byGroup[g.Group] = g
 	}
 
-	be, ok := byGroup["backend"]
+	be, ok := byGroup[testRepoBackend]
 	if !ok {
 		t.Fatal("missing backend group")
 	}
@@ -275,7 +285,7 @@ func TestComputeSpend_ByRepo(t *testing.T) {
 		t.Errorf("backend total cost = %f, want 3.00", be.TotalCost)
 	}
 
-	fe, ok := byGroup["frontend"]
+	fe, ok := byGroup[testRepoFrontend]
 	if !ok {
 		t.Fatal("missing frontend group")
 	}
@@ -289,7 +299,7 @@ func TestComputeSpend_ByRepo(t *testing.T) {
 
 func TestComputeSpend_PctOfTotal(t *testing.T) {
 	entries := makeEntries()
-	groups := ComputeSpend(entries, "repo", 0)
+	groups := ComputeSpend(entries, tagRepo, 0)
 
 	var totalPct float64
 	for _, g := range groups {
@@ -306,7 +316,7 @@ func TestComputeSpend_PctOfTotal(t *testing.T) {
 
 func TestComputeSpend_ByComplexity(t *testing.T) {
 	entries := makeEntries()
-	groups := ComputeSpend(entries, "complexity", 0)
+	groups := ComputeSpend(entries, tagComplexity, 0)
 
 	byGroup := map[string]SpendGroup{}
 	for _, g := range groups {
@@ -316,7 +326,7 @@ func TestComputeSpend_ByComplexity(t *testing.T) {
 	if _, ok := byGroup["untagged"]; !ok {
 		t.Error("expected untagged group for entry without complexity tag")
 	}
-	if simple, ok := byGroup["simple"]; !ok {
+	if simple, ok := byGroup[levelSimple]; !ok {
 		t.Error("missing simple group")
 	} else if simple.Runs != 2 {
 		t.Errorf("simple runs = %d, want 2", simple.Runs)
@@ -338,7 +348,7 @@ func TestComputeSpend_ByWeek(t *testing.T) {
 
 func TestComputeSpend_WithFilters(t *testing.T) {
 	entries := makeEntries()
-	groups := ComputeSpend(entries, "repo", 0, SummaryFilters{Outcome: "success"})
+	groups := ComputeSpend(entries, tagRepo, 0, SummaryFilters{Outcome: outcomeSuccess})
 
 	// Only success entries: run-1 (frontend) and run-4 (backend)
 	if len(groups) != 2 {
@@ -401,7 +411,7 @@ func TestComputeTrends_EnrichedFields(t *testing.T) {
 
 func TestComputeTrends_WithFilters(t *testing.T) {
 	entries := makeEntries()
-	trends := ComputeTrends(entries, 0, SummaryFilters{Repo: "frontend"})
+	trends := ComputeTrends(entries, 0, SummaryFilters{Repo: testRepoFrontend})
 
 	if len(trends) != 1 {
 		t.Fatalf("expected 1 trend week, got %d", len(trends))
@@ -419,14 +429,14 @@ func TestComputeTrends_WeeksFilter(t *testing.T) {
 			StoppedAt:    now.Add(-24 * time.Hour),
 			MessageCount: 10,
 			TotalCostUSD: f64(1.0),
-			Tags:         map[string]string{"outcome": "success"},
+			Tags:         map[string]string{tagOutcome: outcomeSuccess},
 		},
 		{
-			UUID:         "old",
+			UUID:         testNameOld,
 			StoppedAt:    now.Add(-100 * 24 * time.Hour),
 			MessageCount: 10,
 			TotalCostUSD: f64(1.0),
-			Tags:         map[string]string{"outcome": "success"},
+			Tags:         map[string]string{tagOutcome: outcomeSuccess},
 		},
 	}
 
@@ -461,7 +471,7 @@ func TestComputeList_SortByCost(t *testing.T) {
 		t.Fatalf("expected 4 entries, got %d", len(list))
 	}
 	// Most expensive first: run-2 ($3.00)
-	if list[0].Name != "run-2" { //nolint:goconst
+	if list[0].Name != testNameRun2 {
 		t.Errorf("first entry = %q, want run-2", list[0].Name)
 	}
 }
@@ -471,7 +481,7 @@ func TestComputeList_SortByMessages(t *testing.T) {
 	list := ComputeList(entries, SummaryFilters{}, "messages", 0)
 
 	// Most messages first: run-2 (200)
-	if list[0].Name != "run-2" {
+	if list[0].Name != testNameRun2 {
 		t.Errorf("first entry = %q, want run-2", list[0].Name)
 	}
 }
@@ -499,7 +509,7 @@ func TestComputeList_SortByDuration(t *testing.T) {
 
 func TestComputeList_WithFilters(t *testing.T) {
 	entries := makeEntries()
-	list := ComputeList(entries, SummaryFilters{Repo: "frontend"}, "date", 0)
+	list := ComputeList(entries, SummaryFilters{Repo: testRepoFrontend}, "date", 0)
 
 	if len(list) != 2 {
 		t.Errorf("expected 2 entries, got %d", len(list))
@@ -517,34 +527,34 @@ func TestComputeList_WithLimit(t *testing.T) {
 
 func TestComputeList_WithComplexityFilter(t *testing.T) {
 	entries := makeEntries()
-	list := ComputeList(entries, SummaryFilters{Complexity: "complex"}, "date", 0)
+	list := ComputeList(entries, SummaryFilters{Complexity: levelComplex}, "date", 0)
 
 	if len(list) != 1 {
 		t.Fatalf("expected 1 entry, got %d", len(list))
 	}
-	if list[0].Name != "run-2" {
+	if list[0].Name != testNameRun2 {
 		t.Errorf("entry = %q, want run-2", list[0].Name)
 	}
 }
 
 func TestComputeList_Fields(t *testing.T) {
 	entries := makeEntries()
-	list := ComputeList(entries, SummaryFilters{Outcome: "partial"}, "date", 0)
+	list := ComputeList(entries, SummaryFilters{Outcome: outcomePartial}, "date", 0)
 
 	if len(list) != 1 {
 		t.Fatalf("expected 1 entry, got %d", len(list))
 	}
 	le := list[0]
-	if le.Name != "run-2" {
+	if le.Name != testNameRun2 {
 		t.Errorf("Name = %q, want run-2", le.Name)
 	}
-	if le.Repo != "backend" {
+	if le.Repo != testRepoBackend {
 		t.Errorf("Repo = %q, want backend", le.Repo)
 	}
 	if le.Issue != "backend#42" {
 		t.Errorf("Issue = %q, want backend#42", le.Issue)
 	}
-	if le.Outcome != "partial" {
+	if le.Outcome != outcomePartial {
 		t.Errorf("Outcome = %q, want partial", le.Outcome)
 	}
 	if le.Cost != 3.00 {
@@ -556,7 +566,7 @@ func TestComputeList_Fields(t *testing.T) {
 	if le.Duration != "10m" {
 		t.Errorf("Duration = %q, want 10m", le.Duration)
 	}
-	if le.Complexity != "complex" {
+	if le.Complexity != levelComplex {
 		t.Errorf("Complexity = %q, want complex", le.Complexity)
 	}
 }
@@ -567,12 +577,12 @@ func TestComplexityToNumeric(t *testing.T) {
 		want  float64
 	}{
 		{"trivial", 1},
-		{"simple", 2},
+		{levelSimple, 2},
 		{"moderate", 3},
-		{"complex", 4},
+		{levelComplex, 4},
 		{"expert", 5},
 		{"", 0},
-		{"unknown", 0},
+		{levelUnknown, 0},
 	}
 	for _, tt := range tests {
 		if got := complexityToNumeric(tt.level); got != tt.want {

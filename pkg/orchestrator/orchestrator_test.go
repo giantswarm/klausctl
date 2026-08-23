@@ -13,6 +13,14 @@ import (
 	"github.com/giantswarm/klausctl/pkg/runtime"
 )
 
+// Git author fixtures shared across orchestrator tests.
+const (
+	testGitAuthorName   = "Klaus Agent"
+	testGitAuthorEmail  = "klaus@example.com"
+	testTokenTypeBearer = "Bearer"
+	testMusterServerURL = "https://muster.example.com/mcp"
+)
+
 func TestBuildEnvVars_Defaults(t *testing.T) {
 	cfg := &config.Config{Port: 8080}
 	paths := testPaths(t)
@@ -158,7 +166,7 @@ func TestBuildVolumes_WorkspaceMount(t *testing.T) {
 
 	found := false
 	for _, v := range vols {
-		if v.ContainerPath == "/workspace" { //nolint:goconst
+		if v.ContainerPath == containerWorkspaceDir {
 			found = true
 			if v.HostPath != workspace {
 				t.Errorf("expected workspace host path %q, got %q", workspace, v.HostPath)
@@ -168,7 +176,7 @@ func TestBuildVolumes_WorkspaceMount(t *testing.T) {
 	if !found {
 		t.Error("expected /workspace volume mount")
 	}
-	if env["CLAUDE_WORKSPACE"] != "/workspace" {
+	if env["CLAUDE_WORKSPACE"] != containerWorkspaceDir {
 		t.Errorf("expected CLAUDE_WORKSPACE=/workspace, got %q", env["CLAUDE_WORKSPACE"])
 	}
 }
@@ -185,7 +193,7 @@ func TestBuildVolumes_ContainerConfigMount(t *testing.T) {
 
 	found := false
 	for _, v := range vols {
-		if v.ContainerPath == "/etc/klaus/config.yaml" { //nolint:goconst
+		if v.ContainerPath == containerConfigPath {
 			found = true
 			if !v.ReadOnly {
 				t.Error("expected config mount to be read-only")
@@ -199,7 +207,7 @@ func TestBuildVolumes_ContainerConfigMount(t *testing.T) {
 	if !found {
 		t.Error("expected /etc/klaus/config.yaml volume mount")
 	}
-	if env["KLAUS_CONFIG_FILE"] != "/etc/klaus/config.yaml" {
+	if env["KLAUS_CONFIG_FILE"] != containerConfigPath {
 		t.Errorf("KLAUS_CONFIG_FILE = %q, want /etc/klaus/config.yaml", env["KLAUS_CONFIG_FILE"])
 	}
 }
@@ -219,7 +227,7 @@ func TestBuildVolumes_McpConfigMount(t *testing.T) {
 
 	found := false
 	for _, v := range vols {
-		if v.ContainerPath == "/etc/klaus/mcp-config.json" { //nolint:goconst
+		if v.ContainerPath == containerMCPConfigPath {
 			found = true
 			if !v.ReadOnly {
 				t.Error("expected mcp-config mount to be read-only")
@@ -229,7 +237,7 @@ func TestBuildVolumes_McpConfigMount(t *testing.T) {
 	if !found {
 		t.Error("expected /etc/klaus/mcp-config.json volume mount")
 	}
-	if env["CLAUDE_MCP_CONFIG"] != "/etc/klaus/mcp-config.json" {
+	if env["CLAUDE_MCP_CONFIG"] != containerMCPConfigPath {
 		t.Errorf("expected CLAUDE_MCP_CONFIG set, got %q", env["CLAUDE_MCP_CONFIG"])
 	}
 }
@@ -245,7 +253,7 @@ func TestBuildVolumes_NoMcpConfigWhenEmpty(t *testing.T) {
 	}
 
 	for _, v := range vols {
-		if v.ContainerPath == "/etc/klaus/mcp-config.json" {
+		if v.ContainerPath == containerMCPConfigPath {
 			t.Error("expected no mcp-config mount when McpServers is empty")
 		}
 	}
@@ -282,7 +290,7 @@ func TestBuildRunOptions_Structure(t *testing.T) {
 
 	hasWorkspaceVol := false
 	for _, v := range opts.Volumes {
-		if v.ContainerPath == "/workspace" {
+		if v.ContainerPath == containerWorkspaceDir {
 			hasWorkspaceVol = true
 		}
 	}
@@ -538,10 +546,10 @@ func TestResolveSecretRefs(t *testing.T) {
 		t.Fatalf("expected map, got %T", entry)
 	}
 
-	if m["url"] != "https://muster.example.com/mcp" { //nolint:goconst
+	if m["url"] != testMusterServerURL { //nolint:goconst
 		t.Errorf("url = %v", m["url"])
 	}
-	if m["type"] != "http" {
+	if m["type"] != mcpTypeHTTP {
 		t.Errorf("type = %v", m["type"])
 	}
 
@@ -615,8 +623,8 @@ func TestResolveSecretRefs_Empty(t *testing.T) {
 func TestBuildEnvVars_GitIdentity(t *testing.T) {
 	cfg := &config.Config{
 		Git: config.GitConfig{
-			AuthorName:  "Klaus Agent",
-			AuthorEmail: "klaus@example.com",
+			AuthorName:  testGitAuthorName,
+			AuthorEmail: testGitAuthorEmail,
 		},
 	}
 	paths := testPaths(t)
@@ -626,17 +634,17 @@ func TestBuildEnvVars_GitIdentity(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if env["GIT_AUTHOR_NAME"] != "Klaus Agent" {
-		t.Errorf("GIT_AUTHOR_NAME = %q, want %q", env["GIT_AUTHOR_NAME"], "Klaus Agent")
+	if env["GIT_AUTHOR_NAME"] != testGitAuthorName {
+		t.Errorf("GIT_AUTHOR_NAME = %q, want %q", env["GIT_AUTHOR_NAME"], testGitAuthorName)
 	}
-	if env["GIT_COMMITTER_NAME"] != "Klaus Agent" {
-		t.Errorf("GIT_COMMITTER_NAME = %q, want %q", env["GIT_COMMITTER_NAME"], "Klaus Agent")
+	if env["GIT_COMMITTER_NAME"] != testGitAuthorName {
+		t.Errorf("GIT_COMMITTER_NAME = %q, want %q", env["GIT_COMMITTER_NAME"], testGitAuthorName)
 	}
-	if env["GIT_AUTHOR_EMAIL"] != "klaus@example.com" {
-		t.Errorf("GIT_AUTHOR_EMAIL = %q, want %q", env["GIT_AUTHOR_EMAIL"], "klaus@example.com")
+	if env["GIT_AUTHOR_EMAIL"] != testGitAuthorEmail {
+		t.Errorf("GIT_AUTHOR_EMAIL = %q, want %q", env["GIT_AUTHOR_EMAIL"], testGitAuthorEmail)
 	}
-	if env["GIT_COMMITTER_EMAIL"] != "klaus@example.com" {
-		t.Errorf("GIT_COMMITTER_EMAIL = %q, want %q", env["GIT_COMMITTER_EMAIL"], "klaus@example.com")
+	if env["GIT_COMMITTER_EMAIL"] != testGitAuthorEmail {
+		t.Errorf("GIT_COMMITTER_EMAIL = %q, want %q", env["GIT_COMMITTER_EMAIL"], testGitAuthorEmail)
 	}
 }
 
@@ -751,7 +759,7 @@ func TestBuildVolumes_GitConfigMount(t *testing.T) {
 
 	found := false
 	for _, v := range vols {
-		if v.ContainerPath == "/etc/klaus/gitconfig" {
+		if v.ContainerPath == containerGitConfigPath {
 			found = true
 			if !v.ReadOnly {
 				t.Error("expected gitconfig mount to be read-only")
@@ -761,7 +769,7 @@ func TestBuildVolumes_GitConfigMount(t *testing.T) {
 	if !found {
 		t.Error("expected /etc/klaus/gitconfig volume mount")
 	}
-	if env["GIT_CONFIG_GLOBAL"] != "/etc/klaus/gitconfig" {
+	if env["GIT_CONFIG_GLOBAL"] != containerGitConfigPath {
 		t.Errorf("GIT_CONFIG_GLOBAL = %q, want /etc/klaus/gitconfig", env["GIT_CONFIG_GLOBAL"])
 	}
 }
@@ -777,7 +785,7 @@ func TestBuildVolumes_NoGitConfigWhenEmpty(t *testing.T) {
 	}
 
 	for _, v := range vols {
-		if v.ContainerPath == "/etc/klaus/gitconfig" {
+		if v.ContainerPath == containerGitConfigPath {
 			t.Error("expected no gitconfig mount when git config is empty")
 		}
 	}
@@ -807,7 +815,7 @@ func TestBuildVolumes_SourcesMount(t *testing.T) {
 
 	found := false
 	for _, v := range vols {
-		if v.ContainerPath == "/etc/klaus/sources.yaml" {
+		if v.ContainerPath == containerSourcesPath {
 			found = true
 			if !v.ReadOnly {
 				t.Error("expected sources mount to be read-only")
@@ -820,7 +828,7 @@ func TestBuildVolumes_SourcesMount(t *testing.T) {
 	if !found {
 		t.Error("expected /etc/klaus/sources.yaml volume mount")
 	}
-	if env["KLAUSCTL_SOURCES_FILE"] != "/etc/klaus/sources.yaml" {
+	if env["KLAUSCTL_SOURCES_FILE"] != containerSourcesPath {
 		t.Errorf("expected KLAUSCTL_SOURCES_FILE=/etc/klaus/sources.yaml, got %q", env["KLAUSCTL_SOURCES_FILE"])
 	}
 }
@@ -836,7 +844,7 @@ func TestBuildVolumes_NoSourcesMountWhenFileMissing(t *testing.T) {
 	}
 
 	for _, v := range vols {
-		if v.ContainerPath == "/etc/klaus/sources.yaml" {
+		if v.ContainerPath == containerSourcesPath {
 			t.Error("expected no sources mount when sources.yaml does not exist")
 		}
 	}
@@ -853,7 +861,7 @@ func TestBuildRunOptions_ExtraHostsWithHostDockerInternal(t *testing.T) {
 		McpServers: map[string]any{
 			"muster": map[string]any{
 				"url":  "http://host.docker.internal:8090/mcp",
-				"type": "http",
+				"type": mcpTypeHTTP,
 			},
 		},
 	}
@@ -891,7 +899,7 @@ func TestBuildRunOptions_NoExtraHostsWithoutHostDockerInternal(t *testing.T) {
 		McpServers: map[string]any{
 			"remote": map[string]any{
 				"url":  "https://mcp.example.com/mcp",
-				"type": "http",
+				"type": mcpTypeHTTP,
 			},
 		},
 	}
@@ -932,7 +940,7 @@ func TestResolveSecretRefs_OAuthToken(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	serverURL := "https://muster.example.com/mcp"
+	serverURL := testMusterServerURL
 	mcpContent := "muster-oauth:\n  url: " + serverURL + "\n"
 	if err := os.WriteFile(paths.McpServersFile, []byte(mcpContent), 0o600); err != nil {
 		t.Fatal(err)
@@ -941,7 +949,7 @@ func TestResolveSecretRefs_OAuthToken(t *testing.T) {
 	tokenStore := oauth.NewTokenStore(paths.TokensDir)
 	if err := tokenStore.StoreToken(serverURL, "https://dex.example.com", oauth.Token{ // #nosec G101 -- constant identifier, not a credential
 		AccessToken: "oauth-access-token-xyz",
-		TokenType:   "Bearer",
+		TokenType:   testTokenTypeBearer,
 		ExpiresIn:   3600,
 	}); err != nil {
 		t.Fatal(err)
@@ -978,7 +986,7 @@ func TestResolveSecretRefs_OAuthTokenExpired(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	serverURL := "https://muster.example.com/mcp"
+	serverURL := testMusterServerURL
 	mcpContent := "muster-expired:\n  url: " + serverURL + "\n"
 	if err := os.WriteFile(paths.McpServersFile, []byte(mcpContent), 0o600); err != nil {
 		t.Fatal(err)
@@ -987,7 +995,7 @@ func TestResolveSecretRefs_OAuthTokenExpired(t *testing.T) {
 	tokenStore := oauth.NewTokenStore(paths.TokensDir)
 	if err := tokenStore.StoreToken(serverURL, "https://dex.example.com", oauth.Token{
 		AccessToken: "expired-token",
-		TokenType:   "Bearer",
+		TokenType:   testTokenTypeBearer,
 		ExpiresIn:   1,
 	}); err != nil {
 		t.Fatal(err)
@@ -1017,7 +1025,7 @@ func TestResolveSecretRefs_StaticSecretTakesPrecedence(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	serverURL := "https://muster.example.com/mcp"
+	serverURL := testMusterServerURL
 
 	if err := os.WriteFile(paths.SecretsFile, []byte("static-secret: static-token-123\n"), 0o600); err != nil {
 		t.Fatal(err)
@@ -1031,7 +1039,7 @@ func TestResolveSecretRefs_StaticSecretTakesPrecedence(t *testing.T) {
 	tokenStore := oauth.NewTokenStore(paths.TokensDir)
 	if err := tokenStore.StoreToken(serverURL, "https://dex.example.com", oauth.Token{ // #nosec G101 -- constant identifier, not a credential
 		AccessToken: "oauth-token-should-not-be-used",
-		TokenType:   "Bearer",
+		TokenType:   testTokenTypeBearer,
 		ExpiresIn:   3600,
 	}); err != nil {
 		t.Fatal(err)

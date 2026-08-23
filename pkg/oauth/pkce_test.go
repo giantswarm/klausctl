@@ -13,7 +13,7 @@ func TestGeneratePKCE(t *testing.T) {
 	if pkce.Challenge == "" {
 		t.Error("Challenge is empty")
 	}
-	if pkce.ChallengeMethod != "S256" {
+	if pkce.ChallengeMethod != challengeMethodS256 {
 		t.Errorf("ChallengeMethod = %q, want S256", pkce.ChallengeMethod)
 	}
 

@@ -13,7 +13,7 @@ import (
 )
 
 func TestPluginSubcommandsRegistered(t *testing.T) {
-	assertSubcommandsRegistered(t, pluginCmd, []string{"validate", "pull", "push", "list", "describe"})
+	assertSubcommandsRegistered(t, pluginCmd, []string{testSubcmdValidate, testSubcmdPull, testSubcmdPush, useList, testSubcmdDescribe})
 }
 
 func TestPluginCommandRegisteredOnRoot(t *testing.T) {
@@ -30,7 +30,7 @@ func TestValidatePluginDirValid(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := validatePluginDir(dir, io.Discard, "text"); err != nil {
+	if err := validatePluginDir(dir, io.Discard, outputText); err != nil {
 		t.Errorf("validatePluginDir() error = %v", err)
 	}
 }
@@ -45,7 +45,7 @@ func TestValidatePluginDirWithAgents(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := validatePluginDir(dir, io.Discard, "text"); err != nil {
+	if err := validatePluginDir(dir, io.Discard, outputText); err != nil {
 		t.Errorf("validatePluginDir() error = %v", err)
 	}
 }
@@ -60,7 +60,7 @@ func TestValidatePluginDirWithCommands(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := validatePluginDir(dir, io.Discard, "text"); err != nil {
+	if err := validatePluginDir(dir, io.Discard, outputText); err != nil {
 		t.Errorf("validatePluginDir() error = %v", err)
 	}
 }
@@ -72,7 +72,7 @@ func TestValidatePluginDirWithMCPConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := validatePluginDir(dir, io.Discard, "text"); err != nil {
+	if err := validatePluginDir(dir, io.Discard, outputText); err != nil {
 		t.Errorf("validatePluginDir() error = %v", err)
 	}
 }
@@ -80,7 +80,7 @@ func TestValidatePluginDirWithMCPConfig(t *testing.T) {
 func TestValidatePluginDirEmpty(t *testing.T) {
 	dir := t.TempDir()
 
-	err := validatePluginDir(dir, io.Discard, "text")
+	err := validatePluginDir(dir, io.Discard, outputText)
 	if err == nil {
 		t.Fatal("expected error for empty directory")
 	}
@@ -104,7 +104,7 @@ func TestValidatePluginDirTextOutput(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	if err := validatePluginDir(dir, &buf, "text"); err != nil {
+	if err := validatePluginDir(dir, &buf, outputText); err != nil {
 		t.Fatalf("validatePluginDir() error = %v", err)
 	}
 
@@ -123,7 +123,7 @@ func TestValidatePluginDirJSONOutput(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	if err := validatePluginDir(dir, &buf, "json"); err != nil {
+	if err := validatePluginDir(dir, &buf, outputJSON); err != nil {
 		t.Fatalf("validatePluginDir() error = %v", err)
 	}
 
@@ -155,7 +155,7 @@ func TestPrintPluginComponents(t *testing.T) {
 	dp := &klausoci.DescribedPlugin{
 		Plugin: klausoci.Plugin{
 			Skills:     []string{"kubernetes", "fluxcd"},
-			Commands:   []string{"hello"},
+			Commands:   []string{testHello},
 			Agents:     []string{"code-reviewer"},
 			HasHooks:   true,
 			MCPServers: []string{"github", "jira"},

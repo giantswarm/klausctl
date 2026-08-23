@@ -11,6 +11,14 @@ import (
 	klausoci "github.com/giantswarm/klaus-oci"
 )
 
+// Cache index keys reused across tests.
+const (
+	indexKeyField    = "key"
+	testHostRegistry = "host"
+	testKeyRepo      = "host/repo"
+	testKeyRepoTag   = "host/repo:tag"
+)
+
 // writeIndex serializes v to JSON at path with the mtime backdated by age.
 // Tests use it to stage index entries with known freshness.
 func writeIndex(t *testing.T, path string, v any, age time.Duration) {
@@ -146,10 +154,10 @@ func TestStat_EmptyCache(t *testing.T) {
 
 func TestStat_CountsEntries(t *testing.T) {
 	dir := withCacheDir(t)
-	writeIndex(t, filepath.Join(dir, "refs", "a.json"),
-		map[string]any{"key": "host/repo:tag"}, 0)
-	writeIndex(t, filepath.Join(dir, "tags", "b.json"),
-		map[string]any{"key": "host/repo"}, 0)
+	writeIndex(t, filepath.Join(dir, layerRefs, "a.json"),
+		map[string]any{indexKeyField: testKeyRepoTag}, 0)
+	writeIndex(t, filepath.Join(dir, layerTags, "b.json"),
+		map[string]any{indexKeyField: testKeyRepo}, 0)
 
 	info, err := Stat()
 	if err != nil {
@@ -162,7 +170,7 @@ func TestStat_CountsEntries(t *testing.T) {
 	for _, l := range info.Layers {
 		counts[l.Name] = l.Entries
 	}
-	if counts["refs"] != 1 || counts["tags"] != 1 {
+	if counts[layerRefs] != 1 || counts[layerTags] != 1 {
 		t.Errorf("layer entries = %v, want refs=1 tags=1", counts)
 	}
 	if info.TotalBytes == 0 {
@@ -172,9 +180,9 @@ func TestStat_CountsEntries(t *testing.T) {
 
 func TestPrune_All(t *testing.T) {
 	dir := withCacheDir(t)
-	writeIndex(t, filepath.Join(dir, "refs", "a.json"),
-		map[string]any{"key": "host/repo:tag"}, time.Second)
-	writeIndex(t, filepath.Join(dir, "blobs", "sha256", "deadbeef"),
+	writeIndex(t, filepath.Join(dir, layerRefs, "a.json"),
+		map[string]any{indexKeyField: testKeyRepoTag}, time.Second)
+	writeIndex(t, filepath.Join(dir, layerBlobs, "sha256", "deadbeef"),
 		map[string]any{"payload": "x"}, time.Second)
 
 	res, err := Prune(PruneOptions{All: true})
@@ -185,10 +193,10 @@ func TestPrune_All(t *testing.T) {
 		t.Errorf("FilesRemoved = %d, want 2", res.FilesRemoved)
 	}
 	// Both sub-trees should be gone.
-	if _, err := os.Stat(filepath.Join(dir, "refs")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(dir, layerRefs)); !os.IsNotExist(err) {
 		t.Errorf("refs still present: err=%v", err)
 	}
-	if _, err := os.Stat(filepath.Join(dir, "blobs")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(dir, layerBlobs)); !os.IsNotExist(err) {
 		t.Errorf("blobs still present: err=%v", err)
 	}
 }
@@ -204,8 +212,8 @@ func TestPrune_AllOnlyTouchesKnownLayers(t *testing.T) {
 	if err := os.WriteFile(foreign, []byte("keep me"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	writeIndex(t, filepath.Join(dir, "refs", "a.json"),
-		map[string]any{"key": "host/repo:tag"}, time.Second)
+	writeIndex(t, filepath.Join(dir, layerRefs, "a.json"),
+		map[string]any{indexKeyField: testKeyRepoTag}, time.Second)
 
 	if _, err := Prune(PruneOptions{All: true}); err != nil {
 		t.Fatal(err)
@@ -217,12 +225,12 @@ func TestPrune_AllOnlyTouchesKnownLayers(t *testing.T) {
 
 func TestPrune_StaleOnly(t *testing.T) {
 	dir := withCacheDir(t)
-	fresh := filepath.Join(dir, "refs", "fresh.json")
-	stale := filepath.Join(dir, "refs", "stale.json")
+	fresh := filepath.Join(dir, layerRefs, "fresh.json")
+	stale := filepath.Join(dir, layerRefs, "stale.json")
 	// Use the default stale TTL so the fresh entry is kept and the
 	// stale one is evicted.
-	writeIndex(t, fresh, map[string]any{"key": "x"}, time.Second)
-	writeIndex(t, stale, map[string]any{"key": "y"},
+	writeIndex(t, fresh, map[string]any{indexKeyField: "x"}, time.Second)
+	writeIndex(t, stale, map[string]any{indexKeyField: "y"},
 		klausoci.DefaultCacheStaleTTL+time.Hour)
 
 	res, err := Prune(PruneOptions{})
@@ -257,13 +265,13 @@ func TestPrune_Disabled(t *testing.T) {
 
 func TestRefresh_All(t *testing.T) {
 	dir := withCacheDir(t)
-	writeIndex(t, filepath.Join(dir, "refs", "a.json"),
-		map[string]any{"key": "host/repo:tag"}, time.Second)
-	writeIndex(t, filepath.Join(dir, "tags", "b.json"),
-		map[string]any{"key": "host/repo"}, time.Second)
-	writeIndex(t, filepath.Join(dir, "catalog", "c.json"),
-		map[string]any{"key": "host"}, time.Second)
-	writeIndex(t, filepath.Join(dir, "blobs", "sha256", "deadbeef"),
+	writeIndex(t, filepath.Join(dir, layerRefs, "a.json"),
+		map[string]any{indexKeyField: testKeyRepoTag}, time.Second)
+	writeIndex(t, filepath.Join(dir, layerTags, "b.json"),
+		map[string]any{indexKeyField: testKeyRepo}, time.Second)
+	writeIndex(t, filepath.Join(dir, layerCatalog, "c.json"),
+		map[string]any{indexKeyField: testHostRegistry}, time.Second)
+	writeIndex(t, filepath.Join(dir, layerBlobs, "sha256", "deadbeef"),
 		map[string]any{"payload": "x"}, time.Second)
 
 	res, err := Refresh(context.Background(), RefreshOptions{})
@@ -274,23 +282,23 @@ func TestRefresh_All(t *testing.T) {
 		t.Errorf("FilesRemoved = %d, want 3 (refs+tags+catalog)", res.FilesRemoved)
 	}
 	// Blob content must survive.
-	if _, err := os.Stat(filepath.Join(dir, "blobs", "sha256", "deadbeef")); err != nil {
+	if _, err := os.Stat(filepath.Join(dir, layerBlobs, "sha256", "deadbeef")); err != nil {
 		t.Errorf("blob removed by refresh: %v", err)
 	}
 }
 
 func TestRefresh_ScopedByRepo(t *testing.T) {
 	dir := withCacheDir(t)
-	writeIndex(t, filepath.Join(dir, "refs", "matching.json"),
-		map[string]any{"key": "host/repo:tag"}, time.Second)
-	writeIndex(t, filepath.Join(dir, "refs", "other.json"),
-		map[string]any{"key": "host/elsewhere:tag"}, time.Second)
-	writeIndex(t, filepath.Join(dir, "tags", "match.json"),
-		map[string]any{"key": "host/repo"}, time.Second)
-	writeIndex(t, filepath.Join(dir, "catalog", "cat.json"),
-		map[string]any{"key": "host"}, time.Second)
+	writeIndex(t, filepath.Join(dir, layerRefs, "matching.json"),
+		map[string]any{indexKeyField: testKeyRepoTag}, time.Second)
+	writeIndex(t, filepath.Join(dir, layerRefs, "other.json"),
+		map[string]any{indexKeyField: "host/elsewhere:tag"}, time.Second)
+	writeIndex(t, filepath.Join(dir, layerTags, "match.json"),
+		map[string]any{indexKeyField: testKeyRepo}, time.Second)
+	writeIndex(t, filepath.Join(dir, layerCatalog, "cat.json"),
+		map[string]any{indexKeyField: testHostRegistry}, time.Second)
 
-	res, err := Refresh(context.Background(), RefreshOptions{Repo: "host/repo"})
+	res, err := Refresh(context.Background(), RefreshOptions{Repo: testKeyRepo})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -298,21 +306,21 @@ func TestRefresh_ScopedByRepo(t *testing.T) {
 		t.Errorf("FilesRemoved = %d, want 2 (matching ref + tag list)", res.FilesRemoved)
 	}
 	// The untargeted ref should still be there.
-	if _, err := os.Stat(filepath.Join(dir, "refs", "other.json")); err != nil {
+	if _, err := os.Stat(filepath.Join(dir, layerRefs, "other.json")); err != nil {
 		t.Errorf("unrelated ref removed: %v", err)
 	}
 	// Catalog entries should not be touched by --repo scoping.
-	if _, err := os.Stat(filepath.Join(dir, "catalog", "cat.json")); err != nil {
+	if _, err := os.Stat(filepath.Join(dir, layerCatalog, "cat.json")); err != nil {
 		t.Errorf("catalog removed by --repo refresh: %v", err)
 	}
 }
 
 func TestRefresh_ScopedByRegistry(t *testing.T) {
 	dir := withCacheDir(t)
-	writeIndex(t, filepath.Join(dir, "catalog", "a.json"),
-		map[string]any{"key": "registry.example.com"}, time.Second)
-	writeIndex(t, filepath.Join(dir, "catalog", "b.json"),
-		map[string]any{"key": "other.example.com"}, time.Second)
+	writeIndex(t, filepath.Join(dir, layerCatalog, "a.json"),
+		map[string]any{indexKeyField: "registry.example.com"}, time.Second)
+	writeIndex(t, filepath.Join(dir, layerCatalog, "b.json"),
+		map[string]any{indexKeyField: "other.example.com"}, time.Second)
 
 	res, err := Refresh(context.Background(), RefreshOptions{Registry: "registry.example.com"})
 	if err != nil {
@@ -321,7 +329,7 @@ func TestRefresh_ScopedByRegistry(t *testing.T) {
 	if res.FilesRemoved != 1 {
 		t.Errorf("FilesRemoved = %d, want 1", res.FilesRemoved)
 	}
-	if _, err := os.Stat(filepath.Join(dir, "catalog", "b.json")); err != nil {
+	if _, err := os.Stat(filepath.Join(dir, layerCatalog, "b.json")); err != nil {
 		t.Errorf("unrelated catalog entry removed: %v", err)
 	}
 }
@@ -331,14 +339,14 @@ func TestMatchesPrefix(t *testing.T) {
 		layer, key, prefix string
 		want               bool
 	}{
-		{"refs", "host/repo:tag", "host/repo", true},
-		{"refs", "host/other:tag", "host/repo", false},
-		{"refs", "host/repo/sub:tag", "host/repo", true},
-		{"tags", "host/repo", "host/repo", true},
-		{"tags", "host/repository", "host/repo", false},
-		{"catalog", "host", "host", true},
-		{"catalog", "host/prefix", "host", true},
-		{"catalog", "hostel", "host", false},
+		{layerRefs, testKeyRepoTag, testKeyRepo, true},
+		{layerRefs, "host/other:tag", testKeyRepo, false},
+		{layerRefs, "host/repo/sub:tag", testKeyRepo, true},
+		{layerTags, testKeyRepo, testKeyRepo, true},
+		{layerTags, "host/repository", testKeyRepo, false},
+		{layerCatalog, testHostRegistry, testHostRegistry, true},
+		{layerCatalog, "host/prefix", testHostRegistry, true},
+		{layerCatalog, "hostel", testHostRegistry, false},
 	}
 	for _, tc := range cases {
 		got := matchesPrefix(tc.layer, tc.key, tc.prefix)

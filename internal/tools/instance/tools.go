@@ -30,6 +30,41 @@ import (
 	"github.com/giantswarm/klausctl/pkg/worktree"
 )
 
+// MCP tool parameter and result-map key names shared across the instance
+// tool handlers.
+const (
+	paramName           = "name"
+	paramUUID           = "uuid"
+	paramLimit          = "limit"
+	paramSince          = "since"
+	paramOutcome        = "outcome"
+	paramTags           = "tags"
+	paramGroupBy        = "group_by"
+	paramSortBy         = "sort_by"
+	paramWorkspace      = "workspace"
+	paramPort           = "port"
+	paramGitAuthor      = "gitAuthor"
+	paramGenerateSuffix = "generateSuffix"
+	keyInstance         = "instance"
+	keyStatus           = "status"
+	paramRepo           = "repo"
+)
+
+// Values of the outcome tag.
+const (
+	outcomeSuccess = "success"
+	outcomePartial = "partial"
+	outcomeFailed  = "failed"
+)
+
+// Instance and agent status values reported in tool results.
+const (
+	statusStarted   = "started"
+	statusCompleted = "completed"
+	statusStopped   = "stopped"
+	statusRunning   = "running"
+)
+
 // RegisterTools registers all instance lifecycle tools on the MCP server.
 func RegisterTools(s *mcpserver.MCPServer, sc *server.ServerContext) {
 	registerCreate(s, sc)
@@ -56,8 +91,8 @@ func RegisterTools(s *mcpserver.MCPServer, sc *server.ServerContext) {
 func registerCreate(s *mcpserver.MCPServer, sc *server.ServerContext) {
 	tool := mcp.NewTool("klaus_create",
 		mcp.WithDescription("Create and start a new klaus instance"),
-		mcp.WithString("name", mcp.Required(), mcp.Description("Instance name")),
-		mcp.WithString("workspace", mcp.Description("Workspace directory (default: current working directory)")),
+		mcp.WithString(paramName, mcp.Required(), mcp.Description("Instance name")),
+		mcp.WithString(paramWorkspace, mcp.Description("Workspace directory (default: current working directory)")),
 		mcp.WithString("personality", mcp.Description("Personality short name or OCI reference")),
 		mcp.WithString("toolchain", mcp.Description("Toolchain short name or OCI reference")),
 		mcp.WithArray("plugin", mcp.Description("Additional plugin short names or OCI references")),
@@ -74,12 +109,12 @@ func registerCreate(s *mcpserver.MCPServer, sc *server.ServerContext) {
 		mcp.WithString("systemPrompt", mcp.Description("System prompt for the Claude agent (overrides personality default)")),
 		mcp.WithString("mode", mcp.Description(`Operating mode: "agent" (default, autonomous coding, new process per prompt) or "chat" (interactive, persistent process, saved sessions)`)),
 		mcp.WithBoolean("noIsolate", mcp.Description("Skip git worktree creation and bind-mount workspace directly (default: false)")),
-		mcp.WithNumber("port", mcp.Description("Override auto-selected host port for the instance MCP endpoint (0 or omitted = auto-select starting from 8080)")),
-		mcp.WithString("gitAuthor", mcp.Description("Git author identity as \"Name <email>\"; sets GIT_AUTHOR_NAME/GIT_COMMITTER_NAME and GIT_AUTHOR_EMAIL/GIT_COMMITTER_EMAIL in the container")),
+		mcp.WithNumber(paramPort, mcp.Description("Override auto-selected host port for the instance MCP endpoint (0 or omitted = auto-select starting from 8080)")),
+		mcp.WithString(paramGitAuthor, mcp.Description("Git author identity as \"Name <email>\"; sets GIT_AUTHOR_NAME/GIT_COMMITTER_NAME and GIT_AUTHOR_EMAIL/GIT_COMMITTER_EMAIL in the container")),
 		mcp.WithString("gitCredentialHelper", mcp.Description("Git credential helper (currently only \"gh\" is supported, which configures git to call \"gh auth git-credential\" for github.com)")),
 		mcp.WithBoolean("gitHttpsInsteadOfSsh", mcp.Description("Rewrite SSH git URLs (git@github.com:...) to HTTPS via container-local gitconfig (default: false)")),
 		mcp.WithBoolean("gpgSign", mcp.Description("Sign agent commits with the host GPG key via a forwarded gpg-agent socket; the private key never enters the container (default: false)")),
-		mcp.WithBoolean("generateSuffix", mcp.Description("Append a random 4-character suffix to the instance name to avoid collisions (default: true)")),
+		mcp.WithBoolean(paramGenerateSuffix, mcp.Description("Append a random 4-character suffix to the instance name to avoid collisions (default: true)")),
 		mcp.WithBoolean("force", mcp.Description("Allow replacing a running instance; requires confirm: true as well")),
 		mcp.WithBoolean("confirm", mcp.Description("Confirm replacement of an existing instance; required when a name collision is detected")),
 	)
@@ -91,7 +126,7 @@ func registerCreate(s *mcpserver.MCPServer, sc *server.ServerContext) {
 func registerStart(s *mcpserver.MCPServer, sc *server.ServerContext) {
 	tool := mcp.NewTool("klaus_start",
 		mcp.WithDescription("Start a stopped klaus instance using its saved config"),
-		mcp.WithString("name", mcp.Required(), mcp.Description("Instance name")),
+		mcp.WithString(paramName, mcp.Required(), mcp.Description("Instance name")),
 	)
 	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		return handleStart(ctx, req, sc)
@@ -101,7 +136,7 @@ func registerStart(s *mcpserver.MCPServer, sc *server.ServerContext) {
 func registerStop(s *mcpserver.MCPServer, sc *server.ServerContext) {
 	tool := mcp.NewTool("klaus_stop",
 		mcp.WithDescription("Stop a running klaus instance"),
-		mcp.WithString("name", mcp.Description("Instance name (required unless all=true)")),
+		mcp.WithString(paramName, mcp.Description("Instance name (required unless all=true)")),
 		mcp.WithBoolean("all", mcp.Description("Stop all instances")),
 		mcp.WithBoolean("noArchive", mcp.Description("Skip archiving the agent transcript before stopping (default: false)")),
 	)
@@ -113,7 +148,7 @@ func registerStop(s *mcpserver.MCPServer, sc *server.ServerContext) {
 func registerDelete(s *mcpserver.MCPServer, sc *server.ServerContext) {
 	tool := mcp.NewTool("klaus_delete",
 		mcp.WithDescription("Stop and remove a klaus instance entirely (config, state, rendered files)"),
-		mcp.WithString("name", mcp.Required(), mcp.Description("Instance name")),
+		mcp.WithString(paramName, mcp.Required(), mcp.Description("Instance name")),
 		mcp.WithBoolean("noArchive", mcp.Description("Skip archiving the agent transcript before deleting (default: false)")),
 	)
 	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -124,7 +159,7 @@ func registerDelete(s *mcpserver.MCPServer, sc *server.ServerContext) {
 func registerStatus(s *mcpserver.MCPServer, sc *server.ServerContext) {
 	tool := mcp.NewTool("klaus_status",
 		mcp.WithDescription("Return instance status as JSON"),
-		mcp.WithString("name", mcp.Required(), mcp.Description("Instance name")),
+		mcp.WithString(paramName, mcp.Required(), mcp.Description("Instance name")),
 	)
 	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		return handleStatus(ctx, req, sc)
@@ -134,7 +169,7 @@ func registerStatus(s *mcpserver.MCPServer, sc *server.ServerContext) {
 func registerLogs(s *mcpserver.MCPServer, sc *server.ServerContext) {
 	tool := mcp.NewTool("klaus_logs",
 		mcp.WithDescription("Return recent container log lines"),
-		mcp.WithString("name", mcp.Required(), mcp.Description("Instance name")),
+		mcp.WithString(paramName, mcp.Required(), mcp.Description("Instance name")),
 		mcp.WithNumber("tail", mcp.Description("Number of lines from end (default: 100)")),
 	)
 	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -250,7 +285,7 @@ func extractObjectMap(args map[string]any, key string) (map[string]any, error) {
 }
 
 func handleStart(ctx context.Context, req mcp.CallToolRequest, sc *server.ServerContext) (*mcp.CallToolResult, error) {
-	name, err := req.RequireString("name")
+	name, err := req.RequireString(paramName)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
@@ -263,7 +298,7 @@ func handleStart(ctx context.Context, req mcp.CallToolRequest, sc *server.Server
 }
 
 func handleStop(ctx context.Context, req mcp.CallToolRequest, sc *server.ServerContext) (*mcp.CallToolResult, error) {
-	name := req.GetString("name", "")
+	name := req.GetString(paramName, "")
 	all := req.GetBool("all", false)
 	noArchive := req.GetBool("noArchive", false)
 
@@ -282,7 +317,7 @@ func handleStop(ctx context.Context, req mcp.CallToolRequest, sc *server.ServerC
 }
 
 func handleDelete(ctx context.Context, req mcp.CallToolRequest, sc *server.ServerContext) (*mcp.CallToolResult, error) {
-	name, err := req.RequireString("name")
+	name, err := req.RequireString(paramName)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
@@ -324,8 +359,8 @@ func handleDelete(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 	}
 
 	return server.JSONResult(map[string]string{
-		"instance": name,
-		"status":   "deleted",
+		keyInstance: name,
+		keyStatus:   "deleted",
 	})
 }
 
@@ -343,7 +378,7 @@ type statusResult struct {
 }
 
 func handleStatus(ctx context.Context, req mcp.CallToolRequest, sc *server.ServerContext) (*mcp.CallToolResult, error) {
-	name, err := req.RequireString("name")
+	name, err := req.RequireString(paramName)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
@@ -357,7 +392,7 @@ func handleStatus(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 		}
 		return server.JSONResult(statusResult{
 			Instance:  name,
-			Status:    "stopped",
+			Status:    statusStopped,
 			Container: instance.ContainerName(name),
 			Runtime:   cfg.Runtime,
 			Image:     cfg.Image,
@@ -386,7 +421,7 @@ func handleStatus(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 		Workspace:   inst.Workspace,
 	}
 
-	if status == "running" { //nolint:goconst
+	if status == statusRunning {
 		result.MCP = fmt.Sprintf("http://localhost:%d", inst.Port)
 		if info, err := rt.Inspect(ctx, containerName); err == nil && !info.StartedAt.IsZero() {
 			result.Uptime = formatDuration(time.Since(info.StartedAt))
@@ -402,7 +437,7 @@ func handleStatus(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 }
 
 func handleLogs(ctx context.Context, req mcp.CallToolRequest, sc *server.ServerContext) (*mcp.CallToolResult, error) {
-	name, err := req.RequireString("name")
+	name, err := req.RequireString(paramName)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
@@ -471,7 +506,7 @@ func handleList(ctx context.Context, _ mcp.CallToolRequest, sc *server.ServerCon
 
 		item := listEntry{
 			Name:        name,
-			Status:      "stopped",
+			Status:      statusStopped,
 			Toolchain:   klausoci.ShortName(klausoci.RepositoryFromRef(cmp.Or(cfg.Toolchain, cfg.Image))),
 			Personality: klausoci.ShortName(klausoci.RepositoryFromRef(cfg.Personality)),
 			Workspace:   cfg.Workspace,
@@ -484,7 +519,7 @@ func handleList(ctx context.Context, _ mcp.CallToolRequest, sc *server.ServerCon
 				status, err := rt.Status(ctx, st.ContainerName())
 				if err == nil && status != "" {
 					item.Status = status
-					if status == "running" {
+					if status == statusRunning {
 						if info, err := rt.Inspect(ctx, st.ContainerName()); err == nil && !info.StartedAt.IsZero() {
 							item.Uptime = formatDuration(time.Since(info.StartedAt))
 						} else if !st.StartedAt.IsZero() {
@@ -553,7 +588,7 @@ func startExistingInstance(ctx context.Context, name string, sc *server.ServerCo
 	inst, err := instance.Load(paths)
 	if err == nil && inst.Name != "" {
 		status, sErr := rt.Status(ctx, inst.ContainerName())
-		if sErr == nil && status == "running" {
+		if sErr == nil && status == statusRunning {
 			return nil, fmt.Errorf("instance %q is already running (container: %s, MCP: http://localhost:%d)", inst.Name, inst.ContainerName(), inst.Port)
 		}
 		_ = rt.Remove(ctx, inst.ContainerName())
@@ -639,7 +674,7 @@ func startExistingInstance(ctx context.Context, name string, sc *server.ServerCo
 
 	return &createResult{
 		Instance:    name,
-		Status:      "running",
+		Status:      statusRunning,
 		Container:   containerName,
 		Image:       image,
 		Workspace:   workspace,
@@ -653,8 +688,8 @@ func stopOne(ctx context.Context, name string, sc *server.ServerContext, noArchi
 	inst, err := instance.Load(paths)
 	if err != nil {
 		return server.JSONResult(map[string]string{
-			"instance": name,
-			"status":   "not running",
+			keyInstance: name,
+			keyStatus:   "not running",
 		})
 	}
 
@@ -668,17 +703,17 @@ func stopOne(ctx context.Context, name string, sc *server.ServerContext, noArchi
 	if err != nil || status == "" {
 		_ = instance.Clear(paths)
 		return server.JSONResult(map[string]string{
-			"instance": name,
-			"status":   "not found (cleared stale state)",
+			keyInstance: name,
+			keyStatus:   "not found (cleared stale state)",
 		})
 	}
 
 	// Archive before stopping.
-	if status == "running" && !noArchive {
+	if status == statusRunning && !noArchive {
 		mcpArchiveBeforeCleanup(ctx, inst, sc)
 	}
 
-	if status == "running" {
+	if status == statusRunning {
 		if err := rt.Stop(ctx, containerName); err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("stopping container: %v", err)), nil
 		}
@@ -691,8 +726,8 @@ func stopOne(ctx context.Context, name string, sc *server.ServerContext, noArchi
 	}
 
 	return server.JSONResult(map[string]string{
-		"instance": name,
-		"status":   "stopped",
+		keyInstance: name,
+		keyStatus:   statusStopped,
 	})
 }
 
@@ -715,10 +750,10 @@ func stopAll(ctx context.Context, sc *server.ServerContext, noArchive bool) (*mc
 			continue
 		}
 		// Archive before stopping.
-		if status == "running" && !noArchive {
+		if status == statusRunning && !noArchive {
 			mcpArchiveBeforeCleanup(ctx, inst, sc)
 		}
-		if status == "running" {
+		if status == statusRunning {
 			if err := rt.Stop(ctx, containerName); err != nil {
 				return mcp.NewToolResultError(fmt.Sprintf("stopping %s: %v", containerName, err)), nil
 			}
@@ -733,8 +768,8 @@ func stopAll(ctx context.Context, sc *server.ServerContext, noArchive bool) (*mc
 	}
 
 	return server.JSONResult(map[string]any{
-		"status":  "all stopped",
-		"stopped": stopped,
+		keyStatus:     "all stopped",
+		statusStopped: stopped,
 	})
 }
 
@@ -754,7 +789,7 @@ func cleanupContainer(ctx context.Context, name string, inst *instance.Instance)
 		if err != nil || status == "" {
 			continue
 		}
-		if status == "running" {
+		if status == statusRunning {
 			if err := rt.Stop(ctx, containerName); err != nil {
 				return fmt.Errorf("stopping container via %s: %w", rtName, err)
 			}

@@ -34,7 +34,7 @@ func TestGenerateInstanceConfig_RepoIdentifier(t *testing.T) {
 	}
 
 	cfg, err := GenerateInstanceConfig(paths, CreateOptions{
-		Name:      "dev",
+		Name:      testInstanceDev,
 		Workspace: "testorg/testrepo",
 		NoFetch:   true,
 	})
@@ -52,7 +52,7 @@ func TestGenerateInstanceConfig_RepoIdentifier(t *testing.T) {
 		t.Fatal("expected WorktreePath to be set for repo identifier workspace")
 	}
 
-	expectedWT := filepath.Join(base, "instances", "dev", "workspace")
+	expectedWT := filepath.Join(base, "instances", testInstanceDev, "workspace")
 	if cfg.WorktreePath != expectedWT {
 		t.Fatalf("expected WorktreePath=%q, got %q", expectedWT, cfg.WorktreePath)
 	}
@@ -62,7 +62,7 @@ func TestGenerateInstanceConfig_RepoIdentifier(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reading README in worktree: %v", err)
 	}
-	if string(readme) != "hello" {
+	if string(readme) != testHelloValue {
 		t.Fatalf("unexpected README content: %q", readme)
 	}
 
@@ -91,7 +91,7 @@ func TestGenerateInstanceConfig_RepoIdentifierNotRegistered(t *testing.T) {
 	}
 
 	_, err := GenerateInstanceConfig(paths, CreateOptions{
-		Name:      "dev",
+		Name:      testInstanceDev,
 		Workspace: "unknown-org/somerepo",
 	})
 	if err == nil {

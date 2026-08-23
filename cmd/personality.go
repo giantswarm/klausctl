@@ -46,7 +46,7 @@ They are published to the registry by CI and can be pulled locally.`,
 }
 
 var personalityValidateCmd = &cobra.Command{
-	Use:   "validate <directory>",
+	Use:   useValidateDirectory,
 	Short: "Validate a local personality directory",
 	Long: `Validate a local personality directory against the expected structure.
 
@@ -61,7 +61,7 @@ registry checks and perform offline validation only.`,
 }
 
 var personalityPullCmd = &cobra.Command{
-	Use:   "pull <reference>",
+	Use:   usePullReference,
 	Short: "Pull a personality from the OCI registry",
 	Long: `Pull a personality OCI artifact from the registry to the local cache.
 
@@ -90,7 +90,7 @@ Accepts a full OCI reference with tag or a short name with tag:
 }
 
 var personalityListCmd = &cobra.Command{
-	Use:   "list",
+	Use:   useList,
 	Short: "List personalities",
 	Long: `List available personalities from the remote OCI registry.
 
@@ -102,7 +102,7 @@ With --local, shows only locally cached personalities with full detail.`,
 }
 
 var personalityDescribeCmd = &cobra.Command{
-	Use:   "describe <reference>",
+	Use:   useDescribeReference,
 	Short: "Describe a personality from the OCI registry",
 	Long: `Fetch and display metadata for a personality OCI artifact without downloading content.
 
@@ -128,19 +128,19 @@ type personalityValidation struct {
 }
 
 func init() {
-	personalityValidateCmd.Flags().StringVarP(&personalityValidateOut, "output", "o", "text", "output format: text, json")
+	personalityValidateCmd.Flags().StringVarP(&personalityValidateOut, "output", "o", outputText, "output format: text, json")
 	personalityValidateCmd.Flags().StringVar(&personalityValidateSource, "source", "", "resolve against a specific source")
 	personalityValidateCmd.Flags().BoolVar(&personalityValidateResolveDeps, "resolve-deps", true, "resolve plugin and toolchain references against the OCI registry")
-	personalityPullCmd.Flags().StringVarP(&personalityPullOut, "output", "o", "text", "output format: text, json")
+	personalityPullCmd.Flags().StringVarP(&personalityPullOut, "output", "o", outputText, "output format: text, json")
 	personalityPullCmd.Flags().StringVar(&personalityPullSource, "source", "", "resolve against a specific source")
-	personalityPushCmd.Flags().StringVarP(&personalityPushOut, "output", "o", "text", "output format: text, json")
+	personalityPushCmd.Flags().StringVarP(&personalityPushOut, "output", "o", outputText, "output format: text, json")
 	personalityPushCmd.Flags().StringVar(&personalityPushSource, "source", "", "use a specific source registry for the push destination")
 	personalityPushCmd.Flags().BoolVar(&personalityPushDryRun, "dry-run", false, "validate and resolve without pushing")
-	personalityListCmd.Flags().StringVarP(&personalityListOut, "output", "o", "text", "output format: text, json")
+	personalityListCmd.Flags().StringVarP(&personalityListOut, "output", "o", outputText, "output format: text, json")
 	personalityListCmd.Flags().BoolVar(&personalityListLocal, "local", false, "list only locally cached personalities")
 	personalityListCmd.Flags().StringVar(&personalityListSource, "source", "", "list personalities from a specific source only")
 	personalityListCmd.Flags().BoolVar(&personalityListAll, "all", false, "list personalities from all configured sources")
-	personalityDescribeCmd.Flags().StringVarP(&personalityDescribeOut, "output", "o", "text", "output format: text, json")
+	personalityDescribeCmd.Flags().StringVarP(&personalityDescribeOut, "output", "o", outputText, "output format: text, json")
 	personalityDescribeCmd.Flags().StringVar(&personalityDescribeSource, "source", "", "resolve against a specific source")
 	personalityDescribeCmd.Flags().BoolVar(&personalityDescribeDeps, "deps", false, "resolve and display dependency metadata (default: auto for text, off for json)")
 
@@ -187,7 +187,7 @@ func validatePersonalityDir(dir string, out io.Writer, outputFmt string) error {
 		return err
 	}
 
-	if outputFmt == "json" { //nolint:goconst
+	if outputFmt == outputJSON {
 		enc := json.NewEncoder(out)
 		enc.SetIndent("", "  ")
 		return enc.Encode(personalityValidation{
@@ -293,7 +293,7 @@ func runPersonalityPush(cmd *cobra.Command, args []string) error {
 	}
 
 	dir := args[0]
-	if err := validatePersonalityDir(dir, io.Discard, "text"); err != nil {
+	if err := validatePersonalityDir(dir, io.Discard, outputText); err != nil {
 		return err
 	}
 
@@ -387,7 +387,7 @@ func runPersonalityDescribe(cmd *cobra.Command, args []string) error {
 	}
 
 	resolveDeps := personalityDescribeDeps
-	if !cmd.Flags().Changed("deps") && personalityDescribeOut != "json" {
+	if !cmd.Flags().Changed("deps") && personalityDescribeOut != outputJSON {
 		resolveDeps = true
 	}
 
@@ -401,7 +401,7 @@ func runPersonalityDescribe(cmd *cobra.Command, args []string) error {
 
 	out := cmd.OutOrStdout()
 
-	if personalityDescribeOut == "json" {
+	if personalityDescribeOut == outputJSON {
 		enc := json.NewEncoder(out)
 		enc.SetIndent("", "  ")
 		return enc.Encode(newDescribePersonalityJSON(dp, deps))

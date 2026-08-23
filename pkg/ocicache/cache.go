@@ -30,6 +30,14 @@ import (
 	klausoci "github.com/giantswarm/klaus-oci"
 )
 
+// Names of the index sub-directories (layers) of the klaus-oci disk cache.
+const (
+	layerCatalog = "catalog"
+	layerTags    = "tags"
+	layerRefs    = "refs"
+	layerBlobs   = "blobs"
+)
+
 // maxEntryReadBytes caps how much of an index JSON file readEntryKey will
 // slurp into memory. The klaus-oci store writes small entries (a few kB) —
 // anything larger is either corruption or an attacker-planted file, and we
@@ -47,7 +55,7 @@ const EnvCacheDir = "KLAUSCTL_CACHE_DIR"
 // Layers is the set of index sub-directories the klaus-oci disk cache
 // uses. Kept here as a constant so our management commands (info, prune)
 // can reason about the layout without re-implementing it.
-var Layers = []string{"catalog", "tags", "refs", "blobs"}
+var Layers = []string{layerCatalog, layerTags, layerRefs, layerBlobs}
 
 var (
 	mu       sync.RWMutex
@@ -357,9 +365,9 @@ func pruneAll(dir string, res *PruneResult) (*PruneResult, error) {
 
 func pruneStale(dir string, now time.Time, res *PruneResult) (*PruneResult, error) {
 	staleForLayer := map[string]time.Duration{
-		"catalog": klausoci.DefaultCacheCatalogStaleTTL,
-		"tags":    klausoci.DefaultCacheStaleTTL,
-		"refs":    klausoci.DefaultCacheStaleTTL,
+		layerCatalog: klausoci.DefaultCacheCatalogStaleTTL,
+		layerTags:    klausoci.DefaultCacheStaleTTL,
+		layerRefs:    klausoci.DefaultCacheStaleTTL,
 	}
 	for layer, ttl := range staleForLayer {
 		sub := filepath.Join(dir, layer)
@@ -435,13 +443,13 @@ func Refresh(_ context.Context, opts RefreshOptions) (*RefreshResult, error) {
 	switch {
 	case opts.Repo != "":
 		res.Scope = "repo=" + opts.Repo
-		res.FilesRemoved = removeByKeyPrefix(dir, []string{"tags", "refs"}, opts.Repo)
+		res.FilesRemoved = removeByKeyPrefix(dir, []string{layerTags, layerRefs}, opts.Repo)
 	case opts.Registry != "":
 		res.Scope = "registry=" + opts.Registry
-		res.FilesRemoved = removeByKeyPrefix(dir, []string{"catalog"}, opts.Registry)
+		res.FilesRemoved = removeByKeyPrefix(dir, []string{layerCatalog}, opts.Registry)
 	default:
 		res.Scope = "all"
-		for _, layer := range []string{"catalog", "tags", "refs"} {
+		for _, layer := range []string{layerCatalog, layerTags, layerRefs} {
 			res.FilesRemoved += removeAllInLayer(filepath.Join(dir, layer))
 		}
 	}
@@ -491,7 +499,7 @@ func removeByKeyPrefix(dir string, layers []string, prefix string) int {
 func matchesPrefix(layer, key, prefix string) bool {
 	key = strings.TrimSuffix(key, "/")
 	prefix = strings.TrimSuffix(prefix, "/")
-	if layer == "catalog" {
+	if layer == layerCatalog {
 		return key == prefix || strings.HasPrefix(key, prefix+"/")
 	}
 	// For tags/refs the key looks like "host/repo" or "host/repo:tag".

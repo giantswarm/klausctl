@@ -34,7 +34,7 @@ Configuration is stored in: ~/.config/klausctl/sources.yaml`,
 }
 
 var sourceListCmd = &cobra.Command{
-	Use:   "list",
+	Use:   useList,
 	Short: "List configured sources",
 	RunE:  runSourceList,
 }

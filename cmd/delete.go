@@ -157,7 +157,7 @@ func stopAndRemoveContainerIfExists(ctx context.Context, rt runtime.Runtime, con
 		return nil
 	}
 
-	if status == "running" { //nolint:goconst
+	if status == statusRunning {
 		if err := rt.Stop(ctx, containerName); err != nil {
 			return fmt.Errorf("stopping container: %w", err)
 		}

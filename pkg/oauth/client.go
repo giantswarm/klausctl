@@ -118,9 +118,9 @@ func (c *Client) AuthStatus(serverURL string) TokenStatus {
 	}
 
 	if st.IsExpired() {
-		status.Status = "expired" //nolint:goconst
+		status.Status = tokenStatusExpired
 	} else {
-		status.Status = "valid" //nolint:goconst
+		status.Status = tokenStatusValid
 	}
 
 	return status

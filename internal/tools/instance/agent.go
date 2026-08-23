@@ -22,7 +22,7 @@ import (
 func registerPrompt(s *mcpserver.MCPServer, sc *server.ServerContext) {
 	tool := mcp.NewTool("klaus_prompt",
 		mcp.WithDescription("Send a prompt to a running klaus instance and optionally wait for the result"),
-		mcp.WithString("name", mcp.Required(), mcp.Description("Instance name")),
+		mcp.WithString(paramName, mcp.Required(), mcp.Description("Instance name")),
 		mcp.WithString("message", mcp.Required(), mcp.Description("Prompt message to send to the agent")),
 		mcp.WithBoolean("blocking", mcp.Description("Wait for the agent to complete and return the result (default: false)")),
 	)
@@ -35,7 +35,7 @@ func registerPrompt(s *mcpserver.MCPServer, sc *server.ServerContext) {
 func registerResult(s *mcpserver.MCPServer, sc *server.ServerContext) {
 	tool := mcp.NewTool("klaus_result",
 		mcp.WithDescription("Retrieve the result from the last prompt sent to a klaus instance"),
-		mcp.WithString("name", mcp.Required(), mcp.Description("Instance name")),
+		mcp.WithString(paramName, mcp.Required(), mcp.Description("Instance name")),
 		mcp.WithBoolean("full", mcp.Description("Return full agent detail including tool_calls, model_usage, token_usage, cost, etc.")),
 	)
 	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -50,7 +50,7 @@ type promptResult struct {
 }
 
 func handlePrompt(ctx context.Context, req mcp.CallToolRequest, sc *server.ServerContext) (*mcp.CallToolResult, error) {
-	name, err := req.RequireString("name")
+	name, err := req.RequireString(paramName)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
@@ -98,7 +98,7 @@ func handlePrompt(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 		}()
 		return server.JSONResult(promptResult{
 			Instance: name,
-			Status:   "started",
+			Status:   statusStarted,
 		})
 	}
 
@@ -112,7 +112,7 @@ func handlePrompt(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 
 	return server.JSONResult(promptResult{
 		Instance: name,
-		Status:   "completed",
+		Status:   statusCompleted,
 		Result:   mcpclient.ExtractText(resultResp),
 	})
 }
@@ -146,7 +146,7 @@ func handlePromptRemote(ctx context.Context, req mcp.CallToolRequest, sc *server
 		}()
 		return server.JSONResult(promptResult{
 			Instance: name,
-			Status:   "started",
+			Status:   statusStarted,
 		})
 	}
 
@@ -160,7 +160,7 @@ func handlePromptRemote(ctx context.Context, req mcp.CallToolRequest, sc *server
 
 	return server.JSONResult(promptResult{
 		Instance: name,
-		Status:   "completed",
+		Status:   statusCompleted,
 		Result:   string(builder),
 	})
 }
@@ -181,7 +181,7 @@ type agentToolResponse struct {
 }
 
 func handleResult(ctx context.Context, req mcp.CallToolRequest, sc *server.ServerContext) (*mcp.CallToolResult, error) {
-	name, err := req.RequireString("name")
+	name, err := req.RequireString(paramName)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
@@ -227,7 +227,7 @@ func handleResult(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 	// Fallback: response is not the expected JSON structure.
 	return server.JSONResult(agentResult{
 		Instance: name,
-		Status:   "completed",
+		Status:   statusCompleted,
 		Result:   text,
 	})
 }
@@ -235,7 +235,7 @@ func handleResult(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 func registerMessages(s *mcpserver.MCPServer, sc *server.ServerContext) {
 	tool := mcp.NewTool("klaus_messages",
 		mcp.WithDescription("Retrieve conversation messages from a running klaus instance in OpenAI-compatible format"),
-		mcp.WithString("name", mcp.Required(), mcp.Description("Instance name")),
+		mcp.WithString(paramName, mcp.Required(), mcp.Description("Instance name")),
 		mcp.WithNumber("offset", mcp.Description("Start returning messages from this index (0-based)")),
 		mcp.WithString("types", mcp.Description("Comma-separated message types to include (e.g. 'user,assistant,tool')")),
 		mcp.WithBoolean("follow", mcp.Description("Poll for new messages until the agent completes (default: false)")),
@@ -247,7 +247,7 @@ func registerMessages(s *mcpserver.MCPServer, sc *server.ServerContext) {
 }
 
 func handleMessages(ctx context.Context, req mcp.CallToolRequest, sc *server.ServerContext) (*mcp.CallToolResult, error) {
-	name, err := req.RequireString("name")
+	name, err := req.RequireString(paramName)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
@@ -418,7 +418,7 @@ func agentBaseURL(ctx context.Context, name string, sc *server.ServerContext) (s
 	}
 
 	status, err := rt.Status(ctx, inst.ContainerName())
-	if err != nil || status != "running" { //nolint:goconst
+	if err != nil || status != statusRunning {
 		return "", fmt.Errorf("instance %q is not running (status: %s); use klaus_start first", name, status)
 	}
 

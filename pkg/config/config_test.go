@@ -7,6 +7,22 @@ import (
 	"testing"
 )
 
+// Fixtures shared across the config package tests.
+const (
+	testInstanceDev    = "dev"
+	testNameTest       = "test"
+	testNameCustom     = "custom"
+	testModelSonnet    = "sonnet"
+	testGitEmail       = "klaus@example.com"
+	testWorkspaceRoot  = "/tmp"
+	testWorkspaceDir   = "/tmp/test"
+	testHelloValue     = "hello"
+	testPersonalitySRE = "sre"
+	testPersonalityRef = "gsoci.azurecr.io/giantswarm/klaus-personalities/sre"
+	testPluginRef      = "gsoci.azurecr.io/giantswarm/klaus-plugins/gs-platform"
+	testToolchainRef   = "gsoci.azurecr.io/giantswarm/klaus-toolchains/go"
+)
+
 func TestLoadValidConfig(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "config.yaml")
@@ -40,8 +56,8 @@ claude:
 	if cfg.Port != 9090 {
 		t.Errorf("Port = %d, want %d", cfg.Port, 9090)
 	}
-	if cfg.Claude.Model != "sonnet" {
-		t.Errorf("Claude.Model = %q, want %q", cfg.Claude.Model, "sonnet")
+	if cfg.Claude.Model != testModelSonnet {
+		t.Errorf("Claude.Model = %q, want %q", cfg.Claude.Model, testModelSonnet)
 	}
 	if cfg.Claude.PermissionMode != "default" { //nolint:goconst
 		t.Errorf("Claude.PermissionMode = %q, want %q", cfg.Claude.PermissionMode, "default")
@@ -77,8 +93,8 @@ func TestLoadAppliesDefaults(t *testing.T) {
 	if cfg.Port != 8080 {
 		t.Errorf("default Port = %d, want %d", cfg.Port, 8080)
 	}
-	if cfg.Claude.PermissionMode != "bypassPermissions" { //nolint:goconst
-		t.Errorf("default PermissionMode = %q, want %q", cfg.Claude.PermissionMode, "bypassPermissions")
+	if cfg.Claude.PermissionMode != permissionModeBypass {
+		t.Errorf("default PermissionMode = %q, want %q", cfg.Claude.PermissionMode, permissionModeBypass)
 	}
 	if cfg.Claude.Mode != "agent" { //nolint:goconst
 		t.Errorf("default Mode = %q, want %q", cfg.Claude.Mode, "agent")
@@ -110,26 +126,26 @@ func TestValidate(t *testing.T) {
 		},
 		{
 			name:    "invalid port zero",
-			cfg:     Config{Workspace: "/tmp", Port: 0},
+			cfg:     Config{Workspace: testWorkspaceRoot, Port: 0},
 			wantErr: true,
 			errMsg:  "port must be between",
 		},
 		{
 			name:    "invalid port too high",
-			cfg:     Config{Workspace: "/tmp", Port: 70000},
+			cfg:     Config{Workspace: testWorkspaceRoot, Port: 70000},
 			wantErr: true,
 			errMsg:  "port must be between",
 		},
 		{
 			name:    "invalid runtime",
-			cfg:     Config{Workspace: "/tmp", Port: 8080, Runtime: "containerd"},
+			cfg:     Config{Workspace: testWorkspaceRoot, Port: 8080, Runtime: "containerd"},
 			wantErr: true,
 			errMsg:  "runtime must be",
 		},
 		{
 			name: "invalid permission mode",
 			cfg: Config{
-				Workspace: "/tmp", Port: 8080,
+				Workspace: testWorkspaceRoot, Port: 8080,
 				Claude: ClaudeConfig{PermissionMode: "invalid"},
 			},
 			wantErr: true,
@@ -138,7 +154,7 @@ func TestValidate(t *testing.T) {
 		{
 			name: "invalid effort",
 			cfg: Config{
-				Workspace: "/tmp", Port: 8080,
+				Workspace: testWorkspaceRoot, Port: 8080,
 				Claude: ClaudeConfig{Effort: "extreme"},
 			},
 			wantErr: true,
@@ -147,7 +163,7 @@ func TestValidate(t *testing.T) {
 		{
 			name: "negative max turns",
 			cfg: Config{
-				Workspace: "/tmp", Port: 8080,
+				Workspace: testWorkspaceRoot, Port: 8080,
 				Claude: ClaudeConfig{MaxTurns: -1},
 			},
 			wantErr: true,
@@ -156,7 +172,7 @@ func TestValidate(t *testing.T) {
 		{
 			name: "negative budget",
 			cfg: Config{
-				Workspace: "/tmp", Port: 8080,
+				Workspace: testWorkspaceRoot, Port: 8080,
 				Claude: ClaudeConfig{MaxBudgetUSD: -1.0},
 			},
 			wantErr: true,
@@ -165,7 +181,7 @@ func TestValidate(t *testing.T) {
 		{
 			name: "plugin without tag or digest is valid",
 			cfg: Config{
-				Workspace: "/tmp", Port: 8080,
+				Workspace: testWorkspaceRoot, Port: 8080,
 				Plugins: []Plugin{{Repository: "example.com/plugin"}},
 			},
 			wantErr: false,
@@ -173,7 +189,7 @@ func TestValidate(t *testing.T) {
 		{
 			name: "plugin missing repository",
 			cfg: Config{
-				Workspace: "/tmp", Port: 8080,
+				Workspace: testWorkspaceRoot, Port: 8080,
 				Plugins: []Plugin{{Tag: "v1.0.0"}},
 			},
 			wantErr: true,
@@ -182,7 +198,7 @@ func TestValidate(t *testing.T) {
 		{
 			name: "hooks and settingsFile mutually exclusive",
 			cfg: Config{
-				Workspace: "/tmp", Port: 8080,
+				Workspace: testWorkspaceRoot, Port: 8080,
 				Hooks: map[string][]HookMatcher{
 					"PreToolUse": {{Matcher: "Bash", Hooks: []Hook{{Type: "command", Command: "/bin/true"}}}},
 				},
@@ -194,7 +210,7 @@ func TestValidate(t *testing.T) {
 		{
 			name: "personality with whitespace",
 			cfg: Config{
-				Workspace:   "/tmp",
+				Workspace:   testWorkspaceRoot,
 				Port:        8080,
 				Personality: " gsoci.azurecr.io/giantswarm/klaus-personalities/sre:v1 ",
 			},
@@ -204,7 +220,7 @@ func TestValidate(t *testing.T) {
 		{
 			name: "personality without registry path",
 			cfg: Config{
-				Workspace:   "/tmp",
+				Workspace:   testWorkspaceRoot,
 				Port:        8080,
 				Personality: "sre:v1",
 			},
@@ -214,7 +230,7 @@ func TestValidate(t *testing.T) {
 		{
 			name: "valid personality",
 			cfg: Config{
-				Workspace:   "/tmp",
+				Workspace:   testWorkspaceRoot,
 				Port:        8080,
 				Personality: "gsoci.azurecr.io/giantswarm/klaus-personalities/sre:v1.0.0",
 			},
@@ -223,7 +239,7 @@ func TestValidate(t *testing.T) {
 		{
 			name: "valid minimal config",
 			cfg: Config{
-				Workspace: "/tmp",
+				Workspace: testWorkspaceRoot,
 				Port:      8080,
 			},
 			wantErr: false,
@@ -231,11 +247,11 @@ func TestValidate(t *testing.T) {
 		{
 			name: "valid full config",
 			cfg: Config{
-				Workspace: "/tmp",
+				Workspace: testWorkspaceRoot,
 				Port:      8080,
 				Runtime:   "docker",
 				Claude: ClaudeConfig{
-					PermissionMode: "bypassPermissions",
+					PermissionMode: permissionModeBypass,
 					Effort:         "medium",
 					MaxTurns:       5,
 					MaxBudgetUSD:   10.0,
@@ -346,7 +362,7 @@ func TestValidateGitCredentialHelper(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := Config{
-				Workspace: "/tmp",
+				Workspace: testWorkspaceRoot,
 				Port:      8080,
 				Git:       GitConfig{CredentialHelper: tt.helper},
 			}
@@ -385,8 +401,8 @@ git:
 	if cfg.Git.AuthorName != "Klaus Agent" {
 		t.Errorf("Git.AuthorName = %q, want %q", cfg.Git.AuthorName, "Klaus Agent")
 	}
-	if cfg.Git.AuthorEmail != "klaus@example.com" {
-		t.Errorf("Git.AuthorEmail = %q, want %q", cfg.Git.AuthorEmail, "klaus@example.com")
+	if cfg.Git.AuthorEmail != testGitEmail {
+		t.Errorf("Git.AuthorEmail = %q, want %q", cfg.Git.AuthorEmail, testGitEmail)
 	}
 	if cfg.Git.CredentialHelper != "gh" {
 		t.Errorf("Git.CredentialHelper = %q, want %q", cfg.Git.CredentialHelper, "gh")
@@ -398,7 +414,7 @@ git:
 
 func TestMarshal(t *testing.T) {
 	cfg := DefaultConfig()
-	cfg.Workspace = "/tmp/test"
+	cfg.Workspace = testWorkspaceDir
 
 	data, err := cfg.Marshal()
 	if err != nil {

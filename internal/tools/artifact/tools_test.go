@@ -12,6 +12,9 @@ import (
 	"github.com/giantswarm/klausctl/pkg/config"
 )
 
+// testVersion100 is a version string reused across test fixtures.
+const testVersion100 = "1.0.0"
+
 func testServerContext(t *testing.T) *server.ServerContext {
 	t.Helper()
 	configHome := filepath.Join(t.TempDir(), "config-home")
@@ -26,7 +29,7 @@ func testServerContext(t *testing.T) *server.ServerContext {
 
 func TestRegisterTools(t *testing.T) {
 	sc := testServerContext(t)
-	srv := mcpserver.NewMCPServer("test", "1.0.0",
+	srv := mcpserver.NewMCPServer("test", testVersion100,
 		mcpserver.WithToolCapabilities(false),
 	)
 	RegisterTools(srv, sc)
@@ -40,17 +43,17 @@ func TestLatestSemverTag(t *testing.T) {
 	}{
 		{
 			name: "single tag",
-			tags: []string{"1.0.0"},
-			want: "1.0.0",
+			tags: []string{testVersion100},
+			want: testVersion100,
 		},
 		{
 			name: "multiple versions",
-			tags: []string{"1.0.0", "2.1.0", "1.5.3"},
+			tags: []string{testVersion100, "2.1.0", "1.5.3"},
 			want: "2.1.0",
 		},
 		{
 			name: "with non-semver tags",
-			tags: []string{"latest", "1.0.0", "dev", "2.0.0", "nightly"},
+			tags: []string{"latest", testVersion100, "dev", "2.0.0", "nightly"},
 			want: "2.0.0",
 		},
 		{
@@ -65,8 +68,8 @@ func TestLatestSemverTag(t *testing.T) {
 		},
 		{
 			name: "pre-release versions",
-			tags: []string{"1.0.0-alpha", "1.0.0", "1.0.0-rc1"},
-			want: "1.0.0",
+			tags: []string{"1.0.0-alpha", testVersion100, "1.0.0-rc1"},
+			want: testVersion100,
 		},
 		{
 			name: "v prefix",

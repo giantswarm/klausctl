@@ -53,7 +53,7 @@ var gatewayStopCmd = &cobra.Command{
 }
 
 var gatewayStatusCmd = &cobra.Command{
-	Use:   "status",
+	Use:   useStatus,
 	Short: "Show klaus-gateway bridge status",
 	Args:  cobra.NoArgs,
 	RunE:  runGatewayStatus,
@@ -70,7 +70,7 @@ func init() {
 	startFlags.StringVar(&gatewayStartAgentGatewayBin, startFlagName("agentgateway-bin"), "", startFlagDesc("agentgateway-bin"))
 	startFlags.StringVar(&gatewayStartLogLevel, startFlagName("log-level"), "", startFlagDesc("log-level"))
 
-	gatewayStatusCmd.Flags().StringVarP(&gatewayStatusOutput, statusFlagName("output"), "o", "text", statusFlagDesc("output"))
+	gatewayStatusCmd.Flags().StringVarP(&gatewayStatusOutput, statusFlagName("output"), "o", outputText, statusFlagDesc("output"))
 
 	gatewayCmd.AddCommand(gatewayStartCmd)
 	gatewayCmd.AddCommand(gatewayStopCmd)
@@ -176,7 +176,7 @@ func runGatewayStatus(cmd *cobra.Command, _ []string) error {
 
 	st := gatewaybridge.GetStatus(paths)
 
-	if strings.EqualFold(gatewayStatusOutput, "json") {
+	if strings.EqualFold(gatewayStatusOutput, outputJSON) {
 		enc := json.NewEncoder(out)
 		enc.SetIndent("", "  ")
 		return enc.Encode(st)
@@ -186,7 +186,7 @@ func runGatewayStatus(cmd *cobra.Command, _ []string) error {
 		_, _ = fmt.Fprintln(out, "klaus-gateway bridge: not running")
 		return nil
 	}
-	_, _ = fmt.Fprintln(out, "klaus-gateway bridge:", green("running"))
+	_, _ = fmt.Fprintln(out, "klaus-gateway bridge:", green(statusRunning))
 	printGatewayStatus(out, st)
 	return nil
 }

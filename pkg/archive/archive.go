@@ -16,6 +16,9 @@ import (
 	"github.com/giantswarm/klausctl/pkg/instance"
 )
 
+// statusUnknown is recorded when an entry's status cannot be determined.
+const statusUnknown = "unknown"
+
 // Entry is the archived snapshot of an instance run.
 type Entry struct {
 	// Instance metadata
@@ -139,7 +142,7 @@ func EntryFromResult(inst *instance.Instance, resultJSON string) (*Entry, error)
 	}
 
 	if resultJSON == "" {
-		entry.Status = "unknown" //nolint:goconst
+		entry.Status = statusUnknown
 		return entry, nil
 	}
 
@@ -147,7 +150,7 @@ func EntryFromResult(inst *instance.Instance, resultJSON string) (*Entry, error)
 	var raw map[string]json.RawMessage
 	if err := json.Unmarshal([]byte(resultJSON), &raw); err != nil {
 		// Not valid JSON — store the text as result_text.
-		entry.Status = "unknown"
+		entry.Status = statusUnknown
 		entry.ResultText = resultJSON
 		return entry, nil
 	}
@@ -175,7 +178,7 @@ func EntryFromResult(inst *instance.Instance, resultJSON string) (*Entry, error)
 	}
 
 	if entry.Status == "" {
-		entry.Status = "unknown"
+		entry.Status = statusUnknown
 	}
 
 	return entry, nil
@@ -230,7 +233,7 @@ func FilterEntries(entries []*Entry, f Filter) []*Entry {
 			}
 		}
 		if f.Outcome != "" {
-			if e.Tags == nil || e.Tags["outcome"] != f.Outcome {
+			if e.Tags == nil || e.Tags[tagOutcome] != f.Outcome {
 				continue
 			}
 		}

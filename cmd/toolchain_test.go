@@ -42,7 +42,7 @@ func (m *mockRuntime) Images(_ context.Context, _ string) ([]runtime.ImageInfo, 
 func TestSubcommandsRegistered(t *testing.T) {
 	assertCommandOnRoot(t, "toolchain")
 	assertCommandOnRoot(t, "completion")
-	assertSubcommandsRegistered(t, toolchainCmd, []string{"list", "init", "validate", "pull", "describe"})
+	assertSubcommandsRegistered(t, toolchainCmd, []string{useList, useInit, testSubcmdValidate, testSubcmdPull, testSubcmdDescribe})
 }
 
 func TestToolchainInitNameFlagRequired(t *testing.T) {
@@ -104,7 +104,7 @@ func TestScaffoldFilesContainToolchainName(t *testing.T) {
 func TestScaffoldFilesImageName(t *testing.T) {
 	files := scaffoldFiles("go")
 
-	expectedImage := "gsoci.azurecr.io/giantswarm/klaus-toolchains/go"
+	expectedImage := testToolchainRepo
 	if !strings.Contains(files["Makefile"], expectedImage) {
 		t.Errorf("Makefile should contain image name %q", expectedImage)
 	}
@@ -151,7 +151,7 @@ func TestRunToolchainInit(t *testing.T) {
 func TestRunToolchainInitExistingDir(t *testing.T) {
 	dir := t.TempDir()
 
-	toolchainInitName = "existing"
+	toolchainInitName = testNameExisting
 	toolchainInitDir = dir
 
 	err := runToolchainInit(toolchainInitCmd, nil)
@@ -168,13 +168,13 @@ func TestPrintImageTable(t *testing.T) {
 
 	images := []runtime.ImageInfo{
 		{
-			Repository:   "gsoci.azurecr.io/giantswarm/klaus-toolchains/go",
-			Tag:          "1.0.0",
+			Repository:   testToolchainRepo,
+			Tag:          testVersion100,
 			CreatedSince: "2 hours ago",
 		},
 		{
 			Repository:   "gsoci.azurecr.io/giantswarm/klaus-toolchains/python",
-			Tag:          "1.0.0",
+			Tag:          testVersion100,
 			CreatedSince: "5 minutes ago",
 		},
 	}
@@ -200,7 +200,7 @@ func TestPrintImageTable(t *testing.T) {
 	if !strings.Contains(output, "klaus-toolchains/python") {
 		t.Error("expected output to contain 'klaus-toolchains/python'")
 	}
-	if !strings.Contains(output, "1.0.0") {
+	if !strings.Contains(output, testVersion100) {
 		t.Error("expected output to contain '1.0.0'")
 	}
 }
@@ -208,9 +208,9 @@ func TestPrintImageTable(t *testing.T) {
 func TestToolchainListWithImages(t *testing.T) {
 	rt := &mockRuntime{
 		images: []runtime.ImageInfo{
-			{Repository: "gsoci.azurecr.io/giantswarm/klaus-toolchains/go", Tag: "1.0.0", CreatedSince: "2 hours ago"},
+			{Repository: testToolchainRepo, Tag: testVersion100, CreatedSince: "2 hours ago"},
 			{Repository: "gsoci.azurecr.io/giantswarm/klaus-toolchains/python", Tag: "2.1.0", CreatedSince: "1 day ago"},
-			{Repository: "gsoci.azurecr.io/giantswarm/klaus", Tag: "latest", CreatedSince: "3 days ago"},
+			{Repository: "gsoci.azurecr.io/giantswarm/klaus", Tag: testTagLatest, CreatedSince: "3 days ago"},
 			{Repository: "docker.io/library/alpine", Tag: "3.19", CreatedSince: "4 weeks ago"},
 		},
 	}
@@ -270,12 +270,12 @@ func TestToolchainListError(t *testing.T) {
 func TestToolchainListJSON(t *testing.T) {
 	rt := &mockRuntime{
 		images: []runtime.ImageInfo{
-			{Repository: "gsoci.azurecr.io/giantswarm/klaus-toolchains/go", Tag: "1.0.0", Size: "500MB"},
+			{Repository: testToolchainRepo, Tag: testVersion100, Size: "500MB"},
 		},
 	}
 
 	var buf bytes.Buffer
-	err := toolchainList(context.Background(), &buf, rt, toolchainListOptions{output: "json", resolver: config.DefaultSourceResolver()})
+	err := toolchainList(context.Background(), &buf, rt, toolchainListOptions{output: outputJSON, resolver: config.DefaultSourceResolver()})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -293,7 +293,7 @@ func TestToolchainListJSONEmpty(t *testing.T) {
 	rt := &mockRuntime{}
 
 	var buf bytes.Buffer
-	err := toolchainList(context.Background(), &buf, rt, toolchainListOptions{output: "json", resolver: config.DefaultSourceResolver()})
+	err := toolchainList(context.Background(), &buf, rt, toolchainListOptions{output: outputJSON, resolver: config.DefaultSourceResolver()})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -307,7 +307,7 @@ func TestToolchainListJSONEmpty(t *testing.T) {
 func TestToolchainListWide(t *testing.T) {
 	rt := &mockRuntime{
 		images: []runtime.ImageInfo{
-			{Repository: "gsoci.azurecr.io/giantswarm/klaus-toolchains/go", Tag: "1.0.0", ID: "abc123", Size: "500MB", CreatedSince: "2h ago"},
+			{Repository: testToolchainRepo, Tag: testVersion100, ID: "abc123", Size: "500MB", CreatedSince: "2h ago"},
 		},
 	}
 
@@ -336,7 +336,7 @@ func TestValidateToolchainDirValid(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err := validateToolchainDir(dir, io.Discard, "text")
+	err := validateToolchainDir(dir, io.Discard, outputText)
 	if err != nil {
 		t.Errorf("validateToolchainDir() error = %v", err)
 	}
@@ -345,7 +345,7 @@ func TestValidateToolchainDirValid(t *testing.T) {
 func TestValidateToolchainDirMissingDockerfile(t *testing.T) {
 	dir := t.TempDir()
 
-	err := validateToolchainDir(dir, io.Discard, "text")
+	err := validateToolchainDir(dir, io.Discard, outputText)
 	if err == nil {
 		t.Fatal("expected error for missing Dockerfile")
 	}
@@ -369,7 +369,7 @@ func TestValidateToolchainDirTextOutput(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	if err := validateToolchainDir(dir, &buf, "text"); err != nil {
+	if err := validateToolchainDir(dir, &buf, outputText); err != nil {
 		t.Fatalf("validateToolchainDir() error = %v", err)
 	}
 
@@ -385,7 +385,7 @@ func TestValidateToolchainDirJSONOutput(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	if err := validateToolchainDir(dir, &buf, "json"); err != nil {
+	if err := validateToolchainDir(dir, &buf, outputJSON); err != nil {
 		t.Fatalf("validateToolchainDir() error = %v", err)
 	}
 

@@ -28,8 +28,8 @@ func TestCacheInfo_JSON(t *testing.T) {
 	var buf bytes.Buffer
 	cacheInfoCmd.SetOut(&buf)
 	cacheInfoCmd.SetErr(&buf)
-	cacheInfoFormat = "json"
-	t.Cleanup(func() { cacheInfoFormat = "text" }) //nolint:goconst
+	cacheInfoFormat = outputJSON
+	t.Cleanup(func() { cacheInfoFormat = outputText })
 
 	if err := runCacheInfo(cacheInfoCmd, nil); err != nil {
 		t.Fatalf("runCacheInfo: %v", err)
@@ -54,7 +54,7 @@ func TestCacheInfo_TextOutput(t *testing.T) {
 
 	var buf bytes.Buffer
 	cacheInfoCmd.SetOut(&buf)
-	cacheInfoFormat = "text"
+	cacheInfoFormat = outputText
 	if err := runCacheInfo(cacheInfoCmd, nil); err != nil {
 		t.Fatalf("runCacheInfo: %v", err)
 	}
@@ -80,7 +80,7 @@ func TestCachePrune_All(t *testing.T) {
 	var buf bytes.Buffer
 	cachePruneCmd.SetOut(&buf)
 	cachePruneAll = true
-	cachePruneFormat = "text"
+	cachePruneFormat = outputText
 	t.Cleanup(func() { cachePruneAll = false })
 
 	if err := runCachePrune(cachePruneCmd, nil); err != nil {
@@ -103,7 +103,7 @@ func TestCacheRefresh_MutuallyExclusiveFlags(t *testing.T) {
 	cacheRefreshCmd.SetOut(&buf)
 	cacheRefreshRegistry = "registry.example.com"
 	cacheRefreshRepo = "registry.example.com/repo"
-	cacheRefreshFormat = "text"
+	cacheRefreshFormat = outputText
 	t.Cleanup(func() {
 		cacheRefreshRegistry = ""
 		cacheRefreshRepo = ""
@@ -139,7 +139,7 @@ func TestCacheRefresh_ScopedByRepo(t *testing.T) {
 	cacheRefreshCmd.SetOut(&buf)
 	cacheRefreshRepo = "host/repo"
 	cacheRefreshRegistry = ""
-	cacheRefreshFormat = "text"
+	cacheRefreshFormat = outputText
 	t.Cleanup(func() { cacheRefreshRepo = "" })
 
 	if err := runCacheRefresh(cacheRefreshCmd, nil); err != nil {

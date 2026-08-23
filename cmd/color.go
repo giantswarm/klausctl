@@ -4,6 +4,18 @@ import (
 	"os"
 )
 
+// Container and agent status values rendered by the cmd package.
+const (
+	statusRunning   = "running"
+	statusStopped   = "stopped"
+	statusStarted   = "started"
+	statusCompleted = "completed"
+	statusBusy      = "busy"
+	statusIdle      = "idle"
+	statusError     = "error"
+	statusFailed    = "failed"
+)
+
 // ANSI color codes for terminal output. Colors are automatically disabled
 // when stdout is not a terminal or the NO_COLOR env var is set.
 // See: https://no-color.org/
@@ -45,11 +57,11 @@ func bold(s string) string {
 
 func colorStatus(status string) string {
 	switch status {
-	case "started", "completed", "idle": //nolint:goconst
+	case statusStarted, statusCompleted, statusIdle:
 		return green(status)
-	case "busy": //nolint:goconst
+	case statusBusy:
 		return yellow(status)
-	case "error", "failed":
+	case statusError, statusFailed:
 		return yellow(status)
 	default:
 		return status

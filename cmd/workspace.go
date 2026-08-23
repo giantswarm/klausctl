@@ -21,7 +21,7 @@ Cached clones live under:   ~/.config/klausctl/repos/`,
 }
 
 var workspaceListCmd = &cobra.Command{
-	Use:   "list",
+	Use:   useList,
 	Short: "List registered orgs, repos, and cached clones",
 	Args:  cobra.NoArgs,
 	RunE:  runWorkspaceList,

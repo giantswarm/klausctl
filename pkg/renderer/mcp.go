@@ -6,6 +6,9 @@ import (
 	"path/filepath"
 )
 
+// mcpFieldURL is the MCP server-config field that marks an HTTP server entry.
+const mcpFieldURL = "url"
+
 // renderMCPConfig writes the .mcp.json file containing MCP server configuration.
 // The format wraps servers under "mcpServers" key, matching the Claude Code
 // expected format (same as the Helm chart's rendering).
@@ -46,7 +49,7 @@ func inferMCPServerType(entry any) any {
 	}
 
 	var inferredType string
-	if _, hasURL := m["url"]; hasURL {
+	if _, hasURL := m[mcpFieldURL]; hasURL {
 		inferredType = "http"
 	} else if _, hasCmd := m["command"]; hasCmd {
 		inferredType = "stdio"

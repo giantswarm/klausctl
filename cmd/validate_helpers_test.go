@@ -51,7 +51,7 @@ func assertFlagRegistered(t *testing.T, cmd *cobra.Command, flagName string) {
 // non-existent path.
 func testValidateDirNotExist(t *testing.T, fn validateFunc) {
 	t.Helper()
-	err := fn("/nonexistent/path", io.Discard, "text")
+	err := fn("/nonexistent/path", io.Discard, outputText)
 	if err == nil {
 		t.Fatal("expected error for nonexistent directory")
 	}
@@ -68,7 +68,7 @@ func testValidateDirNotADirectory(t *testing.T, fn validateFunc) {
 	if err := os.WriteFile(f, []byte("not a dir"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	err := fn(f, io.Discard, "text")
+	err := fn(f, io.Discard, outputText)
 	if err == nil {
 		t.Fatal("expected error for file (not directory)")
 	}

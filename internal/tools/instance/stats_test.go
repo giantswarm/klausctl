@@ -26,12 +26,12 @@ func saveTestEntries(t *testing.T, sc *server.ServerContext) {
 			MessageCount: 100,
 			TotalCostUSD: &cost1,
 			Tags: map[string]string{
-				"outcome":       "success",
-				"repo":          "frontend",
-				"complexity":    "simple",
-				"first_attempt": "yes",
-				"scope":         "yes",
-				"rework":        "none",
+				paramOutcome:        outcomeSuccess,
+				paramRepo:           testRepoFrontend,
+				testTagComplexity:   "simple",
+				testTagFirstAttempt: testValueYes,
+				"scope":             testValueYes,
+				testTagRework:       "none",
 			},
 		},
 		{
@@ -42,12 +42,12 @@ func saveTestEntries(t *testing.T, sc *server.ServerContext) {
 			MessageCount: 200,
 			TotalCostUSD: &cost2,
 			Tags: map[string]string{
-				"outcome":       "failed",
-				"repo":          "backend",
-				"complexity":    "complex",
-				"first_attempt": "false",
-				"rework":        "minor",
-				"issue":         "backend#42",
+				paramOutcome:        testStatusFailed,
+				paramRepo:           "backend",
+				testTagComplexity:   "complex",
+				testTagFirstAttempt: "false",
+				testTagRework:       "minor",
+				"issue":             "backend#42",
 			},
 		},
 		{
@@ -58,12 +58,12 @@ func saveTestEntries(t *testing.T, sc *server.ServerContext) {
 			MessageCount: 300,
 			TotalCostUSD: &cost3,
 			Tags: map[string]string{
-				"outcome":       "success",
-				"repo":          "frontend",
-				"complexity":    "moderate",
-				"first_attempt": "yes",
-				"scope":         "yes",
-				"rework":        "none",
+				paramOutcome:        outcomeSuccess,
+				paramRepo:           testRepoFrontend,
+				testTagComplexity:   "moderate",
+				testTagFirstAttempt: testValueYes,
+				"scope":             testValueYes,
+				testTagRework:       "none",
 			},
 		},
 	}
@@ -117,7 +117,7 @@ func TestHandleStatsSummaryWithFilters(t *testing.T) {
 	sc := testServerContext(t)
 	saveTestEntries(t, sc)
 
-	req := callToolRequest(map[string]any{"repo": "frontend"})
+	req := callToolRequest(map[string]any{paramRepo: testRepoFrontend})
 	result, err := handleStatsSummary(context.Background(), req, sc)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -136,7 +136,7 @@ func TestHandleStatsSummaryWithFilters(t *testing.T) {
 func TestHandleStatsSummaryInvalidSince(t *testing.T) {
 	sc := testServerContext(t)
 
-	req := callToolRequest(map[string]any{"since": "not-a-date"})
+	req := callToolRequest(map[string]any{paramSince: "not-a-date"})
 	result, err := handleStatsSummary(context.Background(), req, sc)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -167,7 +167,7 @@ func TestHandleStatsSpend(t *testing.T) {
 	sc := testServerContext(t)
 	saveTestEntries(t, sc)
 
-	req := callToolRequest(map[string]any{"group_by": "repo"})
+	req := callToolRequest(map[string]any{paramGroupBy: paramRepo})
 	result, err := handleStatsSpend(context.Background(), req, sc)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -193,7 +193,7 @@ func TestHandleStatsSpendByComplexity(t *testing.T) {
 	sc := testServerContext(t)
 	saveTestEntries(t, sc)
 
-	req := callToolRequest(map[string]any{"group_by": "complexity"})
+	req := callToolRequest(map[string]any{paramGroupBy: testTagComplexity})
 	result, err := handleStatsSpend(context.Background(), req, sc)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -214,7 +214,7 @@ func TestHandleStatsSpendWithFilters(t *testing.T) {
 	sc := testServerContext(t)
 	saveTestEntries(t, sc)
 
-	req := callToolRequest(map[string]any{"group_by": "repo", "outcome": "success"})
+	req := callToolRequest(map[string]any{paramGroupBy: paramRepo, paramOutcome: outcomeSuccess})
 	result, err := handleStatsSpend(context.Background(), req, sc)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -234,7 +234,7 @@ func TestHandleStatsSpendWithFilters(t *testing.T) {
 func TestHandleStatsSpendInvalidGroupBy(t *testing.T) {
 	sc := testServerContext(t)
 
-	req := callToolRequest(map[string]any{"group_by": "invalid"})
+	req := callToolRequest(map[string]any{paramGroupBy: testValueInvalid})
 	result, err := handleStatsSpend(context.Background(), req, sc)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -267,7 +267,7 @@ func TestHandleStatsSpendDefaultGroupBy(t *testing.T) {
 func TestHandleStatsSummaryInvalidOutcome(t *testing.T) {
 	sc := testServerContext(t)
 
-	req := callToolRequest(map[string]any{"outcome": "invalid"})
+	req := callToolRequest(map[string]any{paramOutcome: testValueInvalid})
 	result, err := handleStatsSummary(context.Background(), req, sc)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -324,7 +324,7 @@ func TestHandleStatsTrendsWithFilters(t *testing.T) {
 	sc := testServerContext(t)
 	saveTestEntries(t, sc)
 
-	req := callToolRequest(map[string]any{"repo": "frontend"})
+	req := callToolRequest(map[string]any{paramRepo: testRepoFrontend})
 	result, err := handleStatsTrends(context.Background(), req, sc)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -386,7 +386,7 @@ func TestHandleStatsListWithFilters(t *testing.T) {
 	sc := testServerContext(t)
 	saveTestEntries(t, sc)
 
-	req := callToolRequest(map[string]any{"repo": "frontend", "sort_by": "cost"})
+	req := callToolRequest(map[string]any{paramRepo: testRepoFrontend, paramSortBy: "cost"})
 	result, err := handleStatsList(context.Background(), req, sc)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -410,7 +410,7 @@ func TestHandleStatsListWithLimit(t *testing.T) {
 	sc := testServerContext(t)
 	saveTestEntries(t, sc)
 
-	req := callToolRequest(map[string]any{"limit": float64(1)})
+	req := callToolRequest(map[string]any{paramLimit: float64(1)})
 	result, err := handleStatsList(context.Background(), req, sc)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -429,7 +429,7 @@ func TestHandleStatsListWithLimit(t *testing.T) {
 func TestHandleStatsListInvalidSortBy(t *testing.T) {
 	sc := testServerContext(t)
 
-	req := callToolRequest(map[string]any{"sort_by": "invalid"})
+	req := callToolRequest(map[string]any{paramSortBy: testValueInvalid})
 	result, err := handleStatsList(context.Background(), req, sc)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -465,7 +465,7 @@ func TestHandleStatsTopByMessages(t *testing.T) {
 	sc := testServerContext(t)
 	saveTestEntries(t, sc)
 
-	req := callToolRequest(map[string]any{"sort_by": "messages", "limit": float64(2)})
+	req := callToolRequest(map[string]any{paramSortBy: "messages", paramLimit: float64(2)})
 	result, err := handleStatsTop(context.Background(), req, sc)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -488,7 +488,7 @@ func TestHandleStatsTopByMessages(t *testing.T) {
 func TestHandleStatsTopInvalidSortBy(t *testing.T) {
 	sc := testServerContext(t)
 
-	req := callToolRequest(map[string]any{"sort_by": "invalid"})
+	req := callToolRequest(map[string]any{paramSortBy: testValueInvalid})
 	result, err := handleStatsTop(context.Background(), req, sc)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

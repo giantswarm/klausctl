@@ -34,7 +34,7 @@ func setupGitWorkspace(t *testing.T) (bare, clone string) {
 	gitRun(t, clone, "config", "commit.gpgsign", "false")
 	gitRun(t, clone, "config", "tag.gpgsign", "false")
 	gitRun(t, clone, "checkout", "-b", "main")
-	if err := os.WriteFile(filepath.Join(clone, "README.md"), []byte("hello"), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(clone, "README.md"), []byte(testHelloValue), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	gitRun(t, clone, "add", ".")
@@ -55,7 +55,7 @@ func TestGenerateInstanceConfig_CreatesWorktreeForGitRepo(t *testing.T) {
 	}
 
 	cfg, err := GenerateInstanceConfig(paths, CreateOptions{
-		Name:      "dev",
+		Name:      testInstanceDev,
 		Workspace: clone,
 	})
 	if err != nil {
@@ -66,7 +66,7 @@ func TestGenerateInstanceConfig_CreatesWorktreeForGitRepo(t *testing.T) {
 		t.Fatal("expected WorktreePath to be set for git workspace")
 	}
 
-	expectedPath := filepath.Join(base, "instances", "dev", "workspace")
+	expectedPath := filepath.Join(base, "instances", testInstanceDev, "workspace")
 	if cfg.WorktreePath != expectedPath {
 		t.Fatalf("expected WorktreePath=%q, got %q", expectedPath, cfg.WorktreePath)
 	}
@@ -76,7 +76,7 @@ func TestGenerateInstanceConfig_CreatesWorktreeForGitRepo(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reading README in worktree: %v", err)
 	}
-	if string(readme) != "hello" { //nolint:goconst
+	if string(readme) != testHelloValue {
 		t.Fatalf("unexpected README content: %q", readme)
 	}
 
@@ -112,7 +112,7 @@ func TestGenerateInstanceConfig_NoIsolateSkipsWorktree(t *testing.T) {
 	}
 
 	cfg, err := GenerateInstanceConfig(paths, CreateOptions{
-		Name:      "dev",
+		Name:      testInstanceDev,
 		Workspace: clone,
 		NoIsolate: true,
 	})
@@ -140,7 +140,7 @@ func TestGenerateInstanceConfig_NonGitWorkspaceSkipsWorktree(t *testing.T) {
 	}
 
 	cfg, err := GenerateInstanceConfig(paths, CreateOptions{
-		Name:      "dev",
+		Name:      testInstanceDev,
 		Workspace: workspace,
 	})
 	if err != nil {

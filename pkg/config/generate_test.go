@@ -11,6 +11,12 @@ import (
 	"testing"
 )
 
+// envVarHome is the HOME environment variable name.
+const (
+	envVarHome        = "HOME"
+	envVarSSHAuthSock = "SSH_AUTH_SOCK"
+)
+
 func TestGenerateInstanceConfig(t *testing.T) {
 	base := t.TempDir()
 	workspace := filepath.Join(base, "workspace")
@@ -26,9 +32,9 @@ func TestGenerateInstanceConfig(t *testing.T) {
 	}
 
 	cfg, err := GenerateInstanceConfig(paths, CreateOptions{
-		Name:        "dev",
+		Name:        testInstanceDev,
 		Workspace:   workspace,
-		Personality: "sre",
+		Personality: testPersonalitySRE,
 		Toolchain:   "go",
 		Plugins:     []string{"gs-platform"},
 	})
@@ -36,13 +42,13 @@ func TestGenerateInstanceConfig(t *testing.T) {
 		t.Fatalf("GenerateInstanceConfig() returned error: %v", err)
 	}
 
-	if cfg.Personality != "gsoci.azurecr.io/giantswarm/klaus-personalities/sre" {
+	if cfg.Personality != testPersonalityRef {
 		t.Fatalf("unexpected personality: %s", cfg.Personality)
 	}
-	if cfg.Image != "gsoci.azurecr.io/giantswarm/klaus-toolchains/go" {
+	if cfg.Image != testToolchainRef {
 		t.Fatalf("unexpected image: %s", cfg.Image)
 	}
-	if cfg.Toolchain != "gsoci.azurecr.io/giantswarm/klaus-toolchains/go" {
+	if cfg.Toolchain != testToolchainRef {
 		t.Fatalf("unexpected toolchain: %s", cfg.Toolchain)
 	}
 	if cfg.Port < 8080 {
@@ -51,7 +57,7 @@ func TestGenerateInstanceConfig(t *testing.T) {
 	if len(cfg.Plugins) != 1 {
 		t.Fatalf("unexpected plugins count: %+v", cfg.Plugins)
 	}
-	if cfg.Plugins[0].Repository != "gsoci.azurecr.io/giantswarm/klaus-plugins/gs-platform" {
+	if cfg.Plugins[0].Repository != testPluginRef {
 		t.Fatalf("unexpected plugin repository: %s", cfg.Plugins[0].Repository)
 	}
 	if cfg.Plugins[0].Tag != "" {
@@ -82,7 +88,7 @@ func TestGenerateInstanceConfig_PortConflict(t *testing.T) {
 	}
 
 	_, err := GenerateInstanceConfig(paths, CreateOptions{
-		Name:      "dev",
+		Name:      testInstanceDev,
 		Workspace: workspace,
 		Port:      9090,
 	})
@@ -106,10 +112,10 @@ func TestGenerateInstanceConfig_ResolvedPersonalityMergesPlugins(t *testing.T) {
 	}
 
 	cfg, err := GenerateInstanceConfig(paths, CreateOptions{
-		Name:        "dev",
+		Name:        testInstanceDev,
 		Workspace:   workspace,
-		Personality: "sre",
-		Plugins:     []string{"custom"},
+		Personality: testPersonalitySRE,
+		Plugins:     []string{testNameCustom},
 		Context:     context.Background(),
 		ResolvePersonality: func(_ context.Context, _ string, _ io.Writer) (*ResolvedPersonality, error) {
 			return &ResolvedPersonality{
@@ -183,15 +189,15 @@ func TestGenerateInstanceConfig_Overrides(t *testing.T) {
 			name: "envVars sets environment variables",
 			opts: func() CreateOptions {
 				return CreateOptions{
-					Name: "test", Workspace: workspace,
-					EnvVars: map[string]string{"GITHUB_TOKEN": "tok-123", "MY_VAR": "hello"},
+					Name: testNameTest, Workspace: workspace,
+					EnvVars: map[string]string{"GITHUB_TOKEN": "tok-123", "MY_VAR": testHelloValue},
 				}
 			},
 			check: func(t *testing.T, cfg *Config) {
 				if cfg.EnvVars["GITHUB_TOKEN"] != "tok-123" {
 					t.Errorf("expected GITHUB_TOKEN=tok-123, got %q", cfg.EnvVars["GITHUB_TOKEN"])
 				}
-				if cfg.EnvVars["MY_VAR"] != "hello" {
+				if cfg.EnvVars["MY_VAR"] != testHelloValue {
 					t.Errorf("expected MY_VAR=hello, got %q", cfg.EnvVars["MY_VAR"])
 				}
 			},
@@ -200,15 +206,15 @@ func TestGenerateInstanceConfig_Overrides(t *testing.T) {
 			name: "envForward appends forwarded vars",
 			opts: func() CreateOptions {
 				return CreateOptions{
-					Name: "test", Workspace: workspace,
-					EnvForward: []string{"SSH_AUTH_SOCK", "HOME"},
+					Name: testNameTest, Workspace: workspace,
+					EnvForward: []string{envVarSSHAuthSock, envVarHome},
 				}
 			},
 			check: func(t *testing.T, cfg *Config) {
 				if len(cfg.EnvForward) != 2 {
 					t.Fatalf("expected 2 envForward entries, got %d", len(cfg.EnvForward))
 				}
-				if cfg.EnvForward[0] != "HOME" || cfg.EnvForward[1] != "SSH_AUTH_SOCK" {
+				if cfg.EnvForward[0] != envVarHome || cfg.EnvForward[1] != envVarSSHAuthSock {
 					t.Errorf("unexpected envForward: %v", cfg.EnvForward)
 				}
 			},
@@ -217,12 +223,12 @@ func TestGenerateInstanceConfig_Overrides(t *testing.T) {
 			name: "envForward deduplicates entries",
 			opts: func() CreateOptions {
 				return CreateOptions{
-					Name: "test", Workspace: workspace,
-					EnvForward: []string{"HOME", "SSH_AUTH_SOCK", "HOME"},
+					Name: testNameTest, Workspace: workspace,
+					EnvForward: []string{envVarHome, envVarSSHAuthSock, envVarHome},
 				}
 			},
 			check: func(t *testing.T, cfg *Config) {
-				want := []string{"HOME", "SSH_AUTH_SOCK"}
+				want := []string{envVarHome, envVarSSHAuthSock}
 				if len(cfg.EnvForward) != len(want) {
 					t.Fatalf("expected %d envForward entries, got %d: %v", len(want), len(cfg.EnvForward), cfg.EnvForward)
 				}
@@ -237,7 +243,7 @@ func TestGenerateInstanceConfig_Overrides(t *testing.T) {
 			name: "mcpServers sets MCP server config",
 			opts: func() CreateOptions {
 				return CreateOptions{
-					Name: "test", Workspace: workspace,
+					Name: testNameTest, Workspace: workspace,
 					McpServers: map[string]any{
 						"github": map[string]any{"type": "http", "url": "https://api.example.com/mcp/"},
 					},
@@ -262,7 +268,7 @@ func TestGenerateInstanceConfig_Overrides(t *testing.T) {
 			opts: func() CreateOptions {
 				b := float64(10)
 				return CreateOptions{
-					Name: "test", Workspace: workspace,
+					Name: testNameTest, Workspace: workspace,
 					MaxBudgetUSD: &b,
 				}
 			},
@@ -277,7 +283,7 @@ func TestGenerateInstanceConfig_Overrides(t *testing.T) {
 			opts: func() CreateOptions {
 				b := float64(0)
 				return CreateOptions{
-					Name: "test", Workspace: workspace,
+					Name: testNameTest, Workspace: workspace,
 					MaxBudgetUSD: &b,
 				}
 			},
@@ -291,7 +297,7 @@ func TestGenerateInstanceConfig_Overrides(t *testing.T) {
 			name: "permissionMode sets mode",
 			opts: func() CreateOptions {
 				return CreateOptions{
-					Name: "test", Workspace: workspace,
+					Name: testNameTest, Workspace: workspace,
 					PermissionMode: "dontAsk",
 				}
 			},
@@ -305,7 +311,7 @@ func TestGenerateInstanceConfig_Overrides(t *testing.T) {
 			name: "invalid permissionMode rejected by validation",
 			opts: func() CreateOptions {
 				return CreateOptions{
-					Name: "test", Workspace: workspace,
+					Name: testNameTest, Workspace: workspace,
 					PermissionMode: "invalid",
 				}
 			},
@@ -315,7 +321,7 @@ func TestGenerateInstanceConfig_Overrides(t *testing.T) {
 			name: "model sets Claude model",
 			opts: func() CreateOptions {
 				return CreateOptions{
-					Name: "test", Workspace: workspace,
+					Name: testNameTest, Workspace: workspace,
 					Model: "opus",
 				}
 			},
@@ -329,7 +335,7 @@ func TestGenerateInstanceConfig_Overrides(t *testing.T) {
 			name: "systemPrompt sets prompt",
 			opts: func() CreateOptions {
 				return CreateOptions{
-					Name: "test", Workspace: workspace,
+					Name: testNameTest, Workspace: workspace,
 					SystemPrompt: "You are a helpful assistant.",
 				}
 			},
@@ -343,7 +349,7 @@ func TestGenerateInstanceConfig_Overrides(t *testing.T) {
 			name: "mode chat overrides default agent mode",
 			opts: func() CreateOptions {
 				return CreateOptions{
-					Name: "test", Workspace: workspace,
+					Name: testNameTest, Workspace: workspace,
 					Mode: "chat",
 				}
 			},
@@ -357,7 +363,7 @@ func TestGenerateInstanceConfig_Overrides(t *testing.T) {
 			name: "mode empty leaves default agent mode",
 			opts: func() CreateOptions {
 				return CreateOptions{
-					Name: "test", Workspace: workspace,
+					Name: testNameTest, Workspace: workspace,
 				}
 			},
 			check: func(t *testing.T, cfg *Config) {
@@ -371,12 +377,12 @@ func TestGenerateInstanceConfig_Overrides(t *testing.T) {
 			opts: func() CreateOptions {
 				b := float64(5)
 				return CreateOptions{
-					Name: "test", Workspace: workspace,
+					Name: testNameTest, Workspace: workspace,
 					EnvVars:        map[string]string{"KEY": "val"},
-					EnvForward:     []string{"HOME"},
+					EnvForward:     []string{envVarHome},
 					MaxBudgetUSD:   &b,
 					PermissionMode: "acceptEdits",
-					Model:          "sonnet",
+					Model:          testModelSonnet,
 					SystemPrompt:   "Be concise.",
 				}
 			},
@@ -384,7 +390,7 @@ func TestGenerateInstanceConfig_Overrides(t *testing.T) {
 				if cfg.EnvVars["KEY"] != "val" {
 					t.Error("envVars not applied")
 				}
-				if len(cfg.EnvForward) != 1 || cfg.EnvForward[0] != "HOME" {
+				if len(cfg.EnvForward) != 1 || cfg.EnvForward[0] != envVarHome {
 					t.Error("envForward not applied")
 				}
 				if cfg.Claude.MaxBudgetUSD != 5 {
@@ -393,7 +399,7 @@ func TestGenerateInstanceConfig_Overrides(t *testing.T) {
 				if cfg.Claude.PermissionMode != "acceptEdits" {
 					t.Error("permissionMode not applied")
 				}
-				if cfg.Claude.Model != "sonnet" {
+				if cfg.Claude.Model != testModelSonnet {
 					t.Error("model not applied")
 				}
 				if cfg.Claude.SystemPrompt != "Be concise." {
@@ -404,10 +410,10 @@ func TestGenerateInstanceConfig_Overrides(t *testing.T) {
 		{
 			name: "no overrides leaves defaults untouched",
 			opts: func() CreateOptions {
-				return CreateOptions{Name: "test", Workspace: workspace}
+				return CreateOptions{Name: testNameTest, Workspace: workspace}
 			},
 			check: func(t *testing.T, cfg *Config) {
-				if cfg.Claude.PermissionMode != "bypassPermissions" {
+				if cfg.Claude.PermissionMode != permissionModeBypass {
 					t.Errorf("default permissionMode changed to %q", cfg.Claude.PermissionMode)
 				}
 			},
@@ -449,10 +455,10 @@ func TestGenerateInstanceConfig_GitOverrides(t *testing.T) {
 	}
 
 	cfg, err := GenerateInstanceConfig(paths, CreateOptions{
-		Name:                 "test",
+		Name:                 testNameTest,
 		Workspace:            workspace,
 		GitAuthorName:        "Klaus",
-		GitAuthorEmail:       "klaus@example.com",
+		GitAuthorEmail:       testGitEmail,
 		GitCredentialHelper:  "gh",
 		GitHTTPSInsteadOfSSH: true,
 	})
@@ -463,8 +469,8 @@ func TestGenerateInstanceConfig_GitOverrides(t *testing.T) {
 	if cfg.Git.AuthorName != "Klaus" {
 		t.Errorf("Git.AuthorName = %q, want %q", cfg.Git.AuthorName, "Klaus")
 	}
-	if cfg.Git.AuthorEmail != "klaus@example.com" {
-		t.Errorf("Git.AuthorEmail = %q, want %q", cfg.Git.AuthorEmail, "klaus@example.com")
+	if cfg.Git.AuthorEmail != testGitEmail {
+		t.Errorf("Git.AuthorEmail = %q, want %q", cfg.Git.AuthorEmail, testGitEmail)
 	}
 	if cfg.Git.CredentialHelper != "gh" {
 		t.Errorf("Git.CredentialHelper = %q, want %q", cfg.Git.CredentialHelper, "gh")
@@ -553,7 +559,7 @@ func TestGenerateInstanceConfig_ExplicitPortHostOccupied(t *testing.T) {
 	}
 
 	_, err = GenerateInstanceConfig(paths, CreateOptions{
-		Name:      "dev",
+		Name:      testInstanceDev,
 		Workspace: workspace,
 		Port:      occupied,
 	})
@@ -567,7 +573,7 @@ func TestGenerateInstanceConfig_ExplicitPortHostOccupied(t *testing.T) {
 
 func TestParsePluginRef(t *testing.T) {
 	p := ParsePluginRef("gs-platform:v1.2.0")
-	if p.Repository != "gsoci.azurecr.io/giantswarm/klaus-plugins/gs-platform" {
+	if p.Repository != testPluginRef {
 		t.Fatalf("unexpected repository: %s", p.Repository)
 	}
 	if p.Tag != "v1.2.0" {

@@ -20,16 +20,16 @@ func TestParseResultResponse(t *testing.T) {
 			result: &mcp.CallToolResult{
 				Content: []mcp.Content{
 					mcp.TextContent{
-						Type: "text",
+						Type: outputText,
 						Text: `{"status":"completed","message_count":42,"result_text":"All tests passed."}`,
 					},
 				},
 			},
 			wantCLI: resultCLIResult{
-				Instance:     "dev",
-				Status:       "completed",
+				Instance:     testInstanceDev,
+				Status:       statusCompleted,
 				MessageCount: 42,
-				Result:       "All tests passed.",
+				Result:       testAgentResult,
 			},
 		},
 		{
@@ -37,14 +37,14 @@ func TestParseResultResponse(t *testing.T) {
 			result: &mcp.CallToolResult{
 				Content: []mcp.Content{
 					mcp.TextContent{
-						Type: "text",
+						Type: outputText,
 						Text: `{"status":"busy","message_count":15,"result_text":""}`,
 					},
 				},
 			},
 			wantCLI: resultCLIResult{
-				Instance:     "dev",
-				Status:       "busy",
+				Instance:     testInstanceDev,
+				Status:       statusBusy,
 				MessageCount: 15,
 				Result:       "",
 			},
@@ -54,14 +54,14 @@ func TestParseResultResponse(t *testing.T) {
 			result: &mcp.CallToolResult{
 				Content: []mcp.Content{
 					mcp.TextContent{
-						Type: "text",
+						Type: outputText,
 						Text: `{"status":"idle","message_count":0,"result_text":""}`,
 					},
 				},
 			},
 			wantCLI: resultCLIResult{
-				Instance:     "dev",
-				Status:       "idle",
+				Instance:     testInstanceDev,
+				Status:       statusIdle,
 				MessageCount: 0,
 				Result:       "",
 			},
@@ -70,26 +70,26 @@ func TestParseResultResponse(t *testing.T) {
 			name: "error from IsError flag",
 			result: &mcp.CallToolResult{
 				Content: []mcp.Content{
-					mcp.TextContent{Type: "text", Text: "something went wrong"},
+					mcp.TextContent{Type: outputText, Text: testErrMsg},
 				},
 				IsError: true,
 			},
 			wantCLI: resultCLIResult{
-				Instance: "dev",
-				Status:   "error",
-				Result:   "something went wrong",
+				Instance: testInstanceDev,
+				Status:   statusError,
+				Result:   testErrMsg,
 			},
 		},
 		{
 			name: "non-JSON fallback returns completed",
 			result: &mcp.CallToolResult{
 				Content: []mcp.Content{
-					mcp.TextContent{Type: "text", Text: "plain text result"},
+					mcp.TextContent{Type: outputText, Text: "plain text result"},
 				},
 			},
 			wantCLI: resultCLIResult{
-				Instance: "dev",
-				Status:   "completed",
+				Instance: testInstanceDev,
+				Status:   statusCompleted,
 				Result:   "plain text result",
 			},
 		},
@@ -97,21 +97,21 @@ func TestParseResultResponse(t *testing.T) {
 			name: "JSON without status field falls back to completed",
 			result: &mcp.CallToolResult{
 				Content: []mcp.Content{
-					mcp.TextContent{Type: "text", Text: `{"other":"field"}`},
+					mcp.TextContent{Type: outputText, Text: `{"other":"field"}`},
 				},
 			},
 			wantCLI: resultCLIResult{
-				Instance: "dev",
-				Status:   "completed",
+				Instance: testInstanceDev,
+				Status:   statusCompleted,
 				Result:   `{"other":"field"}`,
 			},
 		},
 		{
-			name:   "nil result",
+			name:   testNilResultMsg,
 			result: nil,
 			wantCLI: resultCLIResult{
-				Instance: "dev",
-				Status:   "completed",
+				Instance: testInstanceDev,
+				Status:   statusCompleted,
 				Result:   "",
 			},
 		},
@@ -120,14 +120,14 @@ func TestParseResultResponse(t *testing.T) {
 			result: &mcp.CallToolResult{
 				Content: []mcp.Content{
 					mcp.TextContent{
-						Type: "text",
+						Type: outputText,
 						Text: `{"status":"error","message_count":5,"result_text":"Build failed"}`,
 					},
 				},
 			},
 			wantCLI: resultCLIResult{
-				Instance:     "dev",
-				Status:       "error",
+				Instance:     testInstanceDev,
+				Status:       statusError,
 				MessageCount: 5,
 				Result:       "Build failed",
 			},
@@ -136,7 +136,7 @@ func TestParseResultResponse(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := parseResultResponse("dev", tt.result)
+			got := parseResultResponse(testInstanceDev, tt.result)
 			if got.Instance != tt.wantCLI.Instance {
 				t.Errorf("Instance = %q, want %q", got.Instance, tt.wantCLI.Instance)
 			}
@@ -165,27 +165,27 @@ func TestRenderResultOutput_Text(t *testing.T) {
 		{
 			name: "completed with result",
 			result: resultCLIResult{
-				Instance:     "dev",
-				Status:       "completed",
+				Instance:     testInstanceDev,
+				Status:       statusCompleted,
 				MessageCount: 42,
-				Result:       "All tests passed.",
+				Result:       testAgentResult,
 			},
 			contains: []string{
-				"Instance: dev",
+				testInstanceHeader,
 				"Status:   completed",
 				"Messages: 42",
-				"All tests passed.",
+				testAgentResult,
 			},
 		},
 		{
 			name: "busy shows progress hint",
 			result: resultCLIResult{
-				Instance:     "dev",
-				Status:       "busy",
+				Instance:     testInstanceDev,
+				Status:       statusBusy,
 				MessageCount: 15,
 			},
 			contains: []string{
-				"Instance: dev",
+				testInstanceHeader,
 				"Status:   busy",
 				"Messages: 15",
 				"Agent is still processing",
@@ -195,11 +195,11 @@ func TestRenderResultOutput_Text(t *testing.T) {
 		{
 			name: "idle with zero messages",
 			result: resultCLIResult{
-				Instance: "dev",
-				Status:   "idle",
+				Instance: testInstanceDev,
+				Status:   statusIdle,
 			},
 			contains: []string{
-				"Instance: dev",
+				testInstanceHeader,
 				"Status:   idle",
 				"Messages: 0",
 			},
@@ -208,7 +208,7 @@ func TestRenderResultOutput_Text(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			resultOutput = "text" //nolint:goconst
+			resultOutput = outputText
 			var buf bytes.Buffer
 			err := renderResultOutput(&buf, tt.result)
 			if err != nil {
@@ -225,12 +225,12 @@ func TestRenderResultOutput_Text(t *testing.T) {
 }
 
 func TestRenderResultOutput_JSON(t *testing.T) {
-	resultOutput = "json"
-	t.Cleanup(func() { resultOutput = "text" })
+	resultOutput = outputJSON
+	t.Cleanup(func() { resultOutput = outputText })
 
 	result := resultCLIResult{
-		Instance:     "dev",
-		Status:       "completed",
+		Instance:     testInstanceDev,
+		Status:       statusCompleted,
 		MessageCount: 42,
 		Result:       "done",
 	}
@@ -246,11 +246,11 @@ func TestRenderResultOutput_JSON(t *testing.T) {
 		t.Fatalf("output is not valid JSON: %v\ngot:\n%s", err, buf.String())
 	}
 
-	if decoded.Instance != "dev" {
-		t.Errorf("Instance = %q, want %q", decoded.Instance, "dev")
+	if decoded.Instance != testInstanceDev {
+		t.Errorf("Instance = %q, want %q", decoded.Instance, testInstanceDev)
 	}
-	if decoded.Status != "completed" { //nolint:goconst
-		t.Errorf("Status = %q, want %q", decoded.Status, "completed")
+	if decoded.Status != statusCompleted {
+		t.Errorf("Status = %q, want %q", decoded.Status, statusCompleted)
 	}
 	if decoded.MessageCount != 42 {
 		t.Errorf("MessageCount = %d, want %d", decoded.MessageCount, 42)

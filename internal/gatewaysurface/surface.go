@@ -7,6 +7,9 @@
 // has an MCP equivalent and vice versa.
 package gatewaysurface
 
+// kindString is the Flag.Kind value for string-typed inputs.
+const kindString = "string"
+
 // Flag is a single CLI/MCP surface entry. CLIFlag is the Cobra flag name
 // (kebab-case), MCPKey is the MCP input parameter name (camelCase), Kind
 // names the value type ("bool", "int", "string"), and Description is the
@@ -24,13 +27,13 @@ var StartFlags = []Flag{
 	{CLIFlag: "with-agentgateway", MCPKey: "withAgentgateway", Kind: "bool", Description: "Also start agentgateway in front of klaus-gateway."},
 	{CLIFlag: "port", MCPKey: "port", Kind: "int", Description: "Override the klaus-gateway listen port."},
 	{CLIFlag: "agentgateway-port", MCPKey: "agentgatewayPort", Kind: "int", Description: "Override the agentgateway listen port."},
-	{CLIFlag: "klaus-gateway-bin", MCPKey: "klausGatewayBin", Kind: "string", Description: "Path to the klaus-gateway host binary (overrides KLAUS_GATEWAY_BIN)."},
-	{CLIFlag: "agentgateway-bin", MCPKey: "agentgatewayBin", Kind: "string", Description: "Path to the agentgateway host binary (overrides KLAUS_AGENTGATEWAY_BIN)."},
-	{CLIFlag: "log-level", MCPKey: "logLevel", Kind: "string", Description: "Gateway log level (debug, info, warn, error)."},
+	{CLIFlag: "klaus-gateway-bin", MCPKey: "klausGatewayBin", Kind: kindString, Description: "Path to the klaus-gateway host binary (overrides KLAUS_GATEWAY_BIN)."},
+	{CLIFlag: "agentgateway-bin", MCPKey: "agentgatewayBin", Kind: kindString, Description: "Path to the agentgateway host binary (overrides KLAUS_AGENTGATEWAY_BIN)."},
+	{CLIFlag: "log-level", MCPKey: "logLevel", Kind: kindString, Description: "Gateway log level (debug, info, warn, error)."},
 }
 
 // StatusFlags lists the inputs accepted by `gateway status` and the
 // `klaus_gateway_status` MCP tool.
 var StatusFlags = []Flag{
-	{CLIFlag: "output", MCPKey: "output", Kind: "string", Description: `Output format: "text" (default) or "json".`},
+	{CLIFlag: "output", MCPKey: "output", Kind: kindString, Description: `Output format: "text" (default) or "json".`},
 }

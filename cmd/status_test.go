@@ -47,10 +47,10 @@ func TestStatusTextOutputIncludesAgentInfo(t *testing.T) {
 	// Set up a mock HTTP server that returns agent status.
 	agentStatus := map[string]any{
 		"name":    "klaus",
-		"version": "dev",
+		"version": testInstanceDev,
 		"agent": map[string]any{
-			"status":        "busy",
-			"session_id":    "abc-123-def",
+			"status":        statusBusy,
+			"session_id":    testContainerID,
 			"message_count": 42,
 		},
 		"mode": "single-shot",
@@ -73,16 +73,16 @@ func TestStatusTextOutputIncludesAgentInfo(t *testing.T) {
 	// We can't easily run the full command without a real runtime,
 	// so test the formatting helpers and struct directly.
 	info := statusInfo{
-		Instance:     "test",
-		Status:       "running",
+		Instance:     testNameTest,
+		Status:       statusRunning,
 		Container:    "klausctl-test",
-		Runtime:      "docker",
+		Runtime:      testRuntimeDocker,
 		Image:        "ghcr.io/test/image:latest",
 		Workspace:    "/tmp/workspace",
 		MCP:          srv.URL,
 		Uptime:       "5m30s",
-		Agent:        "busy",
-		Session:      "abc-123-def",
+		Agent:        statusBusy,
+		Session:      testContainerID,
 		MessageCount: 42,
 	}
 
@@ -97,10 +97,10 @@ func TestStatusTextOutputIncludesAgentInfo(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if decoded["agent"] != "busy" { //nolint:goconst
+	if decoded["agent"] != statusBusy { //nolint:goconst
 		t.Errorf("expected agent=busy, got %v", decoded["agent"])
 	}
-	if decoded["session"] != "abc-123-def" {
+	if decoded["session"] != testContainerID {
 		t.Errorf("expected session field, got %v", decoded["session"])
 	}
 	if int(decoded["message_count"].(float64)) != 42 {
@@ -110,15 +110,15 @@ func TestStatusTextOutputIncludesAgentInfo(t *testing.T) {
 
 func TestStatusJSONOutputIncludesAgentFields(t *testing.T) {
 	info := statusInfo{
-		Instance:     "dev",
-		Status:       "running",
-		Container:    "klausctl-dev",
-		Runtime:      "docker",
-		Image:        "test:latest",
-		Workspace:    "/tmp",
+		Instance:     testInstanceDev,
+		Status:       statusRunning,
+		Container:    testContainerName,
+		Runtime:      testRuntimeDocker,
+		Image:        testImageRef,
+		Workspace:    testWorkspaceRoot,
 		MCP:          "http://localhost:8082",
 		Uptime:       "1h0m",
-		Agent:        "idle",
+		Agent:        statusIdle,
 		Session:      "sess-456",
 		MessageCount: 0,
 	}
@@ -135,7 +135,7 @@ func TestStatusJSONOutputIncludesAgentFields(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if decoded["agent"] != "idle" {
+	if decoded["agent"] != statusIdle {
 		t.Errorf("expected agent=idle, got %v", decoded["agent"])
 	}
 	if decoded["session"] != "sess-456" {
@@ -145,12 +145,12 @@ func TestStatusJSONOutputIncludesAgentFields(t *testing.T) {
 
 func TestStatusAgentFieldOmittedWhenEmpty(t *testing.T) {
 	info := statusInfo{
-		Instance:  "dev",
-		Status:    "stopped",
-		Container: "klausctl-dev",
-		Runtime:   "docker",
-		Image:     "test:latest",
-		Workspace: "/tmp",
+		Instance:  testInstanceDev,
+		Status:    statusStopped,
+		Container: testContainerName,
+		Runtime:   testRuntimeDocker,
+		Image:     testImageRef,
+		Workspace: testWorkspaceRoot,
 	}
 
 	data, err := json.Marshal(info)
@@ -180,15 +180,15 @@ func TestStatusTextRenderingOrder(t *testing.T) {
 	out := &buf
 
 	info := statusInfo{
-		Instance:     "test",
-		Status:       "running",
+		Instance:     testNameTest,
+		Status:       statusRunning,
 		Container:    "klausctl-test",
-		Runtime:      "docker",
-		Image:        "test:latest",
-		Workspace:    "/tmp",
+		Runtime:      testRuntimeDocker,
+		Image:        testImageRef,
+		Workspace:    testWorkspaceRoot,
 		MCP:          "http://localhost:8082",
 		Uptime:       "5m0s",
-		Agent:        "busy",
+		Agent:        statusBusy,
 		Session:      "session-id-123",
 		MessageCount: 10,
 	}
@@ -261,12 +261,12 @@ func TestStatusStoppedNoAgentOutput(t *testing.T) {
 	cmd.SetErr(io.Discard)
 
 	info := statusInfo{
-		Instance:  "dev",
-		Status:    "stopped",
-		Container: "klausctl-dev",
-		Runtime:   "docker",
-		Image:     "test:latest",
-		Workspace: "/tmp",
+		Instance:  testInstanceDev,
+		Status:    statusStopped,
+		Container: testContainerName,
+		Runtime:   testRuntimeDocker,
+		Image:     testImageRef,
+		Workspace: testWorkspaceRoot,
 	}
 
 	// Simulate the text rendering for a stopped instance.

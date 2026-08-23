@@ -93,7 +93,7 @@ func TestStreamRemoteCompletionEndToEnd(t *testing.T) {
 	rec := remote.AuthRecord{
 		ServerURL:    gw.URL,
 		AccessToken:  "tok-1",
-		RefreshToken: "rt-1",
+		RefreshToken: testTargetRT1,
 		ExpiresAt:    time.Now().Add(30 * time.Minute),
 	}
 	if err := store.Put(rec); err != nil {
@@ -103,12 +103,12 @@ func TestStreamRemoteCompletionEndToEnd(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	target, resStore, resRec, err := resolveRemoteTarget(ctx, gw.URL, "dev", "sess-1", paths)
+	target, resStore, resRec, err := resolveRemoteTarget(ctx, gw.URL, testInstanceDev, "sess-1", paths)
 	if err != nil {
 		t.Fatalf("resolveRemoteTarget: %v", err)
 	}
 
-	ch, err := streamRemoteCompletion(ctx, gw.Client(), &target, resStore, resRec, "hello")
+	ch, err := streamRemoteCompletion(ctx, gw.Client(), &target, resStore, resRec, testHello)
 	if err != nil {
 		t.Fatalf("streamRemoteCompletion: %v", err)
 	}
@@ -165,7 +165,7 @@ func TestStreamRemoteCompletionRefreshesOn401(t *testing.T) {
 	rec := remote.AuthRecord{
 		ServerURL:     gw.URL,
 		AccessToken:   "stale-token",
-		RefreshToken:  "rt-1",
+		RefreshToken:  testTargetRT1,
 		TokenEndpoint: tokenSrv.URL,
 		ExpiresAt:     time.Now().Add(30 * time.Minute),
 	}
@@ -176,12 +176,12 @@ func TestStreamRemoteCompletionRefreshesOn401(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	target, resStore, resRec, err := resolveRemoteTarget(ctx, gw.URL, "dev", "sess-retry", paths)
+	target, resStore, resRec, err := resolveRemoteTarget(ctx, gw.URL, testInstanceDev, "sess-retry", paths)
 	if err != nil {
 		t.Fatalf("resolveRemoteTarget: %v", err)
 	}
 
-	ch, err := streamRemoteCompletion(ctx, gw.Client(), &target, resStore, resRec, "hello")
+	ch, err := streamRemoteCompletion(ctx, gw.Client(), &target, resStore, resRec, testHello)
 	if err != nil {
 		t.Fatalf("streamRemoteCompletion: %v", err)
 	}
@@ -225,7 +225,7 @@ func TestResolveRemoteTargetProactiveRefresh(t *testing.T) {
 	expired := remote.AuthRecord{
 		ServerURL:     "https://gw.example.com",
 		AccessToken:   "about-to-expire",
-		RefreshToken:  "rt-1",
+		RefreshToken:  testTargetRT1,
 		TokenEndpoint: tokenSrv.URL,
 		ExpiresAt:     time.Now().Add(5 * time.Second), // within 60s leeway
 	}
@@ -236,7 +236,7 @@ func TestResolveRemoteTargetProactiveRefresh(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	target, _, rec, err := resolveRemoteTarget(ctx, "https://gw.example.com", "dev", "", paths)
+	target, _, rec, err := resolveRemoteTarget(ctx, "https://gw.example.com", testInstanceDev, "", paths)
 	if err != nil {
 		t.Fatalf("resolveRemoteTarget: %v", err)
 	}
@@ -261,7 +261,7 @@ func TestResolveRemoteTargetNoAuthRecord(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	target, _, rec, err := resolveRemoteTarget(ctx, "https://gw.example.com", "dev", "", paths)
+	target, _, rec, err := resolveRemoteTarget(ctx, "https://gw.example.com", testInstanceDev, "", paths)
 	if err != nil {
 		t.Fatalf("resolveRemoteTarget without stored auth: %v", err)
 	}

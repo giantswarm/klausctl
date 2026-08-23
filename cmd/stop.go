@@ -89,12 +89,12 @@ func runStop(cmd *cobra.Command, args []string) error {
 	}
 
 	// Archive transcript before stopping.
-	if status == "running" && !stopNoArchive { //nolint:goconst
+	if status == statusRunning && !stopNoArchive {
 		archiveBeforeStop(ctx, inst, paths)
 	}
 
 	// Stop the container if running.
-	if status == "running" {
+	if status == statusRunning {
 		_, _ = fmt.Fprintf(out, "Stopping %s...\n", containerName)
 		if err := rt.Stop(ctx, containerName); err != nil {
 			return fmt.Errorf("stopping container: %w", err)
@@ -142,10 +142,10 @@ func stopAllInstances(ctx context.Context, out io.Writer, paths *config.Paths) e
 			continue
 		}
 		// Archive before stopping.
-		if status == "running" && !stopNoArchive {
+		if status == statusRunning && !stopNoArchive {
 			archiveBeforeStop(ctx, inst, paths)
 		}
-		if status == "running" {
+		if status == statusRunning {
 			_, _ = fmt.Fprintf(out, "Stopping %s...\n", name)
 			if err := rt.Stop(ctx, name); err != nil {
 				return fmt.Errorf("stopping %s: %w", name, err)

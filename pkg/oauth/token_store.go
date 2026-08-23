@@ -13,6 +13,12 @@ import (
 	"time"
 )
 
+// Token status values reported in TokenStatusInfo.Status.
+const (
+	tokenStatusValid   = "valid"
+	tokenStatusExpired = "expired"
+)
+
 // nowFunc is overridable in tests to control time.
 var nowFunc = time.Now
 
@@ -135,9 +141,9 @@ func (s *TokenStore) ListTokens() ([]TokenStatus, error) {
 		}
 
 		if st.IsExpired() {
-			status.Status = "expired"
+			status.Status = tokenStatusExpired
 		} else {
-			status.Status = "valid"
+			status.Status = tokenStatusValid
 		}
 
 		if st.Token.ExpiresIn > 0 {

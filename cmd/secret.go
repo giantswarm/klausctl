@@ -38,7 +38,7 @@ The value can be provided inline with --value or piped via stdin:
 }
 
 var secretListCmd = &cobra.Command{
-	Use:   "list",
+	Use:   useList,
 	Short: "List secret names",
 	Long:  `List all stored secret names. Values are never displayed.`,
 	Args:  cobra.NoArgs,

@@ -26,7 +26,7 @@ plugins:
 `
 
 func TestPersonalitySubcommandsRegistered(t *testing.T) {
-	assertSubcommandsRegistered(t, personalityCmd, []string{"validate", "pull", "push", "list", "describe"})
+	assertSubcommandsRegistered(t, personalityCmd, []string{testSubcmdValidate, testSubcmdPull, testSubcmdPush, useList, testSubcmdDescribe})
 }
 
 func TestPersonalityCommandRegisteredOnRoot(t *testing.T) {
@@ -39,7 +39,7 @@ func TestValidatePersonalityDirValid(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := validatePersonalityDir(dir, io.Discard, "text"); err != nil {
+	if err := validatePersonalityDir(dir, io.Discard, outputText); err != nil {
 		t.Errorf("validatePersonalityDir() error = %v", err)
 	}
 }
@@ -50,7 +50,7 @@ func TestValidatePersonalityDirMinimal(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := validatePersonalityDir(dir, io.Discard, "text"); err != nil {
+	if err := validatePersonalityDir(dir, io.Discard, outputText); err != nil {
 		t.Errorf("validatePersonalityDir() error = %v", err)
 	}
 }
@@ -58,7 +58,7 @@ func TestValidatePersonalityDirMinimal(t *testing.T) {
 func TestValidatePersonalityDirMissingSpec(t *testing.T) {
 	dir := t.TempDir()
 
-	err := validatePersonalityDir(dir, io.Discard, "text")
+	err := validatePersonalityDir(dir, io.Discard, outputText)
 	if err == nil {
 		t.Fatal("expected error for missing personality.yaml")
 	}
@@ -73,7 +73,7 @@ func TestValidatePersonalityDirInvalidYAML(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err := validatePersonalityDir(dir, io.Discard, "text")
+	err := validatePersonalityDir(dir, io.Discard, outputText)
 	if err == nil {
 		t.Fatal("expected error for invalid YAML")
 	}
@@ -97,7 +97,7 @@ func TestValidatePersonalityDirTextOutput(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	if err := validatePersonalityDir(dir, &buf, "text"); err != nil {
+	if err := validatePersonalityDir(dir, &buf, outputText); err != nil {
 		t.Fatalf("validatePersonalityDir() error = %v", err)
 	}
 
@@ -117,7 +117,7 @@ func TestValidatePersonalityDirJSONOutput(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	if err := validatePersonalityDir(dir, &buf, "json"); err != nil {
+	if err := validatePersonalityDir(dir, &buf, outputJSON); err != nil {
 		t.Fatalf("validatePersonalityDir() error = %v", err)
 	}
 
@@ -167,7 +167,7 @@ func TestResolvePersonalityDepsCollectsAllErrors(t *testing.T) {
 	cancel()
 
 	spec := klausoci.Personality{
-		Name: "test",
+		Name: testNameTest,
 		Toolchain: klausoci.ToolchainReference{
 			Repository: "localhost:1/toolchains/go",
 		},
@@ -204,12 +204,12 @@ func TestPrintResolvedDeps(t *testing.T) {
 	deps := &klausoci.ResolvedDependencies{
 		Toolchain: &klausoci.DescribedToolchain{
 			ArtifactInfo: klausoci.ArtifactInfo{Digest: "sha256:tc123"},
-			Toolchain:    klausoci.Toolchain{Name: "go", Version: "v1.0.0"},
+			Toolchain:    klausoci.Toolchain{Name: "go", Version: testVersionV100},
 		},
 		Plugins: []klausoci.DescribedPlugin{
 			{
 				ArtifactInfo: klausoci.ArtifactInfo{Digest: "sha256:p1"},
-				Plugin:       klausoci.Plugin{Name: "gs-base", Version: "v0.1.0"},
+				Plugin:       klausoci.Plugin{Name: testPluginGSBase, Version: testVersion010},
 			},
 		},
 		Warnings: []string{"plugin gs-sre: not found"},
@@ -235,10 +235,10 @@ func TestPrintIndentedMeta(t *testing.T) {
 	var buf bytes.Buffer
 	printIndentedMeta(&buf, artifactMeta{
 		Name:        "go",
-		Version:     "v1.0.0",
+		Version:     testVersionV100,
 		Description: "Go toolchain",
 		Author:      "GS",
-		Digest:      "sha256:abc",
+		Digest:      testDigestABC,
 	})
 	output := buf.String()
 

@@ -19,8 +19,14 @@ import (
 	"github.com/giantswarm/klausctl/pkg/orchestrator"
 )
 
+// Output format values accepted by --output flags.
+const (
+	outputText = "text"
+	outputJSON = "json"
+)
+
 // validOutputFormats lists the accepted values for --output flags.
-var validOutputFormats = []string{"text", "json"}
+var validOutputFormats = []string{outputText, outputJSON}
 
 // validateOutputFormat returns an error if format is not a recognised output format.
 func validateOutputFormat(format string) error {
@@ -104,7 +110,7 @@ func pullArtifact(ctx context.Context, ref string, cacheDir string, pull pullFn,
 		return err
 	}
 
-	if outputFmt == "json" { //nolint:goconst
+	if outputFmt == outputJSON {
 		enc := json.NewEncoder(out)
 		enc.SetIndent("", "  ")
 		return enc.Encode(pullResult{
@@ -178,7 +184,7 @@ func listLatestRemoteArtifacts(ctx context.Context, cacheDir, registryBase strin
 // printRemoteArtifacts prints remote artifacts in table or JSON format.
 // When any entry has a Source field set, a SOURCE column is shown.
 func printRemoteArtifacts(out io.Writer, entries []remoteArtifactEntry, outputFmt string) error {
-	if outputFmt == "json" {
+	if outputFmt == outputJSON {
 		enc := json.NewEncoder(out)
 		enc.SetIndent("", "  ")
 		return enc.Encode(entries)
@@ -284,7 +290,7 @@ func listMultiSourceRemoteArtifacts(ctx context.Context, out io.Writer, cacheDir
 // printEmpty writes an empty result. For JSON, it emits []; for text, it
 // prints the provided hint lines.
 func printEmpty(out io.Writer, outputFmt string, hints ...string) error {
-	if outputFmt == "json" {
+	if outputFmt == outputJSON {
 		_, _ = fmt.Fprintln(out, "[]")
 		return nil
 	}
@@ -296,7 +302,7 @@ func printEmpty(out io.Writer, outputFmt string, hints ...string) error {
 
 // printLocalArtifacts prints locally cached artifacts in table or JSON format.
 func printLocalArtifacts(out io.Writer, artifacts []cachedArtifact, outputFmt string) error {
-	if outputFmt == "json" {
+	if outputFmt == outputJSON {
 		enc := json.NewEncoder(out)
 		enc.SetIndent("", "  ")
 		return enc.Encode(artifacts)
@@ -364,7 +370,7 @@ func pushArtifact(ctx context.Context, sourceDir, ref string, push pushFn, out i
 	}
 
 	if opts.dryRun {
-		if outputFmt == "json" {
+		if outputFmt == outputJSON {
 			enc := json.NewEncoder(out)
 			enc.SetIndent("", "  ")
 			return enc.Encode(pushResult{
@@ -382,7 +388,7 @@ func pushArtifact(ctx context.Context, sourceDir, ref string, push pushFn, out i
 		return err
 	}
 
-	if outputFmt == "json" {
+	if outputFmt == outputJSON {
 		enc := json.NewEncoder(out)
 		enc.SetIndent("", "  ")
 		return enc.Encode(pushResult{
@@ -628,7 +634,7 @@ func newDescribeToolchainJSON(dt *klausoci.DescribedToolchain) describeToolchain
 // formatAge returns a human-readable age string from a timestamp.
 func formatAge(t time.Time) string {
 	if t.IsZero() {
-		return "unknown"
+		return unknownValue
 	}
 	d := time.Since(t)
 	switch {
