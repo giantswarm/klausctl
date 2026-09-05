@@ -66,11 +66,11 @@ func TestResultUnreachable(t *testing.T) {
 	}
 }
 
-func TestInvalidateSession(t *testing.T) {
+func TestEvictSessionMissing(t *testing.T) {
 	c := New("test")
 	defer c.Close()
 
-	c.invalidateSession("nonexistent")
+	c.evictSession("nonexistent", nil)
 	if len(c.sessions) != 0 {
 		t.Errorf("expected empty sessions")
 	}
