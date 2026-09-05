@@ -3,11 +3,15 @@ package cmd
 import (
 	"bytes"
 	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/mark3labs/mcp-go/mcp"
 )
+
+// testFinalText is an agent's final message as reported in result_text.
+const testFinalText = "Merged the Renovate PR; CI green."
 
 func TestParseResultResponse(t *testing.T) {
 	tests := []struct {
@@ -116,6 +120,24 @@ func TestParseResultResponse(t *testing.T) {
 			},
 		},
 		{
+			name: "idle agent with final text and pr_urls",
+			result: &mcp.CallToolResult{
+				Content: []mcp.Content{
+					mcp.TextContent{
+						Type: "text",
+						Text: `{"status":"idle","message_count":661,"result_text":"Merged the Renovate PR; CI green.","pr_urls":["https://github.com/giantswarm/klausctl/pull/331"],"total_cost_usd":7.36}`,
+					},
+				},
+			},
+			wantCLI: resultCLIResult{
+				Instance:     testInstanceDev,
+				Status:       statusIdle,
+				MessageCount: 661,
+				Result:       testFinalText,
+				PRURLs:       []string{"https://github.com/giantswarm/klausctl/pull/331"},
+			},
+		},
+		{
 			name: "error status from agent JSON",
 			result: &mcp.CallToolResult{
 				Content: []mcp.Content{
@@ -148,6 +170,9 @@ func TestParseResultResponse(t *testing.T) {
 			}
 			if got.Result != tt.wantCLI.Result {
 				t.Errorf("Result = %q, want %q", got.Result, tt.wantCLI.Result)
+			}
+			if !reflect.DeepEqual(got.PRURLs, tt.wantCLI.PRURLs) {
+				t.Errorf("PRURLs = %v, want %v", got.PRURLs, tt.wantCLI.PRURLs)
 			}
 		})
 	}
@@ -202,6 +227,22 @@ func TestRenderResultOutput_Text(t *testing.T) {
 				testInstanceHeader,
 				"Status:   idle",
 				"Messages: 0",
+			},
+		},
+		{
+			name: "idle with final text and pull requests",
+			result: resultCLIResult{
+				Instance:     testInstanceDev,
+				Status:       statusIdle,
+				MessageCount: 661,
+				Result:       testFinalText,
+				PRURLs:       []string{"https://github.com/giantswarm/klausctl/pull/331"},
+			},
+			contains: []string{
+				"Status:   idle",
+				testFinalText,
+				"Pull requests created or pushed to:",
+				"  https://github.com/giantswarm/klausctl/pull/331",
 			},
 		},
 	}

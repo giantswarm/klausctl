@@ -42,10 +42,11 @@ func init() {
 }
 
 type resultCLIResult struct {
-	Instance     string `json:"instance"`
-	Status       string `json:"status"`
-	MessageCount int    `json:"message_count"`
-	Result       string `json:"result,omitempty"`
+	Instance     string   `json:"instance"`
+	Status       string   `json:"status"`
+	MessageCount int      `json:"message_count"`
+	Result       string   `json:"result,omitempty"`
+	PRURLs       []string `json:"pr_urls,omitempty"`
 }
 
 // fullResultCLIResult includes all fields from the agent's full result
@@ -68,10 +69,13 @@ type fullResultCLIResult struct {
 
 // agentResultResponse represents the JSON payload returned by the agent's
 // result MCP tool. Fields are extracted to populate resultCLIResult.
+// result_text is the agent's final message for the last turn; pr_urls lists
+// the pull requests that turn created or pushed to.
 type agentResultResponse struct {
-	Status       string `json:"status"`
-	MessageCount int    `json:"message_count"`
-	ResultText   string `json:"result_text"`
+	Status       string   `json:"status"`
+	MessageCount int      `json:"message_count"`
+	ResultText   string   `json:"result_text"`
+	PRURLs       []string `json:"pr_urls"`
 }
 
 func runResult(cmd *cobra.Command, args []string) error {
@@ -154,6 +158,7 @@ func parseResultResponse(instanceName string, toolResult *mcp.CallToolResult) re
 			Status:       parsed.Status,
 			MessageCount: parsed.MessageCount,
 			Result:       parsed.ResultText,
+			PRURLs:       parsed.PRURLs,
 		}
 	}
 
@@ -177,8 +182,16 @@ func renderResultOutput(out io.Writer, result resultCLIResult) error {
 	_, _ = fmt.Fprintf(out, "Messages: %d\n", result.MessageCount)
 	if result.Status == statusBusy {
 		_, _ = fmt.Fprintf(out, "\nAgent is still processing the prompt.\nRun 'klausctl result %s' again to check for updates.\n", result.Instance)
-	} else if result.Result != "" {
+		return nil
+	}
+	if result.Result != "" {
 		_, _ = fmt.Fprintf(out, "\n%s\n", result.Result)
+	}
+	if len(result.PRURLs) > 0 {
+		_, _ = fmt.Fprintf(out, "\nPull requests created or pushed to:\n")
+		for _, url := range result.PRURLs {
+			_, _ = fmt.Fprintf(out, "  %s\n", url)
+		}
 	}
 	return nil
 }

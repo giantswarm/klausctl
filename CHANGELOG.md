@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+### Fixed
+
+- `klaus_prompt` with `blocking=true` returned the agent's whole result JSON payload as `result`; it now returns the agent's final message (`result_text`). `klausctl result` and `klaus_result` expose `pr_urls` (pull requests the run created or pushed to) alongside `result_text`, and the text output lists them. The empty `result_text` for `klausctl prompt`/`klausctl run` sessions itself is fixed in the klaus base image (giantswarm/klaus), which klausctl passes through; see [#269](https://github.com/giantswarm/klausctl/issues/269).
+
 ### Changed
 
 - Release binaries now include darwin/amd64, darwin/arm64, windows/amd64, and windows/arm64 alongside the existing linux targets. Windows binaries are named `klausctl-windows-<arch>.exe`.
