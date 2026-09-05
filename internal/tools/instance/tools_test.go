@@ -11,7 +11,6 @@ import (
 
 	"github.com/mark3labs/mcp-go/mcp"
 	mcpserver "github.com/mark3labs/mcp-go/server"
-	"gopkg.in/yaml.v3"
 
 	"github.com/giantswarm/klausctl/internal/server"
 	"github.com/giantswarm/klausctl/pkg/config"
@@ -37,15 +36,6 @@ const (
 	testValueYes        = "yes"
 	testUUIDTagged      = "tagged"
 )
-
-// hideContainerRuntimes points PATH at an empty directory so runtime auto
-// detection (which uses exec.LookPath for docker/podman) fails. Use this in
-// tests that assert on the "no runtime available" failure path; otherwise the
-// outcome depends on whether docker/podman happen to be installed on the host.
-func hideContainerRuntimes(t *testing.T) {
-	t.Helper()
-	t.Setenv("PATH", t.TempDir())
-}
 
 func testServerContext(t *testing.T) *server.ServerContext {
 	t.Helper()
@@ -192,46 +182,30 @@ func TestHandleCreatePortConflict(t *testing.T) {
 
 func TestHandleCreateCustomPort(t *testing.T) {
 	sc := testServerContext(t)
+	useFakeRuntime(t)
 
 	workspace := filepath.Join(t.TempDir(), "ws")
 	if err := os.MkdirAll(workspace, 0o750); err != nil {
 		t.Fatal(err)
 	}
 
+	port := freePort(t)
 	req := callToolRequest(map[string]any{
-		paramName:      "portcustom",
-		paramWorkspace: workspace,
-		paramPort:      float64(9999),
+		paramName:           "portcustom",
+		paramGenerateSuffix: false,
+		paramWorkspace:      workspace,
+		paramPort:           float64(port),
 	})
 	result, err := handleCreate(context.Background(), req, sc)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// The create will fail because there's no container runtime in test, but
-	// the config file should be written before that stage. Verify port was
-	// correctly wired through.
-	configPath := filepath.Join(sc.Paths.InstancesDir, "portcustom", "config.yaml")
-	data, readErr := os.ReadFile(configPath) // #nosec G304 -- user-supplied or trusted local path; not exposed to untrusted input
-	if readErr != nil {
-		// Config was not written; verify at minimum that the error is not a port error.
-		if result.IsError {
-			text := extractResultText(t, result)
-			if strings.Contains(text, "already used") || strings.Contains(text, "port must be") {
-				t.Fatalf("unexpected port error: %s", text)
-			}
-		}
-		return
-	}
-
-	var cfgMap map[string]any
-	if err := yaml.Unmarshal(data, &cfgMap); err != nil {
-		t.Fatalf("failed to parse config: %v", err)
-	}
-	if port, ok := cfgMap[paramPort]; !ok {
+	cfgMap := readInstanceConfig(t, sc, result, "portcustom")
+	if got, ok := cfgMap[paramPort]; !ok {
 		t.Fatal("port not found in config")
-	} else if portInt, ok := port.(int); !ok || portInt != 9999 {
-		t.Fatalf("expected port 9999 in config, got %v", port)
+	} else if gotInt, ok := got.(int); !ok || gotInt != port {
+		t.Fatalf("expected port %d in config, got %v", port, got)
 	}
 }
 
@@ -351,7 +325,7 @@ func TestHandleCreateMCPCollisionStoppedWithoutConfirm(t *testing.T) {
 
 func TestHandleCreateMCPCollisionStoppedWithConfirm(t *testing.T) {
 	sc := testServerContext(t)
-	hideContainerRuntimes(t)
+	useFakeRuntime(t)
 
 	workspace := filepath.Join(t.TempDir(), "ws")
 	if err := os.MkdirAll(workspace, 0o750); err != nil {
@@ -381,23 +355,18 @@ func TestHandleCreateMCPCollisionStoppedWithConfirm(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// The old directory should have been cleaned up. Create will fail at
-	// startExistingInstance (no runtime), but old state should be gone.
+	// The old directory is cleaned up and the new instance starts in its place.
 	if _, err := os.Stat(markerFile); !os.IsNotExist(err) {
 		t.Fatal("expected old marker file to be removed by collision cleanup")
 	}
-
-	// Should still get an error (from no runtime), but not a collision error.
-	assertIsError(t, result)
-	text := extractResultText(t, result)
-	if strings.Contains(text, "already exists") {
-		t.Fatalf("should not get collision error after confirm, got: %s", text)
+	if result.IsError {
+		t.Fatalf("expected create to succeed after confirm, got: %s", extractResultText(t, result))
 	}
 }
 
 func TestHandleCreateMCPCollisionSuffixAvoidsCollision(t *testing.T) {
 	sc := testServerContext(t)
-	hideContainerRuntimes(t)
+	useFakeRuntime(t)
 
 	workspace := filepath.Join(t.TempDir(), "ws")
 	if err := os.MkdirAll(workspace, 0o750); err != nil {
@@ -424,16 +393,22 @@ func TestHandleCreateMCPCollisionSuffixAvoidsCollision(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// Should fail at runtime (no Docker), not at collision.
-	assertIsError(t, result)
-	text := extractResultText(t, result)
-	if strings.Contains(text, "already exists") || strings.Contains(text, "confirm") {
-		t.Fatalf("expected runtime error not collision error, got: %s", text)
+	// The suffixed name must not collide with the existing "myinst".
+	if result.IsError {
+		t.Fatalf("expected create to succeed with a suffixed name, got: %s", extractResultText(t, result))
+	}
+	var created createResult
+	if err := json.Unmarshal([]byte(extractResultText(t, result)), &created); err != nil {
+		t.Fatalf("expected JSON create result: %v", err)
+	}
+	if !strings.HasPrefix(created.Instance, "myinst-") {
+		t.Fatalf("expected a suffixed instance name, got %q", created.Instance)
 	}
 }
 
 func TestHandleCreateGitAuthor(t *testing.T) {
 	sc := testServerContext(t)
+	useFakeRuntime(t)
 
 	workspace := filepath.Join(t.TempDir(), "ws")
 	if err := os.MkdirAll(workspace, 0o750); err != nil {
@@ -441,31 +416,17 @@ func TestHandleCreateGitAuthor(t *testing.T) {
 	}
 
 	req := callToolRequest(map[string]any{
-		paramName:      "gitauthor",
-		paramWorkspace: workspace,
-		paramGitAuthor: "Test User <test@example.com>",
+		paramName:           "gitauthor",
+		paramGenerateSuffix: false,
+		paramWorkspace:      workspace,
+		paramGitAuthor:      "Test User <test@example.com>",
 	})
 	result, err := handleCreate(context.Background(), req, sc)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	configPath := filepath.Join(sc.Paths.InstancesDir, "gitauthor", "config.yaml")
-	data, readErr := os.ReadFile(configPath) // #nosec G304 -- user-supplied or trusted local path; not exposed to untrusted input
-	if readErr != nil {
-		if result.IsError {
-			text := extractResultText(t, result)
-			if strings.Contains(text, paramGitAuthor) {
-				t.Fatalf("unexpected git author error: %s", text)
-			}
-		}
-		return
-	}
-
-	var cfgMap map[string]any
-	if err := yaml.Unmarshal(data, &cfgMap); err != nil {
-		t.Fatalf("failed to parse config: %v", err)
-	}
+	cfgMap := readInstanceConfig(t, sc, result, "gitauthor")
 	git, ok := cfgMap["git"].(map[string]any)
 	if !ok {
 		t.Fatal("git section not found in config")
@@ -505,6 +466,7 @@ func TestHandleCreateGitAuthorInvalidFormat(t *testing.T) {
 
 func TestHandleCreateGitCredentialHelper(t *testing.T) {
 	sc := testServerContext(t)
+	useFakeRuntime(t)
 
 	workspace := filepath.Join(t.TempDir(), "ws")
 	if err := os.MkdirAll(workspace, 0o750); err != nil {
@@ -513,6 +475,7 @@ func TestHandleCreateGitCredentialHelper(t *testing.T) {
 
 	req := callToolRequest(map[string]any{
 		paramName:             "gitcred",
+		paramGenerateSuffix:   false,
 		paramWorkspace:        workspace,
 		"gitCredentialHelper": "gh",
 	})
@@ -521,22 +484,7 @@ func TestHandleCreateGitCredentialHelper(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	configPath := filepath.Join(sc.Paths.InstancesDir, "gitcred", "config.yaml")
-	data, readErr := os.ReadFile(configPath) // #nosec G304 -- user-supplied or trusted local path; not exposed to untrusted input
-	if readErr != nil {
-		if result.IsError {
-			text := extractResultText(t, result)
-			if strings.Contains(text, "credential") {
-				t.Fatalf("unexpected credential helper error: %s", text)
-			}
-		}
-		return
-	}
-
-	var cfgMap map[string]any
-	if err := yaml.Unmarshal(data, &cfgMap); err != nil {
-		t.Fatalf("failed to parse config: %v", err)
-	}
+	cfgMap := readInstanceConfig(t, sc, result, "gitcred")
 	git, ok := cfgMap["git"].(map[string]any)
 	if !ok {
 		t.Fatal("git section not found in config")
@@ -548,6 +496,7 @@ func TestHandleCreateGitCredentialHelper(t *testing.T) {
 
 func TestHandleCreateGitHttpsInsteadOfSsh(t *testing.T) {
 	sc := testServerContext(t)
+	useFakeRuntime(t)
 
 	workspace := filepath.Join(t.TempDir(), "ws")
 	if err := os.MkdirAll(workspace, 0o750); err != nil {
@@ -556,6 +505,7 @@ func TestHandleCreateGitHttpsInsteadOfSsh(t *testing.T) {
 
 	req := callToolRequest(map[string]any{
 		paramName:              "githttps",
+		paramGenerateSuffix:    false,
 		paramWorkspace:         workspace,
 		"gitHttpsInsteadOfSsh": true,
 	})
@@ -564,22 +514,7 @@ func TestHandleCreateGitHttpsInsteadOfSsh(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	configPath := filepath.Join(sc.Paths.InstancesDir, "githttps", "config.yaml")
-	data, readErr := os.ReadFile(configPath) // #nosec G304 -- user-supplied or trusted local path; not exposed to untrusted input
-	if readErr != nil {
-		if result.IsError {
-			text := extractResultText(t, result)
-			if strings.Contains(text, "https") || strings.Contains(text, "SSH") {
-				t.Fatalf("unexpected git HTTPS error: %s", text)
-			}
-		}
-		return
-	}
-
-	var cfgMap map[string]any
-	if err := yaml.Unmarshal(data, &cfgMap); err != nil {
-		t.Fatalf("failed to parse config: %v", err)
-	}
+	cfgMap := readInstanceConfig(t, sc, result, "githttps")
 	git, ok := cfgMap["git"].(map[string]any)
 	if !ok {
 		t.Fatal("git section not found in config")
@@ -591,6 +526,7 @@ func TestHandleCreateGitHttpsInsteadOfSsh(t *testing.T) {
 
 func TestHandleCreateModeChat(t *testing.T) {
 	sc := testServerContext(t)
+	useFakeRuntime(t)
 
 	workspace := filepath.Join(t.TempDir(), "ws")
 	if err := os.MkdirAll(workspace, 0o750); err != nil {
@@ -598,31 +534,17 @@ func TestHandleCreateModeChat(t *testing.T) {
 	}
 
 	req := callToolRequest(map[string]any{
-		paramName:      "chatmode",
-		paramWorkspace: workspace,
-		"mode":         "chat",
+		paramName:           "chatmode",
+		paramGenerateSuffix: false,
+		paramWorkspace:      workspace,
+		"mode":              "chat",
 	})
 	result, err := handleCreate(context.Background(), req, sc)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	configPath := filepath.Join(sc.Paths.InstancesDir, "chatmode", "config.yaml")
-	data, readErr := os.ReadFile(configPath) // #nosec G304 -- user-supplied or trusted local path; not exposed to untrusted input
-	if readErr != nil {
-		if result.IsError {
-			text := extractResultText(t, result)
-			if strings.Contains(text, "mode") {
-				t.Fatalf("unexpected mode error: %s", text)
-			}
-		}
-		return
-	}
-
-	var cfgMap map[string]any
-	if err := yaml.Unmarshal(data, &cfgMap); err != nil {
-		t.Fatalf("failed to parse config: %v", err)
-	}
+	cfgMap := readInstanceConfig(t, sc, result, "chatmode")
 	claude, ok := cfgMap["claude"].(map[string]any)
 	if !ok {
 		t.Fatal("claude section not found in config")
@@ -634,6 +556,7 @@ func TestHandleCreateModeChat(t *testing.T) {
 
 func TestHandleCreateModeDefaultAgent(t *testing.T) {
 	sc := testServerContext(t)
+	useFakeRuntime(t)
 
 	workspace := filepath.Join(t.TempDir(), "ws")
 	if err := os.MkdirAll(workspace, 0o750); err != nil {
@@ -641,30 +564,16 @@ func TestHandleCreateModeDefaultAgent(t *testing.T) {
 	}
 
 	req := callToolRequest(map[string]any{
-		paramName:      "agentmode",
-		paramWorkspace: workspace,
+		paramName:           "agentmode",
+		paramGenerateSuffix: false,
+		paramWorkspace:      workspace,
 	})
 	result, err := handleCreate(context.Background(), req, sc)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	configPath := filepath.Join(sc.Paths.InstancesDir, "agentmode", "config.yaml")
-	data, readErr := os.ReadFile(configPath) // #nosec G304 -- user-supplied or trusted local path; not exposed to untrusted input
-	if readErr != nil {
-		if result.IsError {
-			text := extractResultText(t, result)
-			if strings.Contains(text, "mode") {
-				t.Fatalf("unexpected mode error: %s", text)
-			}
-		}
-		return
-	}
-
-	var cfgMap map[string]any
-	if err := yaml.Unmarshal(data, &cfgMap); err != nil {
-		t.Fatalf("failed to parse config: %v", err)
-	}
+	cfgMap := readInstanceConfig(t, sc, result, "agentmode")
 	claude, ok := cfgMap["claude"].(map[string]any)
 	if !ok {
 		t.Fatal("claude section not found in config")
@@ -676,6 +585,7 @@ func TestHandleCreateModeDefaultAgent(t *testing.T) {
 
 func TestHandleCreateAllGitParams(t *testing.T) {
 	sc := testServerContext(t)
+	useFakeRuntime(t)
 
 	workspace := filepath.Join(t.TempDir(), "ws")
 	if err := os.MkdirAll(workspace, 0o750); err != nil {
@@ -684,6 +594,7 @@ func TestHandleCreateAllGitParams(t *testing.T) {
 
 	req := callToolRequest(map[string]any{
 		paramName:              "gitall",
+		paramGenerateSuffix:    false,
 		paramWorkspace:         workspace,
 		paramGitAuthor:         "Dev User <dev@example.com>",
 		"gitCredentialHelper":  "gh",
@@ -694,22 +605,7 @@ func TestHandleCreateAllGitParams(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	configPath := filepath.Join(sc.Paths.InstancesDir, "gitall", "config.yaml")
-	data, readErr := os.ReadFile(configPath) // #nosec G304 -- user-supplied or trusted local path; not exposed to untrusted input
-	if readErr != nil {
-		if result.IsError {
-			text := extractResultText(t, result)
-			if strings.Contains(text, paramGitAuthor) || strings.Contains(text, "credential") {
-				t.Fatalf("unexpected git config error: %s", text)
-			}
-		}
-		return
-	}
-
-	var cfgMap map[string]any
-	if err := yaml.Unmarshal(data, &cfgMap); err != nil {
-		t.Fatalf("failed to parse config: %v", err)
-	}
+	cfgMap := readInstanceConfig(t, sc, result, "gitall")
 	git, ok := cfgMap["git"].(map[string]any)
 	if !ok {
 		t.Fatal("git section not found in config")

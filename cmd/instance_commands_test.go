@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -372,22 +373,29 @@ func TestCreateWithNoGenerateSuffixPreservesExactName(t *testing.T) {
 	createNoIsolate = true
 	createSource = ""
 
+	rt := &fakeRuntime{}
+	overrideRuntime(t, rt)
+
 	cmd := &cobra.Command{}
 	cmd.SetOut(io.Discard)
 	cmd.SetErr(io.Discard)
 
-	// runCreate will fail at startInstance (no runtime), but before that
-	// it writes the config file. We verify the config was written under
-	// the exact name directory (no suffix).
-	err := runCreate(cmd, []string{"exactname", workspace})
-	if err == nil {
-		t.Fatal("expected error from startInstance (no runtime)")
+	if err := runCreate(cmd, []string{"exactname", workspace}); err != nil {
+		t.Fatalf("runCreate() error = %v", err)
 	}
 
-	// The error-path defer removes the instance directory, but we can check
-	// the error message references the exact name by verifying no suffixed
-	// directories were created.
-	entries, _ := os.ReadDir(filepath.Join(configHome, "klausctl", "instances"))
+	if len(rt.runCalls) != 1 || rt.runCalls[0] != "klausctl-exactname" {
+		t.Fatalf("expected a single container run for klausctl-exactname, got %v", rt.runCalls)
+	}
+
+	instancesDir := filepath.Join(configHome, "klausctl", "instances")
+	if _, err := os.Stat(filepath.Join(instancesDir, "exactname", "config.yaml")); err != nil {
+		t.Fatalf("expected instance config under the exact name: %v", err)
+	}
+	entries, err := os.ReadDir(instancesDir)
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, e := range entries {
 		if e.IsDir() && strings.HasPrefix(e.Name(), "exactname-") {
 			t.Fatalf("found suffixed directory %q; expected no suffix when --no-generate-suffix is set", e.Name())
@@ -414,33 +422,44 @@ func TestCreateWithGenerateSuffixAppendsRandomSuffix(t *testing.T) {
 	createNoIsolate = true
 	createSource = ""
 
+	rt := &fakeRuntime{}
+	overrideRuntime(t, rt)
+
+	var out bytes.Buffer
 	cmd := &cobra.Command{}
-	cmd.SetOut(io.Discard)
+	cmd.SetOut(&out)
 	cmd.SetErr(io.Discard)
 
-	// runCreate will fail at startInstance but the instance directory will
-	// have been created (then cleaned up on error). The error message from
-	// the runtime detection references the instance name in the config path.
-	// We verify that a suffixed directory was attempted by checking the
-	// instances directory for any entry matching the pattern.
-	err := runCreate(cmd, []string{"myproj", workspace})
-	if err == nil {
-		t.Fatal("expected error from startInstance (no runtime)")
+	// runCreate prints the resolved instance name as its last output line
+	// once the instance has started.
+	createOnce := func() string {
+		t.Helper()
+		out.Reset()
+		if err := runCreate(cmd, []string{"myproj", workspace}); err != nil {
+			t.Fatalf("runCreate() error = %v", err)
+		}
+		lines := strings.Split(strings.TrimSpace(out.String()), "\n")
+		return lines[len(lines)-1]
 	}
 
-	// The error message should reference the suffixed config file path.
-	// Even though the directory is cleaned up, we can verify the error
-	// relates to the right name by checking the error mentions a suffixed name.
-	// The error should NOT reference "myproj" as a bare name if suffix was generated.
-	// Since error-path defers clean up, instead we verify that running
-	// create twice produces different instance directory attempts (randomness).
-	_ = runCreate(cmd, []string{"myproj", workspace})
+	first := createOnce()
+	second := createOnce()
 
-	// Both calls should have had different suffixed names. We can't check
-	// directory existence (cleaned up on error) but we can verify the
-	// suffix generation function works correctly via the unit tests in
-	// pkg/instance/suffix_test.go. This integration test confirms the
-	// flag wiring works without errors beyond the expected runtime failure.
+	for _, name := range []string{first, second} {
+		if !strings.HasPrefix(name, "myproj-") || len(name) != len("myproj-")+4 {
+			t.Fatalf("expected %q to be myproj plus a 4-character suffix", name)
+		}
+		if _, err := os.Stat(filepath.Join(configHome, "klausctl", "instances", name, "config.yaml")); err != nil {
+			t.Fatalf("expected instance config for %q: %v", name, err)
+		}
+	}
+	if first == second {
+		t.Fatalf("expected distinct suffixes, got %q twice", first)
+	}
+	want := []string{"klausctl-" + first, "klausctl-" + second}
+	if !slices.Equal(rt.runCalls, want) {
+		t.Fatalf("expected container runs %v, got %v", want, rt.runCalls)
+	}
 }
 
 func TestCreateCollisionStoppedAbortWithoutYes(t *testing.T) {
@@ -519,18 +538,25 @@ func TestCreateCollisionStoppedAutoConfirmWithYes(t *testing.T) {
 	createNoIsolate = true
 	createSource = ""
 
+	rt := &fakeRuntime{}
+	overrideRuntime(t, rt)
+
 	cmd := &cobra.Command{}
 	cmd.SetOut(io.Discard)
 	cmd.SetErr(io.Discard)
 
-	// With -y, the old instance directory should be cleaned up first.
-	// runCreate will fail at startInstance (no runtime), but the old marker
-	// file should be gone because cleanup removed the old directory.
-	_ = runCreate(cmd, []string{testNameExisting, workspace})
+	// With -y, the old instance directory is cleaned up first and the new
+	// instance starts in its place.
+	if err := runCreate(cmd, []string{testNameExisting, workspace}); err != nil {
+		t.Fatalf("runCreate() error = %v", err)
+	}
 
-	// The old marker file should have been removed by cleanup.
 	if _, err := os.Stat(markerFile); !os.IsNotExist(err) {
 		t.Fatal("expected old marker file to be removed by cleanup")
+	}
+	wantContainer := "klausctl-" + testNameExisting
+	if len(rt.runCalls) != 1 || rt.runCalls[0] != wantContainer {
+		t.Fatalf("expected a single container run for %s, got %v", wantContainer, rt.runCalls)
 	}
 }
 
@@ -555,11 +581,13 @@ type fakeRuntime struct {
 	status      string
 	stopCalls   int
 	removeCalls int
+	runCalls    []string
 }
 
 func (f *fakeRuntime) Name() string { return "fake" }
-func (f *fakeRuntime) Run(_ context.Context, _ runtimepkg.RunOptions) (string, error) {
-	return "", nil
+func (f *fakeRuntime) Run(_ context.Context, opts runtimepkg.RunOptions) (string, error) {
+	f.runCalls = append(f.runCalls, opts.Name)
+	return "fake-container-id", nil
 }
 func (f *fakeRuntime) Stop(_ context.Context, _ string) error {
 	f.stopCalls++
