@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -26,8 +27,11 @@ const roleSystem = "system"
 const msgSubtypeInit = "init"
 
 var (
-	messagesFollow bool
-	messagesOutput string
+	messagesFollow   bool
+	messagesOutput   string
+	messagesTail     int
+	messagesLimit    int
+	messagesMaxChars int
 
 	messagesRemote  string
 	messagesSession string
@@ -40,11 +44,19 @@ var messagesCmd = &cobra.Command{
 
 Each message shows the role (user, assistant, system, tool) and content.
 
+Use --tail N to show only the newest N messages, --limit N for the first N,
+and --max-chars N to cut long message bodies down to N characters. The header
+always reports the full message count, so a small --tail is a cheap way to
+check on a long run. With --follow, --tail and --limit select the initial
+batch and new messages stream afterwards.
+
 Examples:
 
   klausctl messages dev
   klausctl messages dev -f
-  klausctl messages dev -o json`,
+  klausctl messages dev -o json
+  klausctl messages dev --tail 3 --max-chars 500
+  klausctl messages dev --limit 20`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runMessages,
 }
@@ -52,6 +64,9 @@ Examples:
 func init() {
 	messagesCmd.Flags().BoolVarP(&messagesFollow, "follow", "f", false, "follow new messages in real time")
 	messagesCmd.Flags().StringVarP(&messagesOutput, "output", "o", outputText, "output format: text, json")
+	messagesCmd.Flags().IntVar(&messagesTail, "tail", 0, "show only the last N messages")
+	messagesCmd.Flags().IntVar(&messagesLimit, "limit", 0, "show at most N messages, counted from the start")
+	messagesCmd.Flags().IntVar(&messagesMaxChars, "max-chars", 0, "truncate each message body to N characters")
 
 	messagesCmd.Flags().StringVar(&messagesRemote, remoteFlagName("remote"), "", remoteFlagDesc("remote"))
 	messagesCmd.Flags().StringVar(&messagesSession, remoteFlagName("session"), "", remoteFlagDesc("session"))
@@ -106,8 +121,13 @@ func runMessages(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	opts, err := messagesOptsFromFlags()
+	if err != nil {
+		return err
+	}
+
 	if messagesRemote != "" {
-		return runMessagesRemote(ctx, out, paths, instanceName)
+		return runMessagesRemote(ctx, out, paths, instanceName, opts)
 	}
 
 	paths = paths.ForInstance(instanceName)
@@ -136,15 +156,15 @@ func runMessages(cmd *cobra.Command, args []string) error {
 	defer client.Close()
 
 	if !messagesFollow {
-		return fetchAndRenderMessages(ctx, out, client, instanceName, baseURL)
+		return fetchAndRenderMessages(ctx, out, client, instanceName, baseURL, opts)
 	}
 
-	return followMessages(ctx, out, client, instanceName, baseURL)
+	return followMessages(ctx, out, client, instanceName, baseURL, opts)
 }
 
 // runMessagesRemote fetches conversation messages from a remote gateway,
 // bypassing local runtime state entirely.
-func runMessagesRemote(ctx context.Context, out io.Writer, paths *config.Paths, instanceName string) error {
+func runMessagesRemote(ctx context.Context, out io.Writer, paths *config.Paths, instanceName string, opts *mcpclient.MessagesOpts) error {
 	target, _, _, err := resolveRemoteTarget(ctx, messagesRemote, instanceName, messagesSession, paths)
 	if err != nil {
 		return err
@@ -160,22 +180,69 @@ func runMessagesRemote(ctx context.Context, out io.Writer, paths *config.Paths, 
 
 	baseURL := target.MCPURL()
 	if !messagesFollow {
-		return fetchAndRenderMessages(ctx, out, client, instanceName, baseURL)
+		return fetchAndRenderMessages(ctx, out, client, instanceName, baseURL, opts)
 	}
-	return followMessages(ctx, out, client, instanceName, baseURL)
+	return followMessages(ctx, out, client, instanceName, baseURL, opts)
 }
 
-func fetchAndRenderMessages(ctx context.Context, out io.Writer, client *mcpclient.Client, instanceName, baseURL string) error {
-	toolResult, err := client.Messages(ctx, instanceName, baseURL, nil)
+// messagesOptsFromFlags turns --tail, --limit and --max-chars into
+// MessagesOpts. It returns nil when none is set so the agent's response passes
+// through unchanged.
+func messagesOptsFromFlags() (*mcpclient.MessagesOpts, error) {
+	for _, f := range []struct {
+		name  string
+		value int
+	}{{"tail", messagesTail}, {"limit", messagesLimit}, {"max-chars", messagesMaxChars}} {
+		if f.value < 0 {
+			return nil, fmt.Errorf("--%s must not be negative", f.name)
+		}
+	}
+	if messagesTail > 0 && messagesLimit > 0 {
+		return nil, errors.New("--tail and --limit are mutually exclusive")
+	}
+
+	opts := mcpclient.MessagesOpts{Limit: messagesLimit, MaxChars: messagesMaxChars}
+	if messagesTail > 0 {
+		opts.Tail = true
+		opts.Limit = messagesTail
+	}
+	if opts == (mcpclient.MessagesOpts{}) {
+		return nil, nil
+	}
+	return &opts, nil
+}
+
+// sliceNote describes the --tail/--limit selection for the text header.
+func sliceNote(opts *mcpclient.MessagesOpts) string {
+	switch {
+	case opts == nil || opts.Limit <= 0:
+		return ""
+	case opts.Tail:
+		return fmt.Sprintf("showing last %d", opts.Limit)
+	default:
+		return fmt.Sprintf("showing first %d", opts.Limit)
+	}
+}
+
+func fetchAndRenderMessages(ctx context.Context, out io.Writer, client *mcpclient.Client, instanceName, baseURL string, opts *mcpclient.MessagesOpts) error {
+	toolResult, err := client.Messages(ctx, instanceName, baseURL, opts)
 	if err != nil {
 		return fmt.Errorf("fetching messages from %q: %w", instanceName, err)
 	}
 
-	return renderMessages(out, instanceName, toolResult)
+	return renderMessages(out, instanceName, toolResult, opts)
 }
 
-func followMessages(ctx context.Context, out io.Writer, client *mcpclient.Client, instanceName, baseURL string) error {
+func followMessages(ctx context.Context, out io.Writer, client *mcpclient.Client, instanceName, baseURL string, opts *mcpclient.MessagesOpts) error {
+	// Every poll fetches the full transcript and only --max-chars applies to
+	// it; --tail/--limit select the initial batch from the first fetch.
+	var pollOpts *mcpclient.MessagesOpts
+	if opts != nil && opts.MaxChars > 0 {
+		pollOpts = &mcpclient.MessagesOpts{MaxChars: opts.MaxChars}
+	}
+
 	var seen int
+	first := true
 	poll := 2 * time.Second
 	const maxPoll = 10 * time.Second
 
@@ -185,9 +252,13 @@ func followMessages(ctx context.Context, out io.Writer, client *mcpclient.Client
 			return fmt.Errorf("fetching messages from %q: %w", instanceName, err)
 		}
 
-		parsed := parseMessagesResponse(toolResult)
+		parsed := parseMessagesResponse(mcpclient.ShapeMessages(toolResult, pollOpts))
 		if len(parsed.Messages) > seen {
-			for _, msg := range parsed.Messages[seen:] {
+			fresh := parsed.Messages[seen:]
+			if first {
+				fresh = parseMessagesResponse(mcpclient.ShapeMessages(toolResult, opts)).Messages
+			}
+			for _, msg := range fresh {
 				renderSingleMessage(out, msg)
 			}
 			seen = len(parsed.Messages)
@@ -195,6 +266,7 @@ func followMessages(ctx context.Context, out io.Writer, client *mcpclient.Client
 		} else if isAgentDone(ctx, client, instanceName, baseURL) {
 			return nil
 		}
+		first = false
 
 		select {
 		case <-ctx.Done():
@@ -216,7 +288,7 @@ func isAgentDone(ctx context.Context, client *mcpclient.Client, instanceName, ba
 	return mcpclient.IsTerminalStatus(mcpclient.ParseStatusField(statusResult))
 }
 
-func renderMessages(out io.Writer, instanceName string, toolResult *mcp.CallToolResult) error {
+func renderMessages(out io.Writer, instanceName string, toolResult *mcp.CallToolResult, opts *mcpclient.MessagesOpts) error {
 	parsed := parseMessagesResponse(toolResult)
 
 	count := parsed.Total
@@ -238,7 +310,11 @@ func renderMessages(out io.Writer, instanceName string, toolResult *mcp.CallTool
 	}
 
 	_, _ = fmt.Fprintf(out, "Instance: %s\n", result.Instance)
-	_, _ = fmt.Fprintf(out, "Messages: %d\n\n", result.Count)
+	_, _ = fmt.Fprintf(out, "Messages: %d", result.Count)
+	if note := sliceNote(opts); note != "" {
+		_, _ = fmt.Fprintf(out, " (%s)", note)
+	}
+	_, _ = fmt.Fprint(out, "\n\n")
 
 	for _, msg := range result.Messages {
 		renderSingleMessage(out, msg)

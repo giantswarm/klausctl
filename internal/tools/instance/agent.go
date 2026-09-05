@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"strings"
 	"time"
@@ -234,10 +235,17 @@ func handleResult(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 
 func registerMessages(s *mcpserver.MCPServer, sc *server.ServerContext) {
 	tool := mcp.NewTool("klaus_messages",
-		mcp.WithDescription("Retrieve conversation messages from a running klaus instance in OpenAI-compatible format"),
+		mcp.WithDescription("Retrieve conversation messages from a running klaus instance in OpenAI-compatible format. "+
+			"Returns {messages, metadata, total}; total is the full message count. "+
+			"Use tail with limit to peek at the newest messages, offset with limit to page, and maxChars to keep message bodies small. "+
+			"When types, limit, tail or maxChars is set the response also carries matched (messages passing the types filter), "+
+			"returned (length of the slice) and next_offset (offset that fetches the messages after the slice)."),
 		mcp.WithString(paramName, mcp.Required(), mcp.Description("Instance name")),
-		mcp.WithNumber("offset", mcp.Description("Start returning messages from this index (0-based)")),
-		mcp.WithString("types", mcp.Description("Comma-separated message types to include (e.g. 'user,assistant,tool')")),
+		mcp.WithNumber(paramOffset, mcp.Description("Start returning messages from this index (0-based)")),
+		mcp.WithNumber(paramLimit, mcp.Description("Maximum number of messages to return (default: all)")),
+		mcp.WithBoolean(paramTail, mcp.Description("Return the last limit messages instead of the first (default: false; limit defaults to 10 when tail is set without limit)")),
+		mcp.WithNumber(paramMaxChars, mcp.Description("Truncate every string in a message body to this many characters; cut strings end with ' ...[truncated N chars]' (default: 0 = no truncation)")),
+		mcp.WithString(paramTypes, mcp.Description("Comma-separated message types or roles to include (e.g. 'user,assistant,tool')")),
 		mcp.WithBoolean("follow", mcp.Description("Poll for new messages until the agent completes (default: false)")),
 	)
 	addRemoteMCPInputs(&tool)
@@ -255,7 +263,10 @@ func handleMessages(ctx context.Context, req mcp.CallToolRequest, sc *server.Ser
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 	follow := req.GetBool("follow", false)
-	opts := messagesOptsFromReq(req)
+	opts, err := messagesOptsFromReq(req)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
 
 	if req.GetString("remote", "") != "" {
 		return handleMessagesRemote(ctx, req, sc, name, follow, opts)
@@ -340,13 +351,39 @@ func followRemoteMessages(ctx context.Context, name, baseURL string, client *mcp
 	}
 }
 
-func messagesOptsFromReq(req mcp.CallToolRequest) *mcpclient.MessagesOpts {
-	offset := max(int(req.GetFloat("offset", 0)), 0)
-	types := req.GetString("types", "")
-	if offset == 0 && types == "" {
-		return nil
+// messagesOptsFromReq reads offset, types, limit, tail and maxChars. It
+// returns nil when none is set so the agent's response passes through
+// untouched.
+func messagesOptsFromReq(req mcp.CallToolRequest) (*mcpclient.MessagesOpts, error) {
+	limit, err := nonNegativeIntArg(req, paramLimit)
+	if err != nil {
+		return nil, err
 	}
-	return &mcpclient.MessagesOpts{Offset: offset, Types: types}
+	maxChars, err := nonNegativeIntArg(req, paramMaxChars)
+	if err != nil {
+		return nil, err
+	}
+	opts := mcpclient.MessagesOpts{
+		Offset:   max(int(req.GetFloat(paramOffset, 0)), 0),
+		Types:    req.GetString(paramTypes, ""),
+		Limit:    limit,
+		Tail:     req.GetBool(paramTail, false),
+		MaxChars: maxChars,
+	}
+	if opts == (mcpclient.MessagesOpts{}) {
+		return nil, nil
+	}
+	return &opts, nil
+}
+
+// nonNegativeIntArg reads an optional numeric argument that must be a whole
+// number >= 0; an absent argument yields 0.
+func nonNegativeIntArg(req mcp.CallToolRequest, key string) (int, error) {
+	f := req.GetFloat(key, 0)
+	if f < 0 || f != math.Trunc(f) {
+		return 0, fmt.Errorf("parameter %q must be a non-negative integer", key)
+	}
+	return int(f), nil
 }
 
 func fetchMessages(ctx context.Context, name, baseURL string, sc *server.ServerContext, opts *mcpclient.MessagesOpts) (*mcp.CallToolResult, error) {
