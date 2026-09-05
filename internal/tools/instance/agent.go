@@ -113,8 +113,24 @@ func handlePrompt(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 	return server.JSONResult(promptResult{
 		Instance: name,
 		Status:   statusCompleted,
-		Result:   mcpclient.ExtractText(resultResp),
+		Result:   agentResultText(resultResp),
 	})
+}
+
+// agentResultText returns the agent's final message from a result tool
+// response: the result_text field of the agent's JSON payload, or the raw
+// text when the payload is not the expected structure (errors, older
+// agents).
+func agentResultText(toolResult *mcp.CallToolResult) string {
+	text := mcpclient.ExtractText(toolResult)
+	if toolResult == nil || toolResult.IsError {
+		return text
+	}
+	var parsed agentToolResponse
+	if err := json.Unmarshal([]byte(text), &parsed); err == nil && parsed.Status != "" {
+		return parsed.ResultText
+	}
+	return text
 }
 
 // handlePromptRemote services klaus_prompt when `remote` is set: the
@@ -166,18 +182,22 @@ func handlePromptRemote(ctx context.Context, req mcp.CallToolRequest, sc *server
 }
 
 type agentResult struct {
-	Instance     string `json:"instance"`
-	Status       string `json:"status"`
-	MessageCount int    `json:"message_count"`
-	Result       string `json:"result,omitempty"`
+	Instance     string   `json:"instance"`
+	Status       string   `json:"status"`
+	MessageCount int      `json:"message_count"`
+	Result       string   `json:"result,omitempty"`
+	PRURLs       []string `json:"pr_urls,omitempty"`
 }
 
 // agentToolResponse represents the JSON payload returned by the agent's
-// result MCP tool inside the container.
+// result MCP tool inside the container. result_text is the agent's final
+// message for the last turn; pr_urls lists the pull requests that turn
+// created or pushed to.
 type agentToolResponse struct {
-	Status       string `json:"status"`
-	MessageCount int    `json:"message_count"`
-	ResultText   string `json:"result_text"`
+	Status       string   `json:"status"`
+	MessageCount int      `json:"message_count"`
+	ResultText   string   `json:"result_text"`
+	PRURLs       []string `json:"pr_urls"`
 }
 
 func handleResult(ctx context.Context, req mcp.CallToolRequest, sc *server.ServerContext) (*mcp.CallToolResult, error) {
@@ -221,6 +241,7 @@ func handleResult(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 			Status:       parsed.Status,
 			MessageCount: parsed.MessageCount,
 			Result:       parsed.ResultText,
+			PRURLs:       parsed.PRURLs,
 		})
 	}
 

@@ -241,3 +241,52 @@ func TestAgentBaseURLInstanceNotFound(t *testing.T) {
 		t.Fatal("expected error for missing instance")
 	}
 }
+
+// textContentType is the MCP content type of TextContent blocks.
+const textContentType = "text"
+
+func TestAgentResultText(t *testing.T) {
+	tests := []struct {
+		name   string
+		result *mcp.CallToolResult
+		want   string
+	}{
+		{
+			name: "returns result_text from the agent payload",
+			result: &mcp.CallToolResult{Content: []mcp.Content{mcp.TextContent{
+				Type: textContentType,
+				Text: `{"status":"idle","message_count":661,"result_text":"Merged klausctl#331; CI green.","pr_urls":["https://github.com/giantswarm/klausctl/pull/331"],"total_cost_usd":7.36}`,
+			}}},
+			want: "Merged klausctl#331; CI green.",
+		},
+		{
+			name: "empty result_text stays empty rather than leaking the JSON blob",
+			result: &mcp.CallToolResult{Content: []mcp.Content{mcp.TextContent{
+				Type: textContentType,
+				Text: `{"status":"idle","message_count":3,"result_text":""}`,
+			}}},
+			want: "",
+		},
+		{
+			name: "error responses pass through verbatim",
+			result: &mcp.CallToolResult{
+				Content: []mcp.Content{mcp.TextContent{Type: textContentType, Text: "agent unreachable"}},
+				IsError: true,
+			},
+			want: "agent unreachable",
+		},
+		{
+			name:   "non-JSON payloads pass through verbatim",
+			result: &mcp.CallToolResult{Content: []mcp.Content{mcp.TextContent{Type: textContentType, Text: "plain answer"}}},
+			want:   "plain answer",
+		},
+		{name: "nil", result: nil, want: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := agentResultText(tt.result); got != tt.want {
+				t.Errorf("agentResultText() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
