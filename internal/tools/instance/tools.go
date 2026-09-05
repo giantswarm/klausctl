@@ -556,6 +556,10 @@ type createResult struct {
 	Personality string `json:"personality,omitempty"`
 }
 
+// newRuntime creates a container runtime. Tests override this to inject a
+// fake so that no test ever starts, stops, or removes a real container.
+var newRuntime = runtime.New
+
 // startExistingInstance loads config for a named instance and starts its
 // container. Used by both create and start handlers.
 func startExistingInstance(ctx context.Context, name string, sc *server.ServerContext) (*createResult, error) {
@@ -581,7 +585,7 @@ func startExistingInstance(ctx context.Context, name string, sc *server.ServerCo
 		}
 	}
 
-	rt, err := runtime.New(cfg.Runtime)
+	rt, err := newRuntime(cfg.Runtime)
 	if err != nil {
 		return nil, err
 	}
@@ -785,7 +789,7 @@ func cleanupContainer(ctx context.Context, name string, inst *instance.Instance)
 
 	candidates := uniqueRuntimes(inst)
 	for _, rtName := range candidates {
-		rt, err := runtime.New(rtName)
+		rt, err := newRuntime(rtName)
 		if err != nil {
 			continue
 		}

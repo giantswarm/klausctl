@@ -139,7 +139,7 @@ func cleanupInstanceContainer(ctx context.Context, instanceName string, inst *in
 	}
 
 	for _, rtName := range runtimeCandidates {
-		rt, err := runtime.New(rtName)
+		rt, err := newRuntime(rtName)
 		if err != nil {
 			continue
 		}

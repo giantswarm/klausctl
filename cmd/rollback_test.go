@@ -97,9 +97,9 @@ func setupCreateEnv(t *testing.T) (string, string) {
 	return configHome, workspace
 }
 
-// overrideRuntime installs a rollbackRuntime as the runtime factory and
-// registers a cleanup to restore the original. Returns the fake runtime.
-func overrideRuntime(t *testing.T, rt *rollbackRuntime) {
+// overrideRuntime installs rt as the runtime factory for the duration of the
+// test and registers a cleanup to restore the original.
+func overrideRuntime(t *testing.T, rt runtimepkg.Runtime) {
 	t.Helper()
 	orig := newRuntime
 	newRuntime = func(_ string) (runtimepkg.Runtime, error) { return rt, nil }
