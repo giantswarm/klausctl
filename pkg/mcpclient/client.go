@@ -174,13 +174,27 @@ func (c *Client) Result(ctx context.Context, instanceName, baseURL string, full 
 }
 
 // MessagesOpts holds optional parameters for the Messages call.
+//
+// Offset and Types are forwarded to the agent. The agent's messages tool
+// honours offset only, so Types, Limit, Tail and MaxChars are applied by
+// klausctl on the returned envelope (see ShapeMessages).
 type MessagesOpts struct {
+	// Offset skips the first Offset messages (0-based).
 	Offset int
-	Types  string
+	// Types is a comma-separated list of roles/types to keep, e.g. "assistant,tool".
+	Types string
+	// Limit caps the number of returned messages; 0 means all.
+	Limit int
+	// Tail returns the last Limit messages instead of the first.
+	Tail bool
+	// MaxChars truncates every string in a message body to MaxChars runes; 0 disables.
+	MaxChars int
 }
 
 // Messages retrieves the agent's conversation messages.
-// When opts is non-nil, offset and types are forwarded to the agent.
+// When opts is non-nil, offset and types are forwarded to the agent and the
+// klausctl-side options (types filter, tail/limit slice, maxChars) are
+// applied to the returned envelope.
 func (c *Client) Messages(ctx context.Context, instanceName, baseURL string, opts *MessagesOpts) (*mcp.CallToolResult, error) {
 	args := map[string]any{}
 	if opts != nil {
@@ -191,7 +205,11 @@ func (c *Client) Messages(ctx context.Context, instanceName, baseURL string, opt
 			args["types"] = opts.Types
 		}
 	}
-	return c.callTool(ctx, instanceName, baseURL, "messages", args)
+	result, err := c.callTool(ctx, instanceName, baseURL, "messages", args)
+	if err != nil {
+		return result, err
+	}
+	return ShapeMessages(result, opts), nil
 }
 
 // SessionID returns the MCP session ID for the given instance, if any.

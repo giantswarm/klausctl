@@ -278,7 +278,7 @@ func TestRenderMessages_Text(t *testing.T) {
 
 	messagesOutput = outputText
 	var buf bytes.Buffer
-	err := renderMessages(&buf, testInstanceDev, result)
+	err := renderMessages(&buf, testInstanceDev, result, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -313,7 +313,7 @@ func TestRenderMessages_NestedFormat(t *testing.T) {
 
 	messagesOutput = outputText
 	var buf bytes.Buffer
-	err := renderMessages(&buf, testInstanceDev, result)
+	err := renderMessages(&buf, testInstanceDev, result, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -347,7 +347,7 @@ func TestRenderMessages_JSON(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	err := renderMessages(&buf, testInstanceDev, result)
+	err := renderMessages(&buf, testInstanceDev, result, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -389,7 +389,7 @@ func TestRenderMessages_Empty(t *testing.T) {
 
 	messagesOutput = outputText
 	var buf bytes.Buffer
-	err := renderMessages(&buf, testInstanceDev, result)
+	err := renderMessages(&buf, testInstanceDev, result, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -415,7 +415,7 @@ func TestRenderMessages_TotalGreaterThanMessages(t *testing.T) {
 
 	messagesOutput = outputText
 	var buf bytes.Buffer
-	err := renderMessages(&buf, testInstanceDev, result)
+	err := renderMessages(&buf, testInstanceDev, result, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
