@@ -125,7 +125,7 @@ func TestParseResultResponse(t *testing.T) {
 				Content: []mcp.Content{
 					mcp.TextContent{
 						Type: "text",
-						Text: `{"status":"idle","message_count":661,"result_text":testFinalText,"pr_urls":["https://github.com/giantswarm/klausctl/pull/331"],"total_cost_usd":7.36}`,
+						Text: `{"status":"idle","message_count":661,"result_text":"Merged the Renovate PR; CI green.","pr_urls":["https://github.com/giantswarm/klausctl/pull/331"],"total_cost_usd":7.36}`,
 					},
 				},
 			},
