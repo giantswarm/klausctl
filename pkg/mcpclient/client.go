@@ -5,6 +5,7 @@ package mcpclient
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -49,23 +50,25 @@ func NewWithHeaders(version string, headers map[string]string) *Client {
 }
 
 // getOrCreateSession returns a cached MCP client for the given instance or
-// creates a new one. Network I/O (ping, connect, initialize) happens outside
-// the lock so concurrent callers targeting different instances aren't blocked.
-func (c *Client) getOrCreateSession(ctx context.Context, instanceName, baseURL string) (*mcpclient.Client, error) {
+// creates a new one. The returned bool reports whether the client came from
+// the cache, so callers can tell a possibly-stale session apart from one that
+// was just initialized.
+//
+// There is deliberately no liveness probe here. The ping RPC was removed in
+// protocol version 2026-07-28 (SEP-2575) and mcp-go's Client.Ping returns nil
+// without sending anything on a modern connection, so a pre-flight probe can
+// no longer prove a cached session is usable. Staleness is detected on the
+// next real request instead, which callTool recovers from.
+//
+// Network I/O (connect, initialize) happens outside the lock so concurrent
+// callers targeting different instances aren't blocked.
+func (c *Client) getOrCreateSession(ctx context.Context, instanceName, baseURL string) (*mcpclient.Client, bool, error) {
 	c.mu.Lock()
 	cached, ok := c.sessions[instanceName]
 	c.mu.Unlock()
 
 	if ok {
-		if err := cached.Ping(ctx); err == nil {
-			return cached, nil
-		}
-		c.mu.Lock()
-		if cur, ok := c.sessions[instanceName]; ok && cur == cached {
-			_ = cached.Close()
-			delete(c.sessions, instanceName)
-		}
-		c.mu.Unlock()
+		return cached, true, nil
 	}
 
 	var transportOpts []transport.StreamableHTTPCOption
@@ -75,11 +78,11 @@ func (c *Client) getOrCreateSession(ctx context.Context, instanceName, baseURL s
 
 	mc, err := mcpclient.NewStreamableHttpClient(baseURL, transportOpts...)
 	if err != nil {
-		return nil, fmt.Errorf("creating MCP client for %s: %w", baseURL, err)
+		return nil, false, fmt.Errorf("creating MCP client for %s: %w", baseURL, err)
 	}
 
 	if err := mc.Start(ctx); err != nil {
-		return nil, fmt.Errorf("starting MCP transport for %s: %w", baseURL, err)
+		return nil, false, fmt.Errorf("starting MCP transport for %s: %w", baseURL, err)
 	}
 
 	initReq := mcp.InitializeRequest{}
@@ -90,39 +93,62 @@ func (c *Client) getOrCreateSession(ctx context.Context, instanceName, baseURL s
 	}
 	if _, err := mc.Initialize(ctx, initReq); err != nil {
 		_ = mc.Close()
-		return nil, fmt.Errorf("initializing MCP session for %s: %w", baseURL, err)
+		return nil, false, fmt.Errorf("initializing MCP session for %s: %w", baseURL, err)
 	}
 
 	c.mu.Lock()
-	if existing, ok := c.sessions[instanceName]; ok {
-		_ = mc.Close()
-		c.mu.Unlock()
-		return existing, nil
+	existing, raced := c.sessions[instanceName]
+	if !raced {
+		c.sessions[instanceName] = mc
 	}
-	c.sessions[instanceName] = mc
 	c.mu.Unlock()
 
-	return mc, nil
-}
-
-// callTool invokes a named tool on the agent instance.
-func (c *Client) callTool(ctx context.Context, instanceName, baseURL, toolName string, args map[string]any) (*mcp.CallToolResult, error) {
-	mc, err := c.getOrCreateSession(ctx, instanceName, baseURL)
-	if err != nil {
-		return nil, err
+	if raced {
+		// A concurrent caller initialized first; keep its session and drop
+		// ours. Close is deliberately outside the lock, see evictSession.
+		_ = mc.Close()
+		return existing, true, nil
 	}
 
+	return mc, false, nil
+}
+
+// isStaleSession reports whether err means the server no longer recognizes
+// our session (it answered 404). The request was then definitely not
+// executed, and re-initializing is the only way forward. Stateless
+// connections (protocol 2026-07-28 and later) hold no server-side session, so
+// this only arises against a legacy server that restarted or expired ours.
+func isStaleSession(err error) bool {
+	return errors.Is(err, transport.ErrSessionTerminated)
+}
+
+// callTool invokes a named tool on the agent instance. When a cached session
+// turns out to be stale, it is evicted and the call retried once on a freshly
+// initialized session. The retry is safe even for side-effecting tools such
+// as prompt, because a terminated session means the server never ran the tool.
+func (c *Client) callTool(ctx context.Context, instanceName, baseURL, toolName string, args map[string]any) (*mcp.CallToolResult, error) {
 	req := mcp.CallToolRequest{}
 	req.Params.Name = toolName
 	req.Params.Arguments = args
 
-	result, err := mc.CallTool(ctx, req)
-	if err != nil {
-		c.invalidateSession(instanceName)
+	for attempt := 0; ; attempt++ {
+		mc, fromCache, err := c.getOrCreateSession(ctx, instanceName, baseURL)
+		if err != nil {
+			return nil, err
+		}
+
+		result, err := mc.CallTool(ctx, req)
+		if err == nil {
+			return result, nil
+		}
+
+		c.evictSession(instanceName, mc)
+
+		if fromCache && attempt == 0 && isStaleSession(err) {
+			continue
+		}
 		return nil, fmt.Errorf("calling tool %q on %s: %w", toolName, instanceName, err)
 	}
-
-	return result, nil
 }
 
 // Prompt sends a prompt message to the agent instance.
@@ -179,14 +205,23 @@ func (c *Client) SessionID(instanceName string) string {
 	return ""
 }
 
-// invalidateSession removes a cached session.
-func (c *Client) invalidateSession(instanceName string) {
+// evictSession closes and drops the cached session for instanceName, but only
+// if it is still the one the caller used. Without that check, a caller whose
+// session went stale could close a replacement another goroutine had already
+// initialized. Close is called outside the lock: on a legacy connection it
+// issues a DELETE with a five-second timeout, which would otherwise stall
+// every caller, including those targeting other instances.
+func (c *Client) evictSession(instanceName string, mc *mcpclient.Client) {
 	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if mc, ok := c.sessions[instanceName]; ok {
-		_ = mc.Close()
+	cur, ok := c.sessions[instanceName]
+	mine := ok && cur == mc
+	if mine {
 		delete(c.sessions, instanceName)
+	}
+	c.mu.Unlock()
+
+	if mine {
+		_ = cur.Close()
 	}
 }
 
