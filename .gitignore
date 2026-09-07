@@ -4,3 +4,13 @@
 
 # graphify knowledge graph (regenerable, rebuilt by the post-commit hook)
 graphify-out/
+
+# Build outputs and CI scratch files written next to the sources: the devctl
+# Makefile's klausctl-v<version>-<os>-<arch> and bin-dist/, the architect
+# CI's .ldflags, .platforms and klausctl-<os>-<arch>. Untracked they flip
+# Go's VCS stamp to vcs.modified=true and pkg/project's build-info fallback
+# reports vX.Y.Z+dirty.
+/klausctl-*
+/bin-dist/
+.ldflags
+.platforms
