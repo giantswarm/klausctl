@@ -6,7 +6,7 @@ toolchain go1.27.1
 
 require (
 	github.com/creativeprojects/go-selfupdate v1.6.0
-	github.com/giantswarm/klaus-oci v0.0.75
+	github.com/giantswarm/klaus-oci v0.0.78
 	github.com/giantswarm/selfupdate-cosign v0.2.0
 	github.com/google/uuid v1.6.0
 	github.com/mark3labs/mcp-go v1.1.0
