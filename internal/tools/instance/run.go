@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"os"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	mcpserver "github.com/mark3labs/mcp-go/server"
@@ -12,6 +11,7 @@ import (
 	"github.com/giantswarm/klausctl/internal/remotesurface"
 	"github.com/giantswarm/klausctl/internal/server"
 	"github.com/giantswarm/klausctl/pkg/agentclient"
+	"github.com/giantswarm/klausctl/pkg/fsutil"
 	"github.com/giantswarm/klausctl/pkg/mcpclient"
 )
 
@@ -117,7 +117,7 @@ func handleRun(ctx context.Context, req mcp.CallToolRequest, sc *server.ServerCo
 	cleanupOnError := func(stepErr error) (*mcp.CallToolResult, error) {
 		// Best-effort: stop and remove the container we just started.
 		_ = cleanupContainer(context.Background(), name, nil)
-		_ = os.RemoveAll(instancePaths.InstanceDir)
+		_ = fsutil.RemoveAll(instancePaths.InstanceDir)
 		return mcp.NewToolResultError(stepErr.Error()), nil
 	}
 

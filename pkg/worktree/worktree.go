@@ -12,6 +12,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/giantswarm/klausctl/pkg/fsutil"
 )
 
 // IsGitRepo reports whether the given directory is a git repository root
@@ -170,5 +172,5 @@ func Create(repoDir, clonePath string, opts ...CreateOptions) error {
 // since clones are self-contained and do not require cleanup in the source repo.
 func Remove(repoDir, clonePath string) error {
 	_ = repoDir // kept for backward compatibility; clones are self-contained
-	return os.RemoveAll(clonePath)
+	return fsutil.RemoveAll(clonePath)
 }

@@ -11,6 +11,7 @@ import (
 
 	"github.com/giantswarm/klausctl/internal/server"
 	"github.com/giantswarm/klausctl/pkg/config"
+	"github.com/giantswarm/klausctl/pkg/fsutil"
 	"github.com/giantswarm/klausctl/pkg/instance"
 	"github.com/giantswarm/klausctl/pkg/orchestrator"
 	"github.com/giantswarm/klausctl/pkg/worktree"
@@ -252,7 +253,7 @@ func mcpCreateInstance(ctx context.Context, params *mcpCreateParams, sc *server.
 		if cfg.WorktreePath != "" {
 			_ = worktree.Remove(cfg.Workspace, cfg.WorktreePath)
 		}
-		_ = os.RemoveAll(instancePaths.InstanceDir)
+		_ = fsutil.RemoveAll(instancePaths.InstanceDir)
 		return nil, err
 	}
 	return result, nil
