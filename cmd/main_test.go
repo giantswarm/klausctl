@@ -16,5 +16,8 @@ var errNoRuntimeInTests = errors.New("no container runtime in tests; call overri
 
 func TestMain(m *testing.M) {
 	newRuntime = func(string) (runtimepkg.Runtime, error) { return nil, errNoRuntimeInTests }
+	// A fake credential: starts pass CheckClaudeCredential, as on a host
+	// with ANTHROPIC_API_KEY exported (giantswarm/klausctl#318).
+	_ = os.Setenv("ANTHROPIC_API_KEY", "test-key")
 	os.Exit(m.Run())
 }

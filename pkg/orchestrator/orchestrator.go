@@ -37,6 +37,10 @@ const mcpTypeHTTP = "http"
 // envValueTrue is the truthy value for boolean-ish environment variables.
 const envValueTrue = "true"
 
+// envAnthropicAPIKey is the Anthropic API key env var, forwarded from the
+// host when set.
+const envAnthropicAPIKey = "ANTHROPIC_API_KEY" //nolint:gosec // an env var name, not a credential
+
 // BuildRunOptions constructs the container runtime options from config.
 // This mirrors the Helm deployment.yaml template, producing the same
 // env vars and volume mounts. personalityDir is the local path to the
@@ -44,6 +48,9 @@ const envValueTrue = "true"
 func BuildRunOptions(cfg *config.Config, paths *config.Paths, containerName, image, personalityDir string) (runtime.RunOptions, error) {
 	env, err := BuildEnvVars(cfg, paths)
 	if err != nil {
+		return runtime.RunOptions{}, err
+	}
+	if err := CheckClaudeCredential(cfg, env); err != nil {
 		return runtime.RunOptions{}, err
 	}
 
@@ -67,6 +74,32 @@ func BuildRunOptions(cfg *config.Config, paths *config.Paths, containerName, ima
 	}
 
 	return opts, nil
+}
+
+// claudeCredentialEnv are the env vars Claude Code authenticates with;
+// claudeProviderEnv switch it to a cloud provider's own credentials.
+var (
+	claudeCredentialEnv = []string{envAnthropicAPIKey, "ANTHROPIC_AUTH_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN"}
+	claudeProviderEnv   = []string{"CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX", "CLAUDE_CODE_USE_FOUNDRY"}
+)
+
+// CheckClaudeCredential fails before the container starts when nothing it
+// gets can authenticate Claude Code: no credential env var with a value, no
+// cloud provider switched on, no Claude credentials file among the secret
+// files. Such an agent can only answer "Not logged in"
+// (giantswarm/klausctl#318).
+func CheckClaudeCredential(cfg *config.Config, env map[string]string) error {
+	for _, name := range append(claudeCredentialEnv, claudeProviderEnv...) {
+		if env[name] != "" {
+			return nil
+		}
+	}
+	for path := range cfg.SecretFiles {
+		if filepath.Base(path) == ".credentials.json" {
+			return nil
+		}
+	}
+	return fmt.Errorf("no Claude credential reaches the container: set one of %s through secretEnvVars (e.g. {\"ANTHROPIC_API_KEY\": \"anthropic-api-key\"}), envVars or envForward, or export ANTHROPIC_API_KEY on the host", strings.Join(claudeCredentialEnv, ", "))
 }
 
 // needsDockerInternalHost reports whether the container needs an explicit
@@ -100,8 +133,8 @@ func BuildEnvVars(cfg *config.Config, paths *config.Paths) (map[string]string, e
 
 	env["PORT"] = "8080"
 
-	if key := os.Getenv("ANTHROPIC_API_KEY"); key != "" {
-		env["ANTHROPIC_API_KEY"] = key
+	if key := os.Getenv(envAnthropicAPIKey); key != "" {
+		env[envAnthropicAPIKey] = key
 	}
 
 	for _, name := range cfg.EnvForward {

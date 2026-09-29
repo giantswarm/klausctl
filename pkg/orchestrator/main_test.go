@@ -13,5 +13,8 @@ import (
 // fallback/error paths becomes non-deterministic.
 func TestMain(m *testing.M) {
 	ocicache.Configure("", true)
+	// A fake credential: starts pass CheckClaudeCredential, as on a host
+	// with ANTHROPIC_API_KEY exported (giantswarm/klausctl#318).
+	_ = os.Setenv("ANTHROPIC_API_KEY", "test-key")
 	os.Exit(m.Run())
 }

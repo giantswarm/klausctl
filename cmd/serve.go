@@ -62,11 +62,24 @@ func runServe(_ *cobra.Command, _ []string) error {
 	}
 	serverCtx.SetSourceConfig(sourceCfg)
 
-	mcpSrv := mcpserver.NewMCPServer(
+	return mcpserver.ServeStdio(newMCPServer(serverCtx))
+}
+
+// newMCPServer is klausctl's MCP server with every tool registered.
+func newMCPServer(serverCtx *server.ServerContext) *mcpserver.MCPServer {
+	var mcpSrv *mcpserver.MCPServer
+	mcpSrv = mcpserver.NewMCPServer(
 		"klausctl",
 		buildVersion,
 		mcpserver.WithToolCapabilities(false),
 		mcpserver.WithInstructions(serverInstructions()),
+		// Unknown arguments are errors naming the key, not silently
+		// dropped (giantswarm/klausctl#318): the published schemas say
+		// additionalProperties false, the middleware enforces it.
+		mcpserver.WithStrictInputSchemaDefault(),
+		mcpserver.WithToolHandlerMiddleware(server.RejectUnknownArguments(func(name string) *mcpserver.ServerTool {
+			return mcpSrv.GetTool(name)
+		})),
 	)
 
 	instancetools.RegisterTools(mcpSrv, serverCtx)
@@ -76,7 +89,7 @@ func runServe(_ *cobra.Command, _ []string) error {
 	gatewaytools.RegisterTools(mcpSrv, serverCtx)
 	workspacetools.RegisterTools(mcpSrv, serverCtx)
 
-	return mcpserver.ServeStdio(mcpSrv)
+	return mcpSrv
 }
 
 func serverInstructions() string {
