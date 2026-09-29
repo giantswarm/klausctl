@@ -12,6 +12,9 @@ import (
 	"github.com/giantswarm/klausctl/pkg/config"
 )
 
+// argName is the instance name argument of the klaus_* tools.
+const argName = "name"
+
 func TestServeCommandRegistered(t *testing.T) {
 	assertCommandOnRoot(t, "serve")
 }
@@ -26,7 +29,7 @@ func callTool(t *testing.T, tool string, args map[string]any) *mcp.CallToolResul
 	srv := newMCPServer(&internalserver.ServerContext{Paths: &config.Paths{ConfigDir: t.TempDir()}})
 	msg, err := json.Marshal(map[string]any{
 		"jsonrpc": "2.0", "id": 1, "method": "tools/call",
-		"params": map[string]any{"name": tool, "arguments": args},
+		"params": map[string]any{argName: tool, "arguments": args},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -58,7 +61,7 @@ func resultText(r *mcp.CallToolResult) string {
 // agent cannot log in.
 func TestUnknownToolArgumentsAreRejected(t *testing.T) {
 	r := callTool(t, "klaus_run", map[string]any{
-		"name":      "sweep",
+		argName:     "sweep",
 		"message":   "hello",
 		"secrets":   []any{"anthropic-api-key"},
 		"secretEnv": map[string]any{"ANTHROPIC_API_KEY": "anthropic-api-key"},
@@ -77,7 +80,7 @@ func TestUnknownToolArgumentsAreRejected(t *testing.T) {
 // TestKnownToolArgumentsPassValidation: declared arguments reach the handler,
 // whose own answer comes back, not a schema error.
 func TestKnownToolArgumentsPassValidation(t *testing.T) {
-	r := callTool(t, "klaus_status", map[string]any{"name": "no-such-instance"})
+	r := callTool(t, "klaus_status", map[string]any{argName: "no-such-instance"})
 	if strings.Contains(resultText(r), "unknown argument") {
 		t.Fatalf("a declared argument is not a schema error: %q", resultText(r))
 	}

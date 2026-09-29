@@ -5,15 +5,17 @@ import (
 	"testing"
 )
 
+const argName = "name"
+
 func TestUnknownArguments(t *testing.T) {
-	declared := map[string]any{"name": nil, "message": nil, "secretEnvVars": nil, "secretFiles": nil, "envVars": nil}
+	declared := map[string]any{argName: nil, "message": nil, "secretEnvVars": nil, "secretFiles": nil, "envVars": nil}
 	cases := map[string]struct {
 		args map[string]any
 		want []string
 	}{
-		"all declared": {args: map[string]any{"name": "a", "secretEnvVars": map[string]any{}}},
+		"all declared": {args: map[string]any{argName: "a", "secretEnvVars": map[string]any{}}},
 		"misspelled secrets": {
-			args: map[string]any{"name": "a", "secrets": []any{}, "secretEnv": map[string]any{}},
+			args: map[string]any{argName: "a", "secrets": []any{}, "secretEnv": map[string]any{}},
 			want: []string{`"secretEnv" (did you mean "secretEnvVars"?)`, `"secrets" (did you mean "secretEnvVars" or "secretFiles"?)`, "nothing was done", "klaus_run takes: envVars, message, name, secretEnvVars, secretFiles"},
 		},
 		"typo":      {args: map[string]any{"nmae": "a"}, want: []string{`"nmae" (did you mean "name"?)`}},

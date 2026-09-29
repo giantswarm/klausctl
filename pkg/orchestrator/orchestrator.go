@@ -37,6 +37,10 @@ const mcpTypeHTTP = "http"
 // envValueTrue is the truthy value for boolean-ish environment variables.
 const envValueTrue = "true"
 
+// envAnthropicAPIKey is the Anthropic API key env var, forwarded from the
+// host when set.
+const envAnthropicAPIKey = "ANTHROPIC_API_KEY" //nolint:gosec // an env var name, not a credential
+
 // BuildRunOptions constructs the container runtime options from config.
 // This mirrors the Helm deployment.yaml template, producing the same
 // env vars and volume mounts. personalityDir is the local path to the
@@ -75,7 +79,7 @@ func BuildRunOptions(cfg *config.Config, paths *config.Paths, containerName, ima
 // claudeCredentialEnv are the env vars Claude Code authenticates with;
 // claudeProviderEnv switch it to a cloud provider's own credentials.
 var (
-	claudeCredentialEnv = []string{"ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN"}
+	claudeCredentialEnv = []string{envAnthropicAPIKey, "ANTHROPIC_AUTH_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN"}
 	claudeProviderEnv   = []string{"CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX", "CLAUDE_CODE_USE_FOUNDRY"}
 )
 
@@ -129,8 +133,8 @@ func BuildEnvVars(cfg *config.Config, paths *config.Paths) (map[string]string, e
 
 	env["PORT"] = "8080"
 
-	if key := os.Getenv("ANTHROPIC_API_KEY"); key != "" {
-		env["ANTHROPIC_API_KEY"] = key
+	if key := os.Getenv(envAnthropicAPIKey); key != "" {
+		env[envAnthropicAPIKey] = key
 	}
 
 	for _, name := range cfg.EnvForward {

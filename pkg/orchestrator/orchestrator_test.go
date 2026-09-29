@@ -1075,8 +1075,8 @@ func TestCheckClaudeCredential(t *testing.T) {
 		fail bool
 	}{
 		"nothing":               {env: map[string]string{"PORT": "8080"}, fail: true},
-		"empty api key":         {env: map[string]string{"ANTHROPIC_API_KEY": ""}, fail: true},
-		"api key":               {env: map[string]string{"ANTHROPIC_API_KEY": "k"}},
+		"empty api key":         {env: map[string]string{envAnthropicAPIKey: ""}, fail: true},
+		"api key":               {env: map[string]string{envAnthropicAPIKey: "k"}},
 		"auth token":            {env: map[string]string{"ANTHROPIC_AUTH_TOKEN": "t"}},
 		"oauth token":           {env: map[string]string{"CLAUDE_CODE_OAUTH_TOKEN": "t"}},
 		"bedrock":               {env: map[string]string{"CLAUDE_CODE_USE_BEDROCK": "1"}},
@@ -1102,7 +1102,7 @@ func TestCheckClaudeCredential(t *testing.T) {
 // TestBuildRunOptions_NoCredential: BuildRunOptions, shared by klausctl start
 // and the MCP tools, refuses before any container option is built.
 func TestBuildRunOptions_NoCredential(t *testing.T) {
-	t.Setenv("ANTHROPIC_API_KEY", "")
+	t.Setenv(envAnthropicAPIKey, "")
 	paths := &config.Paths{ConfigDir: t.TempDir()}
 	cfg := &config.Config{Port: 8080}
 	if _, err := BuildRunOptions(cfg, paths, "klaus-x", "img", ""); err == nil || !strings.Contains(err.Error(), "secretEnvVars") {
