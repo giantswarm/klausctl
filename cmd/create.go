@@ -4,12 +4,12 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
 
 	"github.com/giantswarm/klausctl/pkg/config"
+	"github.com/giantswarm/klausctl/pkg/fsutil"
 	"github.com/giantswarm/klausctl/pkg/instance"
 	"github.com/giantswarm/klausctl/pkg/worktree"
 )
@@ -200,7 +200,7 @@ func cleanupExistingInstance(ctx context.Context, name string, paths *config.Pat
 		return fmt.Errorf("cleaning up existing instance: %w", err)
 	}
 
-	if err := os.RemoveAll(paths.InstanceDir); err != nil {
+	if err := fsutil.RemoveAll(paths.InstanceDir); err != nil {
 		return fmt.Errorf("removing existing instance directory: %w", err)
 	}
 

@@ -23,6 +23,7 @@ import (
 	"github.com/giantswarm/klausctl/internal/server"
 	"github.com/giantswarm/klausctl/pkg/archive"
 	"github.com/giantswarm/klausctl/pkg/config"
+	"github.com/giantswarm/klausctl/pkg/fsutil"
 	"github.com/giantswarm/klausctl/pkg/instance"
 	"github.com/giantswarm/klausctl/pkg/orchestrator"
 	"github.com/giantswarm/klausctl/pkg/renderer"
@@ -247,7 +248,7 @@ func mcpCleanupExistingInstance(ctx context.Context, name string, paths *config.
 		return fmt.Errorf("cleaning up existing instance: %v", err)
 	}
 
-	if err := os.RemoveAll(paths.InstanceDir); err != nil {
+	if err := fsutil.RemoveAll(paths.InstanceDir); err != nil {
 		return fmt.Errorf("removing existing instance directory: %v", err)
 	}
 
@@ -358,7 +359,7 @@ func handleDelete(ctx context.Context, req mcp.CallToolRequest, sc *server.Serve
 	if err := cleanupContainer(ctx, name, inst); err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("cleaning up container: %v", err)), nil
 	}
-	if err := os.RemoveAll(paths.InstanceDir); err != nil {
+	if err := fsutil.RemoveAll(paths.InstanceDir); err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("deleting instance directory: %v", err)), nil
 	}
 

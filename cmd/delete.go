@@ -14,6 +14,7 @@ import (
 
 	"github.com/giantswarm/klausctl/pkg/archive"
 	"github.com/giantswarm/klausctl/pkg/config"
+	"github.com/giantswarm/klausctl/pkg/fsutil"
 	"github.com/giantswarm/klausctl/pkg/instance"
 	"github.com/giantswarm/klausctl/pkg/mcpclient"
 	"github.com/giantswarm/klausctl/pkg/runtime"
@@ -87,7 +88,7 @@ func runDelete(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if err := os.RemoveAll(paths.InstanceDir); err != nil {
+	if err := fsutil.RemoveAll(paths.InstanceDir); err != nil {
 		return fmt.Errorf("deleting instance directory: %w", err)
 	}
 

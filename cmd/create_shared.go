@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/giantswarm/klausctl/pkg/config"
+	"github.com/giantswarm/klausctl/pkg/fsutil"
 	"github.com/giantswarm/klausctl/pkg/instance"
 	"github.com/giantswarm/klausctl/pkg/orchestrator"
 	"github.com/giantswarm/klausctl/pkg/worktree"
@@ -205,7 +206,7 @@ func cliCreateInstance(ctx context.Context, cmd *cobra.Command, params CLICreate
 	// Clean up the instance directory if any subsequent step fails.
 	defer func() {
 		if retErr != nil {
-			_ = os.RemoveAll(instancePaths.InstanceDir)
+			_ = fsutil.RemoveAll(instancePaths.InstanceDir)
 		}
 	}()
 
