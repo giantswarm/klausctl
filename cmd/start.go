@@ -61,7 +61,6 @@ func startInstance(cmd *cobra.Command, instanceName, workspaceOverride, configPa
 	defer cancel()
 
 	out := cmd.OutOrStdout()
-	errOut := cmd.ErrOrStderr()
 
 	paths, err := config.DefaultPaths()
 	if err != nil {
@@ -274,12 +273,6 @@ func startInstance(cmd *cobra.Command, instanceName, workspaceOverride, configPa
 	_, _ = fmt.Fprintf(out, "  Image:       %s\n", image)
 	_, _ = fmt.Fprintf(out, "  Workspace:   %s\n", inst.Workspace)
 	_, _ = fmt.Fprintf(out, "  MCP:         http://localhost:%d\n", cfg.Port)
-
-	// Warn about missing API key after the success context so it doesn't
-	// appear before the user knows what's happening.
-	if os.Getenv("ANTHROPIC_API_KEY") == "" {
-		_, _ = fmt.Fprintf(errOut, "\n%s ANTHROPIC_API_KEY is not set; the claude agent may fail to authenticate.\n", yellow("Warning:"))
-	}
 
 	_, _ = fmt.Fprintf(out, "\nUse 'klausctl logs %s' to view output, 'klausctl stop %s' to stop.\n", inst.Name, inst.Name)
 	return nil

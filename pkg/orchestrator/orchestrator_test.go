@@ -1063,3 +1063,49 @@ func TestResolveSecretRefs_StaticSecretTakesPrecedence(t *testing.T) {
 
 // Verify RunOptions types match expected runtime types (compilation check).
 var _ runtime.RunOptions = runtime.RunOptions{}
+
+// TestCheckClaudeCredential (giantswarm/klausctl#318): a start with nothing
+// that can authenticate Claude Code fails before the container starts; any
+// credential env var, a cloud provider switch or a Claude credentials file
+// among the secret files is enough.
+func TestCheckClaudeCredential(t *testing.T) {
+	cases := map[string]struct {
+		cfg  config.Config
+		env  map[string]string
+		fail bool
+	}{
+		"nothing":               {env: map[string]string{"PORT": "8080"}, fail: true},
+		"empty api key":         {env: map[string]string{"ANTHROPIC_API_KEY": ""}, fail: true},
+		"api key":               {env: map[string]string{"ANTHROPIC_API_KEY": "k"}},
+		"auth token":            {env: map[string]string{"ANTHROPIC_AUTH_TOKEN": "t"}},
+		"oauth token":           {env: map[string]string{"CLAUDE_CODE_OAUTH_TOKEN": "t"}},
+		"bedrock":               {env: map[string]string{"CLAUDE_CODE_USE_BEDROCK": "1"}},
+		"credentials file":      {cfg: config.Config{SecretFiles: map[string]string{"/home/klaus/.claude/.credentials.json": "claude-creds"}}, env: map[string]string{}},
+		"unrelated secret file": {cfg: config.Config{SecretFiles: map[string]string{"/etc/ssl/ca.pem": "ca"}}, env: map[string]string{}, fail: true},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			err := CheckClaudeCredential(&tc.cfg, tc.env)
+			if tc.fail {
+				if err == nil || !strings.Contains(err.Error(), "no Claude credential reaches the container") {
+					t.Fatalf("want the missing-credential error, got %v", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("want no error, got %v", err)
+			}
+		})
+	}
+}
+
+// TestBuildRunOptions_NoCredential: BuildRunOptions, shared by klausctl start
+// and the MCP tools, refuses before any container option is built.
+func TestBuildRunOptions_NoCredential(t *testing.T) {
+	t.Setenv("ANTHROPIC_API_KEY", "")
+	paths := &config.Paths{ConfigDir: t.TempDir()}
+	cfg := &config.Config{Port: 8080}
+	if _, err := BuildRunOptions(cfg, paths, "klaus-x", "img", ""); err == nil || !strings.Contains(err.Error(), "secretEnvVars") {
+		t.Fatalf("want the missing-credential error naming secretEnvVars, got %v", err)
+	}
+}

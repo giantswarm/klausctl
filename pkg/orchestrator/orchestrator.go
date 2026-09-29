@@ -46,6 +46,9 @@ func BuildRunOptions(cfg *config.Config, paths *config.Paths, containerName, ima
 	if err != nil {
 		return runtime.RunOptions{}, err
 	}
+	if err := CheckClaudeCredential(cfg, env); err != nil {
+		return runtime.RunOptions{}, err
+	}
 
 	volumes, err := BuildVolumes(cfg, paths, env, personalityDir)
 	if err != nil {
@@ -67,6 +70,32 @@ func BuildRunOptions(cfg *config.Config, paths *config.Paths, containerName, ima
 	}
 
 	return opts, nil
+}
+
+// claudeCredentialEnv are the env vars Claude Code authenticates with;
+// claudeProviderEnv switch it to a cloud provider's own credentials.
+var (
+	claudeCredentialEnv = []string{"ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN"}
+	claudeProviderEnv   = []string{"CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX", "CLAUDE_CODE_USE_FOUNDRY"}
+)
+
+// CheckClaudeCredential fails before the container starts when nothing it
+// gets can authenticate Claude Code: no credential env var with a value, no
+// cloud provider switched on, no Claude credentials file among the secret
+// files. Such an agent can only answer "Not logged in"
+// (giantswarm/klausctl#318).
+func CheckClaudeCredential(cfg *config.Config, env map[string]string) error {
+	for _, name := range append(claudeCredentialEnv, claudeProviderEnv...) {
+		if env[name] != "" {
+			return nil
+		}
+	}
+	for path := range cfg.SecretFiles {
+		if filepath.Base(path) == ".credentials.json" {
+			return nil
+		}
+	}
+	return fmt.Errorf("no Claude credential reaches the container: set one of %s through secretEnvVars (e.g. {\"ANTHROPIC_API_KEY\": \"anthropic-api-key\"}), envVars or envForward, or export ANTHROPIC_API_KEY on the host", strings.Join(claudeCredentialEnv, ", "))
 }
 
 // needsDockerInternalHost reports whether the container needs an explicit
