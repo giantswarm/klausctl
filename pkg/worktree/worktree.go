@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -65,7 +66,8 @@ func DefaultBranch(repoDir string) (string, error) {
 	return "main", nil
 }
 
-// upstreamURL returns the URL of the "origin" remote in the given repository.
+// upstreamURL returns the URL of the "origin" remote in the given repository,
+// without credentials (see stripCredentials).
 func upstreamURL(repoDir string) (string, error) {
 	cmd := exec.Command("git", "remote", "get-url", "origin")
 	cmd.Dir = repoDir
@@ -73,11 +75,34 @@ func upstreamURL(repoDir string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("git remote get-url origin: %w", err)
 	}
-	url := strings.TrimSpace(string(out))
-	if url == "" {
+	remote := strings.TrimSpace(string(out))
+	if remote == "" {
 		return "", fmt.Errorf("origin remote URL is empty")
 	}
-	return url, nil
+	return stripCredentials(remote), nil
+}
+
+// stripCredentials removes credentials from a remote URL so a token in the
+// source repository's origin is never copied into a clone's .git/config.
+// HTTP(S) URLs lose their userinfo entirely; git authenticates them through
+// a credential helper. Other schemes (ssh://git@host) keep the user name,
+// which selects the account, and lose only a password. scp-like remotes
+// (git@host:path) and local paths carry no password and are returned as-is.
+func stripCredentials(remote string) string {
+	u, err := url.Parse(remote)
+	if err != nil || u.User == nil || u.Host == "" {
+		return remote
+	}
+	switch u.Scheme {
+	case "http", "https":
+		u.User = nil
+	default:
+		if _, hasPassword := u.User.Password(); !hasPassword {
+			return remote
+		}
+		u.User = url.User(u.User.Username())
+	}
+	return u.String()
 }
 
 // CreateOptions configures the behavior of Create.
