@@ -112,6 +112,12 @@ type CreateOptions struct {
 	// up-to-date remote state.
 	NoFetch bool
 
+	// LFS downloads git-LFS content during checkout. When false (the
+	// default), LFS-tracked files are checked out as pointer files: a
+	// missing or unreachable LFS object then cannot abort the clone, and
+	// most coding tasks never need the content.
+	LFS bool
+
 	// Warnings receives non-fatal warning messages (e.g. fetch failures).
 	// When nil, warnings are silently discarded.
 	Warnings io.Writer
@@ -126,6 +132,9 @@ type CreateOptions struct {
 // Unless opts.NoFetch is set, origin is fetched first so the clone
 // reflects the latest remote state. Fetch failures are non-fatal: a
 // warning is emitted and creation continues with existing local state.
+//
+// Unless opts.LFS is set, the checkout skips git-LFS smudging, so
+// LFS-tracked files are pointer files.
 //
 // The resulting clone has a self-contained .git directory that works
 // inside containers without additional volume mounts.
@@ -171,6 +180,9 @@ func Create(repoDir, clonePath string, opts ...CreateOptions) error {
 	ref := "origin/" + branch
 	checkoutCmd := exec.Command("git", "checkout", "--detach", ref) // #nosec G204 -- container runtime CLI invocation with controlled args
 	checkoutCmd.Dir = clonePath
+	if !o.LFS {
+		checkoutCmd.Env = append(os.Environ(), "GIT_LFS_SKIP_SMUDGE=1")
+	}
 	var checkoutErr bytes.Buffer
 	checkoutCmd.Stderr = &checkoutErr
 	if err := checkoutCmd.Run(); err != nil {

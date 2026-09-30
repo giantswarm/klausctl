@@ -115,6 +115,7 @@ func registerCreate(s *mcpserver.MCPServer, sc *server.ServerContext) {
 		mcp.WithString("systemPrompt", mcp.Description("System prompt for the Claude agent (overrides personality default)")),
 		mcp.WithString("mode", mcp.Description(`Operating mode: "agent" (default, autonomous coding, new process per prompt) or "chat" (interactive, persistent process, saved sessions)`)),
 		mcp.WithBoolean("noIsolate", mcp.Description("Skip git worktree creation and bind-mount workspace directly (default: false)")),
+		mcp.WithBoolean("lfs", mcp.Description("Download git-LFS content into the workspace clone; by default LFS-tracked files are pointer files, so a missing LFS object cannot abort the clone (default: false)")),
 		mcp.WithNumber(paramPort, mcp.Description("Override auto-selected host port for the instance MCP endpoint (0 or omitted = auto-select starting from 8080)")),
 		mcp.WithString(paramGitAuthor, mcp.Description("Git author identity as \"Name <email>\"; sets GIT_AUTHOR_NAME/GIT_COMMITTER_NAME and GIT_AUTHOR_EMAIL/GIT_COMMITTER_EMAIL in the container")),
 		mcp.WithString("gitCredentialHelper", mcp.Description("Git credential helper (currently only \"gh\" is supported, which configures git to call \"gh auth git-credential\" for github.com)")),

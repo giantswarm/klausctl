@@ -44,6 +44,7 @@ type mcpCreateParams struct {
 	mode           string
 	noIsolate      bool
 	noFetch        bool
+	lfs            bool
 	permissionMode string
 	model          string
 	systemPrompt   string
@@ -123,6 +124,7 @@ func parseMCPCreateParams(req mcp.CallToolRequest) (*mcpCreateParams, error) {
 		mode:           req.GetString("mode", "agent"),
 		noIsolate:      req.GetBool("noIsolate", false),
 		noFetch:        req.GetBool("noFetch", false),
+		lfs:            req.GetBool("lfs", false),
 		permissionMode: req.GetString("permissionMode", ""),
 		model:          req.GetString("model", ""),
 		systemPrompt:   req.GetString("systemPrompt", ""),
@@ -184,6 +186,7 @@ func mcpCreateInstance(ctx context.Context, params *mcpCreateParams, sc *server.
 		Mode:                 params.mode,
 		NoIsolate:            params.noIsolate,
 		NoFetch:              params.noFetch,
+		LFS:                  params.lfs,
 		Personality:          personality,
 		Toolchain:            toolchain,
 		LocalImage:           params.localImage,

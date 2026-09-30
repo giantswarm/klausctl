@@ -34,6 +34,7 @@ var (
 	runSource            string
 	runMode              string
 	runNoIsolate         bool
+	runLFS               bool
 	runNoFetch           bool
 	runGitAuthor         string
 	runGitCredHelper     string
@@ -93,6 +94,7 @@ func init() {
 	runCmd.Flags().StringVar(&runMode, "mode", "agent", `operating mode: "agent" (autonomous coding, new process per prompt) or "chat" (interactive, persistent process, saved sessions)`)
 	runCmd.Flags().BoolVar(&runNoIsolate, "no-isolate", false, "skip git worktree creation and bind-mount workspace directly")
 	runCmd.Flags().BoolVar(&runNoFetch, "no-fetch", false, "skip git fetch origin before cloning the workspace")
+	runCmd.Flags().BoolVar(&runLFS, "lfs", false, "download git-LFS content into the workspace clone (default: LFS files are pointer files)")
 	runCmd.Flags().StringVar(&runGitAuthor, "git-author", "", `git author identity "Name <email>"`)
 	runCmd.Flags().StringVar(&runGitCredHelper, "git-credential-helper", "", "git credential helper (currently only 'gh')")
 	runCmd.Flags().BoolVar(&runGitHTTPSInsteadOf, "git-https-instead-of-ssh", false, "rewrite SSH git URLs to HTTPS via container-local gitconfig")
@@ -147,6 +149,7 @@ func runRun(cmd *cobra.Command, args []string) error {
 		Mode:            runMode,
 		NoIsolate:       runNoIsolate,
 		NoFetch:         runNoFetch,
+		LFS:             runLFS,
 		GitAuthor:       runGitAuthor,
 		GitCredHelper:   runGitCredHelper,
 		GitHTTPSInstead: runGitHTTPSInsteadOf,

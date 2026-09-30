@@ -460,3 +460,84 @@ func TestRemoveWithModifiedFiles(t *testing.T) {
 		t.Fatalf("expected clone directory to be removed, stat err: %v", err)
 	}
 }
+
+// lfsPointer is a git-LFS pointer file for an object no LFS store holds.
+const lfsPointer = "version https://git-lfs.github.com/spec/v1\n" +
+	"oid sha256:1987164986f42fb0000000000000000000000000000000000000000000000000\n" +
+	"size 4800000\n"
+
+// repoWithMissingLFSObject returns a working clone whose origin/main tracks
+// plugin.bin through git-LFS without the LFS object existing anywhere, the
+// state of a repository whose LFS store lost an object. The LFS filter is
+// configured through the environment, as `git lfs install` would in the
+// user's global config, so the test does not depend on the host's config.
+func repoWithMissingLFSObject(t *testing.T) string {
+	t.Helper()
+	if _, err := exec.LookPath("git-lfs"); err != nil {
+		t.Skip("git-lfs not installed")
+	}
+	for i, kv := range [][2]string{
+		{"filter.lfs.process", "git-lfs filter-process"},
+		{"filter.lfs.smudge", "git-lfs smudge -- %f"},
+		{"filter.lfs.clean", "git-lfs clean -- %f"},
+		{"filter.lfs.required", "true"},
+	} {
+		t.Setenv(fmt.Sprintf("GIT_CONFIG_KEY_%d", i), kv[0])
+		t.Setenv(fmt.Sprintf("GIT_CONFIG_VALUE_%d", i), kv[1])
+	}
+	t.Setenv("GIT_CONFIG_COUNT", "4")
+
+	bare := initBareRepo(t)
+	clone := cloneRepo(t, bare)
+	for name, content := range map[string]string{
+		".gitattributes": "*.bin filter=lfs diff=lfs merge=lfs -text\n",
+		"plugin.bin":     lfsPointer,
+		"main.go":        "package main\n",
+	} {
+		if err := os.WriteFile(filepath.Join(clone, name), []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	run(t, clone, "git", "add", ".")
+	run(t, clone, "git", "commit", "-m", "track plugin.bin in LFS")
+	run(t, clone, "git", "push", "--no-verify", "origin", "main")
+	return clone
+}
+
+func TestCreateMissingLFSObject(t *testing.T) {
+	clone := repoWithMissingLFSObject(t)
+
+	clonedPath := filepath.Join(t.TempDir(), "instance-workspace")
+	if err := Create(clone, clonedPath, CreateOptions{NoFetch: true}); err != nil {
+		t.Fatalf("Create() must not fail on a missing LFS object: %v", err)
+	}
+
+	got, err := os.ReadFile(filepath.Join(clonedPath, "plugin.bin")) // #nosec G304 -- test temp dir
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != lfsPointer {
+		t.Errorf("plugin.bin = %q, want the LFS pointer file", got)
+	}
+	if _, err := os.Stat(filepath.Join(clonedPath, "main.go")); err != nil {
+		t.Errorf("non-LFS file missing from the clone: %v", err)
+	}
+}
+
+func TestCreateLFSDownloadsContent(t *testing.T) {
+	clone := repoWithMissingLFSObject(t)
+
+	// With LFS content requested, the missing object is the smudge error
+	// the default avoids: the clone fails and is cleaned up.
+	clonedPath := filepath.Join(t.TempDir(), "instance-workspace")
+	err := Create(clone, clonedPath, CreateOptions{NoFetch: true, LFS: true})
+	if err == nil {
+		t.Fatal("Create() with LFS must smudge plugin.bin and fail on the missing object")
+	}
+	if !strings.Contains(err.Error(), "smudge") {
+		t.Errorf("error = %v, want the LFS smudge failure", err)
+	}
+	if _, statErr := os.Stat(clonedPath); !os.IsNotExist(statErr) {
+		t.Errorf("partial clone left behind at %s", clonedPath)
+	}
+}

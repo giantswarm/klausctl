@@ -45,6 +45,10 @@ type CreateOptions struct {
 	// agents work against up-to-date code.
 	NoFetch bool
 
+	// LFS downloads git-LFS content into the workspace clone. When false
+	// (the default), LFS-tracked files are checked out as pointer files.
+	LFS bool
+
 	// Git identity and auth overrides.
 	GitAuthorName        string
 	GitAuthorEmail       string
@@ -142,6 +146,7 @@ func GenerateInstanceConfig(paths *Paths, opts CreateOptions) (*Config, error) {
 
 		wtOpts := worktree.CreateOptions{
 			NoFetch:  opts.NoFetch,
+			LFS:      opts.LFS,
 			Warnings: opts.Output,
 		}
 		if err := worktree.Create(workDir, wtPath, wtOpts); err != nil {
