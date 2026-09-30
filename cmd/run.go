@@ -18,6 +18,7 @@ import (
 
 var (
 	runPersonality       string
+	runLocalImage        string
 	runToolchain         string
 	runPlugins           []string
 	runPort              int
@@ -75,6 +76,8 @@ Examples:
 func init() {
 	runCmd.Flags().StringVar(&runPersonality, "personality", "", "personality short name or OCI reference")
 	runCmd.Flags().StringVar(&runToolchain, "toolchain", "", "toolchain short name or OCI reference")
+	runCmd.Flags().StringVar(&runLocalImage, "local-image", "", "image in the container runtime's local image store (e.g. klaus:my-branch), used without registry resolution or pull")
+	runCmd.MarkFlagsMutuallyExclusive("toolchain", "local-image")
 	runCmd.Flags().StringSliceVar(&runPlugins, "plugin", nil, "additional plugin short name or OCI reference (repeatable)")
 	runCmd.Flags().IntVar(&runPort, "port", 0, "override auto-selected port")
 	runCmd.Flags().StringArrayVar(&runEnv, "env", nil, "environment variable KEY=VALUE (repeatable)")
@@ -127,6 +130,7 @@ func runRun(cmd *cobra.Command, args []string) error {
 		Workspace:       workspace,
 		Personality:     runPersonality,
 		Toolchain:       runToolchain,
+		LocalImage:      runLocalImage,
 		Plugins:         runPlugins,
 		Port:            runPort,
 		Env:             runEnv,

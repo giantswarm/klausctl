@@ -50,6 +50,11 @@ type Config struct {
 	// This preserves the user's intent in per-instance config metadata.
 	Toolchain string `yaml:"toolchain,omitempty"`
 
+	// LocalImage marks Image as an image in the container runtime's local
+	// image store (e.g. a freshly built klaus:my-branch): it is used as is,
+	// without registry resolution or a pull.
+	LocalImage bool `yaml:"localImage,omitempty"`
+
 	// Workspace is the host directory to mount into the container at /workspace.
 	Workspace string `yaml:"workspace"`
 

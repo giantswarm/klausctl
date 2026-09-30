@@ -16,6 +16,7 @@ import (
 
 var (
 	createPersonality       string
+	createLocalImage        string
 	createToolchain         string
 	createPlugins           []string
 	createPort              int
@@ -68,6 +69,8 @@ MCP server configurations can be supplied via the MCP tool interface
 func init() {
 	createCmd.Flags().StringVar(&createPersonality, "personality", "", "personality short name or OCI reference")
 	createCmd.Flags().StringVar(&createToolchain, "toolchain", "", "toolchain short name or OCI reference")
+	createCmd.Flags().StringVar(&createLocalImage, "local-image", "", "image in the container runtime's local image store (e.g. klaus:my-branch), used without registry resolution or pull")
+	createCmd.MarkFlagsMutuallyExclusive("toolchain", "local-image")
 	createCmd.Flags().StringSliceVar(&createPlugins, "plugin", nil, "additional plugin short name or OCI reference (repeatable)")
 	createCmd.Flags().IntVar(&createPort, "port", 0, "override auto-selected port")
 	createCmd.Flags().StringArrayVar(&createEnv, "env", nil, "environment variable KEY=VALUE (repeatable)")
@@ -104,6 +107,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		Workspace:       workspace,
 		Personality:     createPersonality,
 		Toolchain:       createToolchain,
+		LocalImage:      createLocalImage,
 		Plugins:         createPlugins,
 		Port:            createPort,
 		Env:             createEnv,

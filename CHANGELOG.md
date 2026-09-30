@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+### Added
+
+- `klausctl create --local-image` and `klausctl run --local-image` (`localImage` on `klaus_create` and `klaus_run`) start an instance from an image in the Docker or Podman image store, such as a freshly built `klaus:my-branch`, without registry resolution or a pull; a later `klausctl start` keeps using it, and a missing image fails with a clear error ([#148](https://github.com/giantswarm/klausctl/issues/148)).
+
 ### Fixed
 
 - `klausctl delete`, `klaus_delete` and re-creating an instance remove a workspace with read-only directories, such as a Go module cache an agent left there (0555 directories), instead of failing with `permission denied` and leaving the instance half-deleted ([#301](https://github.com/giantswarm/klausctl/issues/301)).

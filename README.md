@@ -64,6 +64,17 @@ klausctl self-update           # Update klausctl to the latest release (--yes to
 klausctl version              # Show version information
 ```
 
+To try a locally built klaus image without pushing it to a registry, pass it
+with `--local-image` to `create` or `run` (`localImage` on the `klaus_create`
+and `klaus_run` MCP tools). klausctl then uses it from the Docker or Podman
+image store as is, without registry resolution or a pull, also on a later
+`klausctl start`; it excludes `--toolchain`.
+
+```bash
+docker build -t klaus:my-branch .
+klausctl run dev --local-image klaus:my-branch -m "hi" /path/to/workspace
+```
+
 `start`, `stop`, `status`, and `logs` currently default to `default` when `<name>` is omitted. This implicit default is deprecated; use `default` explicitly to avoid future breakage.
 
 ## OCI registry cache
