@@ -100,6 +100,7 @@ func registerCreate(s *mcpserver.MCPServer, sc *server.ServerContext) {
 		mcp.WithString(paramWorkspace, mcp.Description("Workspace directory (default: current working directory)")),
 		mcp.WithString("personality", mcp.Description("Personality short name or OCI reference")),
 		mcp.WithString("toolchain", mcp.Description("Toolchain short name or OCI reference")),
+		mcp.WithString("localImage", mcp.Description("Image in the container runtime's local image store (e.g. klaus:my-branch), used without registry resolution or pull; excludes toolchain")),
 		mcp.WithArray("plugin", mcp.Description("Additional plugin short names or OCI references")),
 		mcp.WithString("source", mcp.Description("Resolve artifact short names against a specific source")),
 		mcp.WithObject("envVars", mcp.Description("Environment variable key-value pairs to set in the container (merged with any existing envVars from the resolved config)")),
@@ -627,8 +628,10 @@ func startExistingInstance(ctx context.Context, name string, sc *server.ServerCo
 		}
 	}
 
-	image := orchestrator.ResolveDefaultImage(ctx, client, cfg.Image, io.Discard)
-	cfg.Image = image
+	if !cfg.LocalImage {
+		cfg.Image = orchestrator.ResolveDefaultImage(ctx, client, cfg.Image, io.Discard)
+	}
+	image := cfg.Image
 
 	if err := orchestrator.ResolveSecretRefs(cfg, paths); err != nil {
 		return nil, err
@@ -650,11 +653,8 @@ func startExistingInstance(ctx context.Context, name string, sc *server.ServerCo
 		return nil, fmt.Errorf("building run options: %w", err)
 	}
 
-	if err := rt.Pull(ctx, image, io.Discard); err != nil {
-		images, imgErr := rt.Images(ctx, image)
-		if imgErr != nil || len(images) == 0 {
-			return nil, fmt.Errorf("pulling image: %w", err)
-		}
+	if err := orchestrator.EnsureImage(ctx, rt, image, cfg.LocalImage, io.Discard); err != nil {
+		return nil, err
 	}
 
 	containerID, err := rt.Run(ctx, runOpts)

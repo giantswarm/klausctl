@@ -17,6 +17,11 @@ const (
 	envVarSSHAuthSock = "SSH_AUTH_SOCK"
 )
 
+const (
+	testPersonalityImage = "gsoci.azurecr.io/giantswarm/klaus-personality-image:latest"
+	testLocalImage       = "klaus:my-branch"
+)
+
 func TestGenerateInstanceConfig(t *testing.T) {
 	base := t.TempDir()
 	workspace := filepath.Join(base, "workspace")
@@ -119,7 +124,7 @@ func TestGenerateInstanceConfig_ResolvedPersonalityMergesPlugins(t *testing.T) {
 		Context:     context.Background(),
 		ResolvePersonality: func(_ context.Context, _ string, _ io.Writer) (*ResolvedPersonality, error) {
 			return &ResolvedPersonality{
-				Image: "gsoci.azurecr.io/giantswarm/klaus-personality-image:latest",
+				Image: testPersonalityImage,
 				Plugins: []Plugin{
 					{Repository: "gsoci.azurecr.io/giantswarm/klaus-plugins/base", Tag: "latest"},
 				},
@@ -130,12 +135,65 @@ func TestGenerateInstanceConfig_ResolvedPersonalityMergesPlugins(t *testing.T) {
 		t.Fatalf("GenerateInstanceConfig() returned error: %v", err)
 	}
 
-	if cfg.Image != "gsoci.azurecr.io/giantswarm/klaus-personality-image:latest" {
+	if cfg.Image != testPersonalityImage {
 		t.Fatalf("expected personality image override, got %s", cfg.Image)
 	}
 
 	if len(cfg.Plugins) != 2 {
 		t.Fatalf("expected merged plugins, got %+v", cfg.Plugins)
+	}
+}
+
+func TestGenerateInstanceConfig_LocalImage(t *testing.T) {
+	base := t.TempDir()
+	workspace := filepath.Join(base, "workspace")
+	if err := os.MkdirAll(workspace, 0o750); err != nil {
+		t.Fatal(err)
+	}
+
+	paths := &Paths{
+		ConfigDir:        base,
+		InstancesDir:     filepath.Join(base, "instances"),
+		PluginsDir:       filepath.Join(base, "plugins"),
+		PersonalitiesDir: filepath.Join(base, "personalities"),
+	}
+
+	cfg, err := GenerateInstanceConfig(paths, CreateOptions{
+		Name:        testInstanceDev,
+		Workspace:   workspace,
+		Personality: testPersonalitySRE,
+		LocalImage:  testLocalImage,
+		Context:     context.Background(),
+		ResolvePersonality: func(_ context.Context, _ string, _ io.Writer) (*ResolvedPersonality, error) {
+			return &ResolvedPersonality{Image: testPersonalityImage}, nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("GenerateInstanceConfig() returned error: %v", err)
+	}
+	if cfg.Image != testLocalImage || !cfg.LocalImage {
+		t.Fatalf("expected the local image to win over the personality image, got image=%s localImage=%v", cfg.Image, cfg.LocalImage)
+	}
+	if cfg.Toolchain != "" {
+		t.Fatalf("expected no toolchain for a local image, got %s", cfg.Toolchain)
+	}
+
+	data, err := cfg.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "localImage: true") {
+		t.Fatalf("expected localImage to persist for restarts, got:\n%s", data)
+	}
+
+	_, err = GenerateInstanceConfig(paths, CreateOptions{
+		Name:       "other",
+		Workspace:  workspace,
+		Toolchain:  "go",
+		LocalImage: testLocalImage,
+	})
+	if err == nil || !strings.Contains(err.Error(), "exclude each other") {
+		t.Fatalf("expected a toolchain plus a local image to be refused, got %v", err)
 	}
 }
 

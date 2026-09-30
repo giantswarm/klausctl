@@ -26,6 +26,7 @@ type mcpCreateParams struct {
 	workspace      string
 	personality    string
 	toolchain      string
+	localImage     string
 	pluginArgs     []string
 	sourceFilter   string
 	envVars        map[string]string
@@ -104,6 +105,7 @@ func parseMCPCreateParams(req mcp.CallToolRequest) (*mcpCreateParams, error) {
 		workspace:      workspace,
 		personality:    req.GetString("personality", ""),
 		toolchain:      req.GetString("toolchain", ""),
+		localImage:     req.GetString("localImage", ""),
 		pluginArgs:     req.GetStringSlice("plugin", nil),
 		sourceFilter:   req.GetString("source", ""),
 		envVars:        envVars,
@@ -184,6 +186,7 @@ func mcpCreateInstance(ctx context.Context, params *mcpCreateParams, sc *server.
 		NoFetch:              params.noFetch,
 		Personality:          personality,
 		Toolchain:            toolchain,
+		LocalImage:           params.localImage,
 		Plugins:              pluginArgs,
 		Port:                 params.port,
 		GitAuthorName:        params.gitAuthorName,

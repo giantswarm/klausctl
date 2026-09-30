@@ -166,8 +166,10 @@ func startInstance(cmd *cobra.Command, instanceName, workspaceOverride, configPa
 		}
 	}
 
-	image := orchestrator.ResolveDefaultImage(ctx, client, cfg.Image, out)
-	cfg.Image = image
+	if !cfg.LocalImage {
+		cfg.Image = orchestrator.ResolveDefaultImage(ctx, client, cfg.Image, out)
+	}
+	image := cfg.Image
 
 	// Auto-start klaus-gateway before the instance when the resolved spec
 	// declares `requires.gateway: true`. This runs before ResolveSecretRefs
@@ -210,16 +212,8 @@ func startInstance(cmd *cobra.Command, instanceName, workspaceOverride, configPa
 		return fmt.Errorf("building run options: %w", err)
 	}
 
-	// Pull the image with streamed progress. If the pull fails but the
-	// image is already cached locally (e.g. expired registry credentials),
-	// continue with the cached copy.
-	_, _ = fmt.Fprintf(out, "Pulling %s...\n", image)
-	if err := rt.Pull(ctx, image, out); err != nil {
-		images, imgErr := rt.Images(ctx, image)
-		if imgErr != nil || len(images) == 0 {
-			return fmt.Errorf("pulling image: %w", err)
-		}
-		_, _ = fmt.Fprintln(out, "Pull failed, using locally cached image.")
+	if err := orchestrator.EnsureImage(ctx, rt, image, cfg.LocalImage, out); err != nil {
+		return err
 	}
 
 	// Start container.

@@ -26,6 +26,11 @@ type CreateOptions struct {
 	Plugins     []string
 	Port        int
 
+	// LocalImage is an image reference in the container runtime's local
+	// image store, used instead of a toolchain and never pulled. It
+	// excludes Toolchain.
+	LocalImage string
+
 	// Mode selects the operating mode: "agent" (default) for autonomous
 	// coding or "chat" for interactive conversation.
 	Mode string
@@ -83,6 +88,9 @@ type ResolvedPersonality struct {
 func GenerateInstanceConfig(paths *Paths, opts CreateOptions) (*Config, error) {
 	if err := ValidateInstanceName(opts.Name); err != nil {
 		return nil, err
+	}
+	if opts.LocalImage != "" && opts.Toolchain != "" {
+		return nil, fmt.Errorf("a local image and a toolchain exclude each other; set only one")
 	}
 
 	var workDir string
@@ -148,14 +156,18 @@ func GenerateInstanceConfig(paths *Paths, opts CreateOptions) (*Config, error) {
 		resolver = DefaultSourceResolver()
 	}
 
-	toolchainExplicitlySet := opts.Toolchain != ""
+	imageExplicitlySet := opts.Toolchain != "" || opts.LocalImage != ""
 	if opts.Personality != "" {
 		cfg.Personality = resolver.ResolvePersonalityRef(opts.Personality)
 	}
 
-	if toolchainExplicitlySet {
+	if opts.Toolchain != "" {
 		cfg.Toolchain = resolver.ResolveToolchainRef(opts.Toolchain)
 		cfg.Image = cfg.Toolchain
+	}
+	if opts.LocalImage != "" {
+		cfg.Image = opts.LocalImage
+		cfg.LocalImage = true
 	}
 
 	for _, pluginRef := range opts.Plugins {
@@ -194,7 +206,7 @@ func GenerateInstanceConfig(paths *Paths, opts CreateOptions) (*Config, error) {
 		}
 
 		cfg.Plugins = mergePlugins(resolved.Plugins, cfg.Plugins)
-		if !toolchainExplicitlySet && resolved.Image != "" {
+		if !imageExplicitlySet && resolved.Image != "" {
 			cfg.Image = resolved.Image
 		}
 	}

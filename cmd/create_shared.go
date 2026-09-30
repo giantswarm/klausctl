@@ -23,6 +23,7 @@ type CLICreateParams struct {
 	Workspace       string
 	Personality     string
 	Toolchain       string
+	LocalImage      string
 	Plugins         []string
 	Port            int
 	Env             []string
@@ -146,6 +147,7 @@ func cliCreateInstance(ctx context.Context, cmd *cobra.Command, params CLICreate
 		NoFetch:              params.NoFetch,
 		Personality:          personality,
 		Toolchain:            toolchain,
+		LocalImage:           params.LocalImage,
 		Plugins:              plugins,
 		Port:                 params.Port,
 		GitAuthorName:        gitName,
