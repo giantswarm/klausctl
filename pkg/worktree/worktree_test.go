@@ -392,6 +392,50 @@ func TestCreateFetchFailureWarnsButContinues(t *testing.T) {
 	}
 }
 
+func TestCreateStripsCredentialsFromOrigin(t *testing.T) {
+	bare := initBareRepo(t)
+	clone := cloneRepo(t, bare)
+	run(t, clone, "git", "remote", "set-url", "origin", "https://x-access-token:ghp_example@github.com/example/repo.git")
+
+	clonedPath := filepath.Join(t.TempDir(), "instance-workspace")
+	if err := Create(clone, clonedPath, CreateOptions{NoFetch: true}); err != nil {
+		t.Fatalf("Create() error: %v", err)
+	}
+
+	gitConfig, err := os.ReadFile(filepath.Join(clonedPath, ".git", "config")) // #nosec G304 -- test temp dir
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(gitConfig), "ghp_example") || strings.Contains(string(gitConfig), "x-access-token") {
+		t.Fatalf("clone's .git/config carries the credential:\n%s", gitConfig)
+	}
+	if !strings.Contains(string(gitConfig), "url = https://github.com/example/repo.git") {
+		t.Fatalf("clone's origin is not the credential-free upstream:\n%s", gitConfig)
+	}
+}
+
+func TestStripCredentials(t *testing.T) {
+	const (
+		plainHTTPS = "https://github.com/o/r.git"
+		plainSSH   = "ssh://git@github.com/o/r.git"
+	)
+	tests := []struct{ in, want string }{
+		{"https://x-access-token:ghp_example@github.com/o/r.git", plainHTTPS},
+		{"https://ghp_example@github.com/o/r.git", plainHTTPS},
+		{"http://user:pass@git.example.com:8080/o/r", "http://git.example.com:8080/o/r"},
+		{plainHTTPS, plainHTTPS},
+		{plainSSH, plainSSH},
+		{"ssh://git:secret@github.com/o/r.git", plainSSH},
+		{"git@github.com:o/r.git", "git@github.com:o/r.git"},
+		{"/srv/git/r.git", "/srv/git/r.git"},
+	}
+	for _, tt := range tests {
+		if got := stripCredentials(tt.in); got != tt.want {
+			t.Errorf("stripCredentials(%q) = %q, want %q", tt.in, got, tt.want)
+		}
+	}
+}
+
 func TestRemoveWithModifiedFiles(t *testing.T) {
 	bare := initBareRepo(t)
 	clone := cloneRepo(t, bare)
