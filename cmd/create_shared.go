@@ -40,6 +40,7 @@ type CLICreateParams struct {
 	Mode            string
 	NoIsolate       bool
 	NoFetch         bool
+	LFS             bool
 	GitAuthor       string
 	GitCredHelper   string
 	GitHTTPSInstead bool
@@ -145,6 +146,7 @@ func cliCreateInstance(ctx context.Context, cmd *cobra.Command, params CLICreate
 		Mode:                 params.Mode,
 		NoIsolate:            params.NoIsolate,
 		NoFetch:              params.NoFetch,
+		LFS:                  params.LFS,
 		Personality:          personality,
 		Toolchain:            toolchain,
 		LocalImage:           params.LocalImage,
