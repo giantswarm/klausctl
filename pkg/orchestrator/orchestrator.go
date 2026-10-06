@@ -41,6 +41,16 @@ const envValueTrue = "true"
 // host when set.
 const envAnthropicAPIKey = "ANTHROPIC_API_KEY" //nolint:gosec // an env var name, not a credential
 
+// envAllowUnauthenticated opts klaus (>= 1.0.0) in to serving /mcp without a
+// token; without an opt-in or a token issuer it refuses to start. The port is
+// published on hostIPLoopback only, so no other host on the network reaches it;
+// other containers on the same Docker network still can.
+const envAllowUnauthenticated = "KLAUS_ALLOW_UNAUTHENTICATED"
+
+// hostIPLoopback is the host address klaus ports are published on. The open
+// /mcp endpoint (envAllowUnauthenticated) depends on it.
+const hostIPLoopback = "127.0.0.1"
+
 // BuildRunOptions constructs the container runtime options from config.
 // This mirrors the Helm deployment.yaml template, producing the same
 // env vars and volume mounts. personalityDir is the local path to the
@@ -67,6 +77,7 @@ func BuildRunOptions(cfg *config.Config, paths *config.Paths, containerName, ima
 		EnvVars: env,
 		Volumes: volumes,
 		Ports:   map[int]int{cfg.Port: 8080},
+		HostIP:  hostIPLoopback,
 	}
 
 	if needsDockerInternalHost(cfg) {
@@ -132,6 +143,8 @@ func BuildEnvVars(cfg *config.Config, paths *config.Paths) (map[string]string, e
 	env := make(map[string]string)
 
 	env["PORT"] = "8080"
+	// Set before the user's env vars below, so that a configured value wins.
+	env[envAllowUnauthenticated] = envValueTrue
 
 	if key := os.Getenv(envAnthropicAPIKey); key != "" {
 		env[envAnthropicAPIKey] = key
