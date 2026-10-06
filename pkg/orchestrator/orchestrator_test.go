@@ -33,6 +33,25 @@ func TestBuildEnvVars_Defaults(t *testing.T) {
 	if env["PORT"] != "8080" {
 		t.Errorf("expected PORT=8080, got %q", env["PORT"])
 	}
+	if env["KLAUS_ALLOW_UNAUTHENTICATED"] != "true" {
+		t.Errorf("expected KLAUS_ALLOW_UNAUTHENTICATED=true, got %q", env["KLAUS_ALLOW_UNAUTHENTICATED"])
+	}
+}
+
+func TestBuildEnvVars_AllowUnauthenticatedOverride(t *testing.T) {
+	cfg := &config.Config{
+		EnvVars: map[string]string{"KLAUS_ALLOW_UNAUTHENTICATED": "false"},
+	}
+	paths := testPaths(t)
+
+	env, err := BuildEnvVars(cfg, paths)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if env["KLAUS_ALLOW_UNAUTHENTICATED"] != "false" {
+		t.Errorf("expected the configured KLAUS_ALLOW_UNAUTHENTICATED=false to win, got %q", env["KLAUS_ALLOW_UNAUTHENTICATED"])
+	}
 }
 
 func TestBuildEnvVars_EnvForward(t *testing.T) {

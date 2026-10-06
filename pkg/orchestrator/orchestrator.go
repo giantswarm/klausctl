@@ -41,6 +41,11 @@ const envValueTrue = "true"
 // host when set.
 const envAnthropicAPIKey = "ANTHROPIC_API_KEY" //nolint:gosec // an env var name, not a credential
 
+// envAllowUnauthenticated opts klaus (>= 1.0.0) in to serving /mcp without a
+// token; without an opt-in or a token issuer it refuses to start. klausctl
+// publishes the port on 127.0.0.1 only, so the endpoint stays on this host.
+const envAllowUnauthenticated = "KLAUS_ALLOW_UNAUTHENTICATED"
+
 // BuildRunOptions constructs the container runtime options from config.
 // This mirrors the Helm deployment.yaml template, producing the same
 // env vars and volume mounts. personalityDir is the local path to the
@@ -132,6 +137,8 @@ func BuildEnvVars(cfg *config.Config, paths *config.Paths) (map[string]string, e
 	env := make(map[string]string)
 
 	env["PORT"] = "8080"
+	// Set before the user's env vars below, so that a configured value wins.
+	env[envAllowUnauthenticated] = envValueTrue
 
 	if key := os.Getenv(envAnthropicAPIKey); key != "" {
 		env[envAnthropicAPIKey] = key

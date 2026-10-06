@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Instances start with klaus 1.0.0 and later, which refuses to serve `/mcp` without authentication: klausctl sets `KLAUS_ALLOW_UNAUTHENTICATED=true` on the container, whose port stays published on `127.0.0.1` only. A value for the variable in `envVars`, `envForward` or `secretEnvVars` wins, e.g. `false` together with `KLAUS_TOKEN_ISSUER_URL` and `KLAUS_TOKEN_AUDIENCES`.
 - Workspace isolation checks out git-LFS files as pointer files, so a repository with a missing or unreachable LFS object no longer aborts `klausctl create`, `klausctl run`, `klaus_create` or `klaus_run`; `--lfs` (`lfs: true`) downloads the LFS content when a task needs it ([#315](https://github.com/giantswarm/klausctl/issues/315)).
 - Workspace isolation no longer copies credentials from the source repository's origin into an instance's clone: an HTTP(S) origin loses its userinfo (such as `x-access-token:<token>@`), another scheme keeps only its user name. Git authenticates through a credential helper instead.
 - `klausctl delete`, `klaus_delete` and re-creating an instance remove a workspace with read-only directories, such as a Go module cache an agent left there (0555 directories), instead of failing with `permission denied` and leaving the instance half-deleted ([#301](https://github.com/giantswarm/klausctl/issues/301)).
