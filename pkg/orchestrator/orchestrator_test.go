@@ -306,6 +306,13 @@ func TestBuildRunOptions_Structure(t *testing.T) {
 	if opts.Ports[9090] != 8080 {
 		t.Errorf("expected port mapping 9090:8080, got %v", opts.Ports)
 	}
+	// klaus serves /mcp without a token here, so the port must stay on loopback.
+	if opts.HostIP != "127.0.0.1" {
+		t.Errorf("expected HostIP 127.0.0.1, got %q", opts.HostIP)
+	}
+	if opts.EnvVars["KLAUS_ALLOW_UNAUTHENTICATED"] != "true" {
+		t.Errorf("expected KLAUS_ALLOW_UNAUTHENTICATED=true, got %q", opts.EnvVars["KLAUS_ALLOW_UNAUTHENTICATED"])
+	}
 
 	hasWorkspaceVol := false
 	for _, v := range opts.Volumes {
