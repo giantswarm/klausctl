@@ -5,9 +5,9 @@ go 1.26.0
 toolchain go1.27.2
 
 require (
-	github.com/creativeprojects/go-selfupdate v1.6.0
+	github.com/giantswarm/go-selfupdate v1.6.1
 	github.com/giantswarm/klaus-oci v0.0.79
-	github.com/giantswarm/selfupdate-cosign v0.3.2
+	github.com/giantswarm/selfupdate-cosign v0.3.4
 	github.com/google/uuid v1.6.0
 	github.com/mark3labs/mcp-go v1.2.1
 	github.com/spf13/cobra v1.10.2
@@ -88,6 +88,8 @@ require (
 	code.gitea.io/sdk/gitea v0.23.2 // indirect
 	github.com/42wim/httpsig v1.2.4 // indirect
 	github.com/Masterminds/semver/v3 v3.5.0 // indirect
+	github.com/ProtonMail/go-crypto v1.4.1 // indirect
+	github.com/cloudflare/circl v1.6.3 // indirect
 	github.com/davidmz/go-pageant v1.0.2 // indirect
 	github.com/go-fed/httpsig v1.1.0 // indirect
 	github.com/google/go-github/v86 v86.0.0 // indirect
