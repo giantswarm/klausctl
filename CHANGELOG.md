@@ -126,6 +126,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- The scan ignores CVE-2026-108859 until 2026-11-12: mcp-go through v1.2.1 (no fixed release yet) reads a Streamable HTTP POST body whole, which klausctl, serving MCP over stdio only, never reaches ([#389](https://github.com/giantswarm/klausctl/issues/389)).
+
 ### Security
 
 - Published container ports now bind to `127.0.0.1` by default instead of `0.0.0.0`, so klaus instances are no longer reachable from the LAN unless the caller explicitly opts in via the new `RunOptions.HostIP` field.
