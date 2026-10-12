@@ -11,7 +11,19 @@ klausctl is the local-mode counterpart to the Helm chart and the klaus-operator.
 - **Config rendering** -- generate `.mcp.json`, `settings.json`, `SKILL.md` files from a single config file
 - **Container runtime auto-detection** -- Docker or Podman, with preference configurable
 - **Environment variable forwarding** -- pass secrets from host to container
-- **Self-update** -- `klausctl update` to fetch the latest release from GitHub
+- **Self-update** -- `klausctl self-update` to fetch the latest release from GitHub
+
+## Installation
+
+- **Release binary**: download the binary for your platform from the [latest release](https://github.com/giantswarm/klausctl/releases/latest), make it executable and put it on your `PATH`.
+- **Self-update**: an installed klausctl updates itself to the latest release with `klausctl self-update` (`--yes` skips the prompt).
+- **go install**: with Go installed, build a given version from source:
+
+  ```bash
+  go install github.com/giantswarm/klausctl@v0.5.4   # a release tag, or @latest for the newest stable release
+  ```
+
+  The binary lands in `$(go env GOBIN)`, or `$(go env GOPATH)/bin` when `GOBIN` is unset, and `klausctl version` reports the module version.
 
 ## Quick Start
 
