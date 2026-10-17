@@ -126,26 +126,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Security
-
-- Published container ports now bind to `127.0.0.1` by default instead of `0.0.0.0`, so klaus instances are no longer reachable from the LAN unless the caller explicitly opts in via the new `RunOptions.HostIP` field.
+## [0.4.16] - 2026-09-24
 
 ### Fixed
 
 - `self-update` replaces the binary, symbolic links resolved, with a single rename (`selfupdatecosign.Install`, selfupdate-cosign v0.3.0). go-selfupdate's own swap moved the binary aside before it moved the new one in, so a process started in between found none, and concurrent updates could lose it. Now a process started meanwhile runs the old binary or the new one, several updates may run at once, and the binary keeps its mode.
+
+## [0.0.72] - 2026-04-29
+
+### Fixed
+
 - `klaus_run` and `klaus_prompt` MCP tools no longer leave the agent stuck at `stopped (1 messages)` in non-blocking mode. The streaming `POST /v1/chat/completions` request is now wrapped with `context.WithoutCancel` so the SSE connection is not torn down when the MCP request handler returns. Without this, mcp-go cancels the per-request context as soon as the handler emits `JSONResult`, klaus sees the client disconnect on `r.Context().Done()`, and SIGTERMs the freshly-started claude process before it produces any output. Affects `handlePrompt`, `handlePromptRemote`, `handleRun`, and `handleRunRemote` in `internal/tools/instance/`. ([#204](https://github.com/giantswarm/klausctl/issues/204))
+
+## [0.0.66] - 2026-04-24
+
+### Fixed
+
 - Tests in `pkg/worktree`, `pkg/config`, and `internal/tools/instance` no longer fail on developer machines that have GPG-signed commits enforced globally or that have Docker/Podman installed. Worktree/config helpers explicitly disable `commit.gpgsign`/`tag.gpgsign` in their throwaway repos, and the MCP collision tests stub `PATH` so container-runtime auto-detection cannot pick up a real Docker binary.
+
+## [0.0.64] - 2026-04-24
 
 ### Changed
 
 - Lint cleanup: address all pre-existing `errcheck`, `gosec`, `goconst`, `staticcheck`, `ineffassign`, and `unused` findings reported by the repo's pre-commit `golangci-lint` configuration. No behavior changes; covers `_, _ =` prefixes for ignored writer return values, tightened default file/dir permissions (0o600/0o750), `// #nosec` justifications for trusted subprocess and file-path call sites, removal of redundant embedded field selectors, lowercased error string, and removal of one unused test helper.
+
+### Security
+
+- Published container ports now bind to `127.0.0.1` by default instead of `0.0.0.0`, so klaus instances are no longer reachable from the LAN unless the caller explicitly opts in via the new `RunOptions.HostIP` field.
+
+## [0.0.42] - 2026-03-23
+
+### Added
+
+- `pkg/mcpclient/result.go`: shared `ExtractText`, `ParseStatusField`, `IsTerminalStatus` helpers with unit tests.
+
+### Changed
+
 - `klaus_messages` MCP tool is now a passthrough proxy -- it forwards the agent's OpenAI-compatible `{messages, metadata, total}` response directly without format conversion. ([#167](https://github.com/giantswarm/klausctl/issues/167))
 - `klaus_messages` accepts new `offset` and `types` parameters, forwarded to the agent's `messages` tool for pagination and filtering.
 - `klausctl messages` CLI parses the new OpenAI-compatible envelope directly.
-- `klausctl run` and `klausctl prompt` now send prompts via `POST /v1/chat/completions` with streaming instead of MCP `Prompt` tool. In blocking mode, content deltas are printed in real time. In non-blocking mode, the stream is drained in the background.
-- `klaus_run` and `klaus_prompt` MCP tools use the completions streaming API for prompt delivery. Blocking mode drains the stream then fetches the result via MCP `Result` tool.
-- Readiness probes (`waitForMCPReady`) replaced with lightweight `GET /status` HTTP polling via `agentclient.FetchStatus`.
-- `klausctl messages --follow` remains on MCP polling (control plane).
 - Deduplicate MCP result helpers (`ExtractText`, `ParseStatusField`, `IsTerminalStatus`) into `pkg/mcpclient/result.go`; remove local copies from `cmd/`, `internal/`, and `pkg/archive/`.
 - `klausctl messages --follow` only probes agent status when no new messages arrive, halving network calls during active output.
 - `klausctl messages -o json` now includes `metadata` (session, model, cost, duration) when the agent provides it.
@@ -155,42 +174,85 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 - `pkg/rawmsg/` package and all raw-to-role/content conversion logic (superseded by agent-side OpenAI-compatible format). ([#167](https://github.com/giantswarm/klausctl/issues/167))
-- `waitForAgentResult` polling loop in `cmd/prompt.go` (replaced by completions streaming).
-- `waitForResult` polling loop in `internal/tools/instance/agent.go` (replaced by completions streaming).
 - Duplicate `extractText`/`extractMCPText` functions from `cmd/prompt.go`, `internal/tools/instance/agent.go`, and `pkg/archive/capture.go`.
 - Duplicate `terminalStatuses` maps and `parseStatusField` functions.
+
+## [0.0.34] - 2026-03-23
 
 ### Added
 
 - `pkg/agentclient/chat.go`: `StreamCompletion` function for streaming `POST /v1/chat/completions` responses as a channel of deltas.
-- `pkg/mcpclient/result.go`: shared `ExtractText`, `ParseStatusField`, `IsTerminalStatus` helpers with unit tests.
+
+### Changed
+
+- `klausctl run` and `klausctl prompt` now send prompts via `POST /v1/chat/completions` with streaming instead of MCP `Prompt` tool. In blocking mode, content deltas are printed in real time. In non-blocking mode, the stream is drained in the background.
+- `klaus_run` and `klaus_prompt` MCP tools use the completions streaming API for prompt delivery. Blocking mode drains the stream then fetches the result via MCP `Result` tool.
+- Readiness probes (`waitForMCPReady`) replaced with lightweight `GET /status` HTTP polling via `agentclient.FetchStatus`.
+- `klausctl messages --follow` remains on MCP polling (control plane).
+
+### Removed
+
+- `waitForAgentResult` polling loop in `cmd/prompt.go` (replaced by completions streaming).
+- `waitForResult` polling loop in `internal/tools/instance/agent.go` (replaced by completions streaming).
+
+## [0.0.31] - 2026-02-27
+
+### Changed
+
+- `klausctl personality validate` now resolves plugin and toolchain references against the OCI registry by default, failing if any dependency cannot be found. Use `--resolve-deps=false` for offline-only validation. Supports `--source` for source selection.
+
+## [0.0.28] - 2026-02-27
 
 ### Fixed
 
 - Fix `klausctl plugin validate` rejecting commands-only plugins by adding `commands/` to the recognized plugin content list. ([#69](https://github.com/giantswarm/klausctl/issues/69))
+
+## [0.0.27] - 2026-02-27
+
+### Changed
+
+- Upgrade `klaus-oci` to v0.0.9: common metadata (name, description, author, homepage, repository, license, keywords) moves from OCI config blobs into `io.giantswarm.klaus.*` manifest annotations for all artifact types. Config blobs now contain only type-specific data (discovered components for plugins, composition for personalities). Toolchain annotations switch from `org.opencontainers.image.*` to `io.giantswarm.klaus.*`. Existing artifacts need to be re-pushed.
+
+## [0.0.26] - 2026-02-25
 
 ### Added
 
 - Add `klausctl plugin describe`, `klausctl personality describe`, and `klausctl toolchain describe` commands that fetch artifact metadata from the OCI registry without downloading content layers. Each supports `--output json` for scripting and `--source` for source selection. `personality describe` automatically resolves dependency metadata in text mode; use `--deps=false` to skip or `--deps` to include them in JSON output.
 - Add `klaus_plugin_describe`, `klaus_personality_describe`, and `klaus_toolchain_describe` MCP tools for programmatic artifact inspection. The personality tool supports an optional `deps` parameter.
 
+## [0.0.25] - 2026-02-25
+
+### Added
+
+- Add `klausctl plugin push` and `klausctl personality push` commands for pushing OCI artifacts from local directories to registries, designed for CI pipeline use. Includes `--dry-run` to validate without pushing, and warns on stderr when overwriting an existing tag.
+
+## [0.0.24] - 2026-02-25
+
 ### Changed
 
-- `klausctl personality validate` now resolves plugin and toolchain references against the OCI registry by default, failing if any dependency cannot be found. Use `--resolve-deps=false` for offline-only validation. Supports `--source` for source selection.
-- Upgrade `klaus-oci` to v0.0.9: common metadata (name, description, author, homepage, repository, license, keywords) moves from OCI config blobs into `io.giantswarm.klaus.*` manifest annotations for all artifact types. Config blobs now contain only type-specific data (discovered components for plugins, composition for personalities). Toolchain annotations switch from `org.opencontainers.image.*` to `io.giantswarm.klaus.*`. Existing artifacts need to be re-pushed.
 - Upgrade `klaus-oci` to v0.0.8 for the unified `Personality` type and typed artifact operations:
   - `PersonalitySpec` replaced by `Personality` with `Toolchain` field (`ToolchainReference`) instead of `Image` string.
   - Generic `Pull`/`ListArtifacts` replaced by typed `PullPlugin`/`PullPersonality` and `ListPlugins`/`ListPersonalities`/`ListToolchains`.
   - Batch `ResolvePluginRefs` replaced by individual `ResolvePluginRef` calls.
   - `ArtifactKind` constants removed; registry base passed via `WithRegistry` list option.
 
+## [0.0.22] - 2026-02-21
+
 ### Added
 
-- Add `klausctl plugin push` and `klausctl personality push` commands for pushing OCI artifacts from local directories to registries, designed for CI pipeline use. Includes `--dry-run` to validate without pushing, and warns on stderr when overwriting an existing tag.
 - Add secrets management with `klausctl secret set|list|delete` CLI commands and `klaus_secret_list` MCP tool. Secrets are stored in `~/.config/klausctl/secrets.yaml` with 0600 permissions and can be referenced by name in instance configs.
 - Add managed MCP servers with `klausctl mcpserver add|list|remove` CLI commands and `klaus_mcpserver_add`, `klaus_mcpserver_list`, `klaus_mcpserver_remove` MCP tools. Managed servers are stored in `~/.config/klausctl/mcpservers.yaml` and resolved with optional Bearer token authentication at start time.
 - Add `secretEnvVars`, `secretFiles`, and `mcpServerRefs` config fields for referencing secrets by name in instance configurations. At start time, `secretEnvVars` injects resolved secret values as container environment variables, `secretFiles` writes secret values to files and mounts them read-only, and `mcpServerRefs` merges managed MCP server definitions into `mcpServers` with Bearer token headers.
 - Add `--secret-env`, `--secret-file`, and `--mcpserver` flags to `klausctl create` and corresponding `secretEnvVars`, `secretFiles`, `mcpServerRefs` parameters to the `klaus_create` MCP tool.
+
+## [0.0.21] - 2026-02-21
+
+### Changed
+
+- Pass `WithFilter()` to `ListArtifacts` for toolchain listing, filtering repos at the library level before version resolution instead of after. Reduces toolchain list from ~68s to ~4s on gsoci.
+- Upgrade `klaus-oci` to v0.0.7 for the `klaus-toolchains/` sub-namespace migration. Toolchain images now resolve to `gsoci.azurecr.io/giantswarm/klaus-toolchains/<name>` instead of `gsoci.azurecr.io/giantswarm/klaus-<name>`, narrowing `ListRepositories` from the entire `giantswarm/` catalog to just the toolchains sub-namespace. `ShortToolchainName` replaced by `ShortName`.
+
+## [0.0.20] - 2026-02-21
 
 ### Changed
 
@@ -198,20 +260,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Use typed convenience methods (`ResolveToolchainRef`, `ResolvePersonalityRef`, `ResolvePluginRef`) instead of generic `ResolveArtifactRef`.
   - Replace the 5-step manual listing flow with `client.ListArtifacts()` for concurrent artifact discovery.
   - Drop `Masterminds/semver/v3` as a direct dependency.
-- Pass `WithFilter()` to `ListArtifacts` for toolchain listing, filtering repos at the library level before version resolution instead of after. Reduces toolchain list from ~68s to ~4s on gsoci.
-- Upgrade `klaus-oci` to v0.0.7 for the `klaus-toolchains/` sub-namespace migration. Toolchain images now resolve to `gsoci.azurecr.io/giantswarm/klaus-toolchains/<name>` instead of `gsoci.azurecr.io/giantswarm/klaus-<name>`, narrowing `ListRepositories` from the entire `giantswarm/` catalog to just the toolchains sub-namespace. `ShortToolchainName` replaced by `ShortName`.
+
+## [0.0.19] - 2026-02-21
+
+### Added
+
+- Add `klausctl prompt` and `klausctl result` CLI commands to send prompts to and retrieve results from running klaus instances, mirroring the `klaus_prompt` and `klaus_result` MCP tools. `prompt` supports `--blocking` to wait for completion and `--message`/`-m` for the prompt text; both support `--output json`.
 
 ### Fixed
 
 - Fix MCP config rendering for HTTP servers: auto-infer `"type": "http"` for URL-based entries and `"type": "stdio"` for command-based entries. Without the explicit type field, Claude Code misidentifies HTTP servers as stdio and hangs during initialization.
 
+## [0.0.18] - 2026-02-21
+
 ### Added
 
 - Add `--env`, `--env-forward`, `--permission-mode`, `--model`, `--system-prompt`, and `--max-budget` flags to `klausctl create`, unifying config overrides between the CLI and MCP tool.
-- Add `klausctl prompt` and `klausctl result` CLI commands to send prompts to and retrieve results from running klaus instances, mirroring the `klaus_prompt` and `klaus_result` MCP tools. `prompt` supports `--blocking` to wait for completion and `--message`/`-m` for the prompt text; both support `--output json`.
 - Expose full config options in `klaus_create` MCP tool: `envVars`, `envForward`, `mcpServers`, `maxBudgetUsd`, `permissionMode`, `model`, and `systemPrompt` parameters, enabling programmatic instance creation without manual config editing. ([#46](https://github.com/giantswarm/klausctl/issues/46))
+
+## [0.0.17] - 2026-02-19
+
+### Added
+
 - Add `klaus_prompt` and `klaus_result` MCP tools to bridge the management and agent planes. `klaus_prompt` sends prompts to running instances with optional blocking mode, and `klaus_result` retrieves the agent's last response. Includes a lightweight MCP HTTP client (`pkg/mcpclient/`) with per-instance session caching. ([#45](https://github.com/giantswarm/klausctl/issues/45))
 - Enhance `klaus_status` to include the agent's internal status (`agent_status` field) alongside the container status when the instance is running, eliminating an extra round-trip. ([#45](https://github.com/giantswarm/klausctl/issues/45))
+
+## [0.0.16] - 2026-02-19
+
+### Fixed
+
+- Fix `:latest` tag resolution for personality, plugin, and toolchain short names. Short names without explicit tags (e.g. `--personality sre`) now query the registry for the highest semver tag instead of blindly appending `:latest`. Plugin references and toolchain images from personality specs with `:latest` or empty tags are also resolved. Config-level ref expansion no longer appends `:latest`; tag resolution is deferred to start time. Personality spec image resolution now consistently applies the `klaus-` name prefix for short toolchain names. Plugin validation no longer requires a tag at config load time since tags are resolved at start time. Path traversal is now rejected in rendered file names (skills, agents, hooks). ([#47](https://github.com/giantswarm/klausctl/issues/47))
+
+## [0.0.13] - 2026-02-19
+
+### Added
+
 - Add `klausctl serve` command that runs an MCP (Model Context Protocol) server over stdio, exposing klausctl's container lifecycle and artifact management as MCP tools for IDE integration (Cursor, Claude Code). ([#35](https://github.com/giantswarm/klausctl/issues/35))
   - Instance lifecycle tools: `klaus_create`, `klaus_start`, `klaus_stop`, `klaus_delete`, `klaus_status`, `klaus_logs`, `klaus_list`.
   - Artifact discovery tools: `klaus_toolchain_list`, `klaus_personality_list`, `klaus_plugin_list`.
@@ -219,14 +302,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `pkg/orchestrator` package extracting shared container orchestration logic (`BuildRunOptions`, `BuildEnvVars`, `BuildVolumes`) for reuse by both CLI commands and MCP tool handlers. ([#35](https://github.com/giantswarm/klausctl/issues/35))
 - Add `github.com/mark3labs/mcp-go` dependency for MCP protocol support. ([#35](https://github.com/giantswarm/klausctl/issues/35))
 
+## [0.0.12] - 2026-02-19
+
 ### Changed
 
 - `plugin list` and `personality list` now default to remote registry listing, showing the latest version of each artifact and whether it is cached locally. Use `--local` for the previous local-only behavior. ([#42](https://github.com/giantswarm/klausctl/issues/42))
 
 ### Fixed
 
-- Fix `:latest` tag resolution for personality, plugin, and toolchain short names. Short names without explicit tags (e.g. `--personality sre`) now query the registry for the highest semver tag instead of blindly appending `:latest`. Plugin references and toolchain images from personality specs with `:latest` or empty tags are also resolved. Config-level ref expansion no longer appends `:latest`; tag resolution is deferred to start time. Personality spec image resolution now consistently applies the `klaus-` name prefix for short toolchain names. Plugin validation no longer requires a tag at config load time since tags are resolved at start time. Path traversal is now rejected in rendered file names (skills, agents, hooks). ([#47](https://github.com/giantswarm/klausctl/issues/47))
 - Fix `plugin list` and `personality list` remote discovery failing when no local cache exists. The commands now discover repositories directly from the OCI registry catalog via `klaus-oci` v0.0.3. ([#42](https://github.com/giantswarm/klausctl/issues/42))
+
+## [0.0.11] - 2026-02-18
 
 ### Added
 
@@ -234,7 +320,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `klausctl create <name> [workspace]` creates and starts a named instance.
   - `klausctl list` lists instance metadata in table or JSON format.
   - `klausctl delete <name>` removes an instance directory and runtime container.
+
+### Changed
+
+- Add deprecation hints for implicit `default` instance selection when `<name>` is omitted in `start`, `stop`, `status`, and `logs`; users are now guided to pass `default` explicitly.
+- Validate explicit `klausctl create --port` assignments against existing instance ports and fail on collisions.
+- Persist per-instance `toolchain` metadata in `config.yaml` alongside resolved `image`, and prefer `toolchain` for `klausctl list` output.
+- Move create-time personality plugin/image merge behavior into `GenerateInstanceConfig(...)` via a resolver callback, keeping command handlers thinner.
+
+## [0.0.10] - 2026-02-18
+
+### Added
+
 - Add personality support for `klausctl start`. When `personality` is set in config, the personality OCI artifact is pulled, its `SOUL.md` is mounted into the container at `/etc/klaus/SOUL.md`, its plugins are merged with user-configured plugins (user wins on conflict), and its toolchain image is used unless the user explicitly overrides `image`. ([#30](https://github.com/giantswarm/klausctl/issues/30))
+
+## [0.0.9] - 2026-02-18
+
+### Added
+
 - Add unified `validate`, `pull`, and `list` subcommands for plugins, personalities, and toolchains. ([#31](https://github.com/giantswarm/klausctl/issues/31))
   - `klausctl plugin validate|pull|list [--remote]` -- manage OCI plugin artifacts.
   - `klausctl personality validate|pull|list [--remote]` -- manage OCI personality artifacts.
@@ -245,10 +348,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Add deprecation hints for implicit `default` instance selection when `<name>` is omitted in `start`, `stop`, `status`, and `logs`; users are now guided to pass `default` explicitly.
-- Validate explicit `klausctl create --port` assignments against existing instance ports and fail on collisions.
-- Persist per-instance `toolchain` metadata in `config.yaml` alongside resolved `image`, and prefer `toolchain` for `klausctl list` output.
-- Move create-time personality plugin/image merge behavior into `GenerateInstanceConfig(...)` via a resolver callback, keeping command handlers thinner.
 - Refactor `pkg/oci/` to import shared `giantswarm/klaus-oci` library for media type constants, metadata types, OCI annotations, and the ORAS client. klausctl-specific helpers (cache paths, container mount paths) remain in `pkg/oci/`. ([#31](https://github.com/giantswarm/klausctl/issues/31))
 
 ### Fixed
@@ -256,6 +355,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Wire up `KLAUSCTL_REGISTRY_AUTH` env var for OCI credential resolution. After the migration to `klaus-oci`, the env var was no longer passed to the client. All OCI operations now use `NewDefaultClient()` which includes both Docker/Podman config file auth and the env var. ([#31](https://github.com/giantswarm/klausctl/issues/31))
 - Fix `ShortName` extracting name with tag suffix when called on a full OCI reference (e.g. `gs-base:v0.6.0` instead of `gs-base`). The repository portion is now stripped of tag/digest before name extraction. ([#31](https://github.com/giantswarm/klausctl/issues/31))
 - Fix validate commands writing to `os.Stdout` instead of `cmd.OutOrStdout()`, making output testable and consistent with the rest of the CLI. ([#31](https://github.com/giantswarm/klausctl/issues/31))
+
+## [0.0.7] - 2026-02-18
+
+### Fixed
+
+- Fix CircleCI config to use `klausctl` binary name instead of `template` from project scaffold. ([#9](https://github.com/giantswarm/klausctl/issues/9))
+
+## [0.0.6] - 2026-02-18
 
 ### Added
 
@@ -269,10 +376,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `klausctl toolchain init --name <name>` to scaffold a new toolchain image repository with Dockerfiles, Makefile, CI config, and README. ([#20](https://github.com/giantswarm/klausctl/issues/20))
 - Add `Images()` and `Pull()` methods to `Runtime` interface. ([#20](https://github.com/giantswarm/klausctl/issues/20))
 
-### Fixed
-
-- Fix CircleCI config to use `klausctl` binary name instead of `template` from project scaffold. ([#9](https://github.com/giantswarm/klausctl/issues/9))
-
 ### Changed
 
 - `klausctl stop` is now idempotent -- exits 0 when no instance is running.
@@ -280,13 +383,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Runtime auto-detection now prefers Docker over Podman and shows a hint about the `runtime` config key.
 - Warnings (e.g. missing `ANTHROPIC_API_KEY`) now appear after the success summary instead of before the action context.
 - `klausctl toolchain list` default table now includes SIZE column.
+
+## [0.0.5] - 2026-02-17
+
+### Changed
+
 - Integrate toolchain image into `klausctl start`: when a toolchain image (e.g., `giantswarm/klaus-go:1.0.0`) is configured via the `image` field, it is used directly for container run, tracked in instance state, and displayed in `klausctl status`. ([#19](https://github.com/giantswarm/klausctl/issues/19))
+
+## [0.0.3] - 2026-02-17
+
+### Changed
+
 - Implement OCI plugin pulling via ORAS for `klausctl start`. ([#5](https://github.com/giantswarm/klausctl/issues/5))
   - ORAS-based client (`pkg/oci/`) with Pull, Push, Resolve, and List operations.
   - Registry auth from Docker config, Podman auth, or `KLAUSCTL_REGISTRY_AUTH` env var.
   - Digest-based caching -- unchanged plugins are skipped on subsequent pulls.
   - OCI artifact format with custom media types for plugin config and content layers.
+- OCI plugin directory structure for container mounts.
+
+## [0.0.2] - 2026-02-16
+
+### Changed
+
 - Add `klausctl self-update` command for self-updating to the latest GitHub release. ([#7](https://github.com/giantswarm/klausctl/issues/7))
+
+## [0.0.1] - 2026-02-15
+
+### Added
+
+- Support for additional Claude config fields to match Helm chart parity:
+  `jsonSchema`, `settingsFile`, `settingSources`, `includePartialMessages`,
+  `mcpTimeout`, `maxMcpOutputTokens`.
+
+### Changed
+
 - Implement klausctl CLI for managing local klaus instances. ([#3](https://github.com/giantswarm/klausctl/issues/3))
   - `klausctl start` -- start a local klaus container with configured settings.
   - `klausctl start --workspace` -- override workspace directory from CLI.
@@ -302,7 +432,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Container runtime auto-detection (Podman preferred over Docker when both available).
 - Config rendering: generate `mcp-config.json`, `settings.json`, `SKILL.md` files from config.
 - Environment variable forwarding (ANTHROPIC_API_KEY auto-forwarded, custom vars configurable).
-- OCI plugin directory structure for container mounts.
 
 ### Fixed
 
@@ -311,10 +440,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `loadAdditionalDirsMemory` toggle to control `CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD` (defaults to `true`, matching Helm chart).
 - Validate that `hooks` and `claude.settingsFile` are mutually exclusive.
 
-### Added
-
-- Support for additional Claude config fields to match Helm chart parity:
-  `jsonSchema`, `settingsFile`, `settingSources`, `includePartialMessages`,
-  `mcpTimeout`, `maxMcpOutputTokens`.
-
-[Unreleased]: https://github.com/giantswarm/klausctl/tree/main
+[Unreleased]: https://github.com/giantswarm/klausctl/compare/v0.0.102](https://github.com/giantswarm/klausctl/compare/v0.0.101...v0.0.102) (2026-06-03)...HEAD
+[0.4.16]: https://github.com/giantswarm/klausctl/compare/v0.0.72...v0.4.16
+[0.0.72]: https://github.com/giantswarm/klausctl/compare/v0.0.66...v0.0.72
+[0.0.66]: https://github.com/giantswarm/klausctl/compare/v0.0.64...v0.0.66
+[0.0.64]: https://github.com/giantswarm/klausctl/compare/v0.0.42...v0.0.64
+[0.0.42]: https://github.com/giantswarm/klausctl/compare/v0.0.34...v0.0.42
+[0.0.34]: https://github.com/giantswarm/klausctl/compare/v0.0.31...v0.0.34
+[0.0.31]: https://github.com/giantswarm/klausctl/compare/v0.0.28...v0.0.31
+[0.0.28]: https://github.com/giantswarm/klausctl/compare/v0.0.27...v0.0.28
+[0.0.27]: https://github.com/giantswarm/klausctl/compare/v0.0.26...v0.0.27
+[0.0.26]: https://github.com/giantswarm/klausctl/compare/v0.0.25...v0.0.26
+[0.0.25]: https://github.com/giantswarm/klausctl/compare/v0.0.24...v0.0.25
+[0.0.24]: https://github.com/giantswarm/klausctl/compare/v0.0.22...v0.0.24
+[0.0.22]: https://github.com/giantswarm/klausctl/compare/v0.0.21...v0.0.22
+[0.0.21]: https://github.com/giantswarm/klausctl/compare/v0.0.20...v0.0.21
+[0.0.20]: https://github.com/giantswarm/klausctl/compare/v0.0.19...v0.0.20
+[0.0.19]: https://github.com/giantswarm/klausctl/compare/v0.0.18...v0.0.19
+[0.0.18]: https://github.com/giantswarm/klausctl/compare/v0.0.17...v0.0.18
+[0.0.17]: https://github.com/giantswarm/klausctl/compare/v0.0.16...v0.0.17
+[0.0.16]: https://github.com/giantswarm/klausctl/compare/v0.0.13...v0.0.16
+[0.0.13]: https://github.com/giantswarm/klausctl/compare/v0.0.12...v0.0.13
+[0.0.12]: https://github.com/giantswarm/klausctl/compare/v0.0.11...v0.0.12
+[0.0.11]: https://github.com/giantswarm/klausctl/compare/v0.0.10...v0.0.11
+[0.0.10]: https://github.com/giantswarm/klausctl/compare/v0.0.9...v0.0.10
+[0.0.9]: https://github.com/giantswarm/klausctl/compare/v0.0.7...v0.0.9
+[0.0.7]: https://github.com/giantswarm/klausctl/compare/v0.0.6...v0.0.7
+[0.0.6]: https://github.com/giantswarm/klausctl/compare/v0.0.5...v0.0.6
+[0.0.5]: https://github.com/giantswarm/klausctl/compare/v0.0.3...v0.0.5
+[0.0.3]: https://github.com/giantswarm/klausctl/compare/v0.0.2...v0.0.3
+[0.0.2]: https://github.com/giantswarm/klausctl/compare/v0.0.1...v0.0.2
+[0.0.1]: https://github.com/giantswarm/klausctl/releases/tag/v0.0.1
