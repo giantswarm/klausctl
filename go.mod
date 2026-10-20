@@ -5,7 +5,7 @@ go 1.26.0
 toolchain go1.27.3
 
 require (
-	github.com/giantswarm/go-selfupdate v1.6.5
+	github.com/giantswarm/go-selfupdate v1.6.6
 	github.com/giantswarm/klaus-oci v0.0.82
 	github.com/giantswarm/selfupdate-cosign v0.3.8
 	github.com/google/uuid v1.6.0
