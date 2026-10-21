@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
+	"unicode"
 
 	"github.com/giantswarm/pagekit"
 )
@@ -64,9 +66,7 @@ func (cs *CallbackServer) Start() (string, error) {
 
 	go func() {
 		if err := cs.server.Serve(ln); err != nil && err != http.ErrServerClosed {
-			cs.once.Do(func() {
-				cs.result <- CallbackResult{Error: err.Error()}
-			})
+			cs.serverFailed(err)
 		}
 	}()
 
@@ -93,27 +93,38 @@ func (cs *CallbackServer) shutdown() {
 	_ = cs.server.Shutdown(context.Background())
 }
 
+// serverFailed ends the sign-in with the server's error, unless a callback
+// has already ended it.
+func (cs *CallbackServer) serverFailed(err error) {
+	cs.once.Do(func() {
+		cs.result <- CallbackResult{Error: err.Error()}
+		cs.status, cs.page = http.StatusInternalServerError, failedPage("The sign-in could not be completed", "")
+	})
+}
+
 func (cs *CallbackServer) handleCallback(expectedState string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Only the first callback counts. Browsers and redirect pages may
-		// load the callback twice; a later load shows the same outcome.
-		cs.once.Do(func() {
-			q := r.URL.Query()
+		q := r.URL.Query()
 
+		// A callback without this sign-in's state, error responses included,
+		// is not this sign-in's: any page can send the browser here. It gets
+		// a page, and the sign-in keeps waiting for the real callback.
+		if q.Get("state") != expectedState {
+			pagekit.Render(w, http.StatusBadRequest, failedPage("The sign-in response could not be verified", ""))
+			return
+		}
+
+		// Only the first callback counts. A browser or redirect page that
+		// loads the callback again before the server stops gets the same
+		// outcome.
+		cs.once.Do(func() {
 			if errParam := q.Get("error"); errParam != "" {
 				desc := q.Get("error_description")
 				if desc == "" {
 					desc = errParam
 				}
-				cs.result <- CallbackResult{Error: desc}
+				cs.result <- CallbackResult{Error: withoutControlCharacters(desc)}
 				cs.status, cs.page = http.StatusBadRequest, failedPage("The sign-in was denied or failed", errParam)
-				return
-			}
-
-			state := q.Get("state")
-			if state != expectedState {
-				cs.result <- CallbackResult{Error: "state mismatch"}
-				cs.status, cs.page = http.StatusBadRequest, failedPage("The sign-in response could not be verified", "")
 				return
 			}
 
@@ -124,11 +135,23 @@ func (cs *CallbackServer) handleCallback(expectedState string) http.HandlerFunc 
 				return
 			}
 
-			cs.result <- CallbackResult{Code: code, State: state}
+			cs.result <- CallbackResult{Code: code, State: q.Get("state")}
 			cs.status, cs.page = http.StatusOK, signedInPage
 		})
 		pagekit.Render(w, cs.status, cs.page)
 	}
+}
+
+// withoutControlCharacters drops control characters from text a callback
+// carries before it reaches the terminal, where escape sequences could move
+// the cursor or rewrite what is shown.
+func withoutControlCharacters(s string) string {
+	return strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) {
+			return -1
+		}
+		return r
+	}, s)
 }
 
 var signedInPage = pagekit.Page{
