@@ -47,6 +47,9 @@ func TestCallbackServer_SuccessfulCallback(t *testing.T) {
 	}
 }
 
+// TestCallbackServer_StateMismatch covers a callback that isn't this
+// sign-in's: it gets an error page, and the sign-in keeps waiting for the
+// real callback instead of ending.
 func TestCallbackServer_StateMismatch(t *testing.T) {
 	cs := NewCallbackServer("expected-state")
 
@@ -55,9 +58,17 @@ func TestCallbackServer_StateMismatch(t *testing.T) {
 		t.Fatalf("Start: %v", err)
 	}
 
+	resp, err := http.Get(redirectURI + "?code=forged&state=wrong-state") // #nosec G107 -- URL constructed from trusted, validated input
+	if err != nil {
+		t.Fatalf("forged callback GET: %v", err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("forged callback: status %d, want 400", resp.StatusCode)
+	}
+
 	go func() {
-		url := fmt.Sprintf("%s?code=auth-code&state=wrong-state", redirectURI)
-		resp, err := http.Get(url) // #nosec G107 -- URL constructed from trusted, validated input
+		resp, err := http.Get(redirectURI + "?code=auth-code&state=expected-state") // #nosec G107 -- URL constructed from trusted, validated input
 		if err != nil {
 			t.Errorf("callback GET: %v", err)
 			return
@@ -68,9 +79,12 @@ func TestCallbackServer_StateMismatch(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	_, err = cs.WaitForCallback(ctx)
-	if err == nil {
-		t.Fatal("expected error for state mismatch")
+	result, err := cs.WaitForCallback(ctx)
+	if err != nil {
+		t.Fatalf("WaitForCallback: %v", err)
+	}
+	if result.Code != "auth-code" {
+		t.Errorf("Code = %q, want the real callback's", result.Code)
 	}
 }
 
@@ -83,7 +97,7 @@ func TestCallbackServer_OAuthError(t *testing.T) {
 	}
 
 	go func() {
-		url := fmt.Sprintf("%s?error=access_denied&error_description=user+denied+access", redirectURI)
+		url := fmt.Sprintf("%s?error=access_denied&error_description=user+denied+access&state=%s", redirectURI, testState)
 		resp, err := http.Get(url) // #nosec G107 -- URL constructed from trusted, validated input
 		if err != nil {
 			t.Errorf("callback GET: %v", err)
@@ -146,32 +160,6 @@ func TestCallbackServer_ContextCancelled(t *testing.T) {
 	}
 }
 
-func TestCallbackServer_OnlyProcessesFirstCallback(t *testing.T) {
-	state := testState
-	cs := NewCallbackServer(state)
-
-	redirectURI, err := cs.Start()
-	if err != nil {
-		t.Fatalf("Start: %v", err)
-	}
-
-	go func() {
-		url := fmt.Sprintf("%s?code=first-code&state=%s", redirectURI, state)
-		_, _ = http.Get(url) // #nosec G107 -- URL constructed from trusted, validated input
-	}()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	result, err := cs.WaitForCallback(ctx)
-	if err != nil {
-		t.Fatalf("WaitForCallback: %v", err)
-	}
-	if result.Code != "first-code" {
-		t.Errorf("Code = %q, want first-code (sync.Once should ignore second)", result.Code)
-	}
-}
-
 func TestCallbackServer_ErrorWithoutDescription(t *testing.T) {
 	cs := NewCallbackServer(testState)
 
@@ -181,7 +169,7 @@ func TestCallbackServer_ErrorWithoutDescription(t *testing.T) {
 	}
 
 	go func() {
-		url := fmt.Sprintf("%s?error=server_error", redirectURI)
+		url := fmt.Sprintf("%s?error=server_error&state=%s", redirectURI, testState)
 		resp, err := http.Get(url) // #nosec G107 -- URL constructed from trusted, validated input
 		if err != nil {
 			t.Errorf("callback GET: %v", err)
