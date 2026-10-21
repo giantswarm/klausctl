@@ -7,6 +7,8 @@ import (
 	"testing"
 )
 
+const signInFailedHeading = "<h1>Sign-in failed</h1>"
+
 func servePage(handler http.HandlerFunc, query string) *httptest.ResponseRecorder {
 	rr := httptest.NewRecorder()
 	handler(rr, httptest.NewRequest(http.MethodGet, callbackPath+"?"+query, nil))
@@ -31,7 +33,7 @@ func TestCallbackServer_Pages(t *testing.T) {
 			name:       "provider refuses",
 			query:      "error=access_denied&error_description=%3Cscript%3Ealert(1)%3C%2Fscript%3E",
 			wantStatus: http.StatusBadRequest,
-			want:       []string{"<h1>Sign-in failed</h1>", "The sign-in was denied or failed", "<code>access_denied</code>"},
+			want:       []string{signInFailedHeading, "The sign-in was denied or failed", "<code>access_denied</code>"},
 			notWant:    []string{"<script>", "alert(1)"},
 		},
 		{
@@ -45,13 +47,13 @@ func TestCallbackServer_Pages(t *testing.T) {
 			name:       "state mismatch",
 			query:      "code=c&state=forged",
 			wantStatus: http.StatusBadRequest,
-			want:       []string{"<h1>Sign-in failed</h1>", "The sign-in response could not be verified"},
+			want:       []string{signInFailedHeading, "The sign-in response could not be verified"},
 		},
 		{
 			name:       "no code",
 			query:      "state=" + testState,
 			wantStatus: http.StatusBadRequest,
-			want:       []string{"<h1>Sign-in failed</h1>", "The sign-in response is incomplete"},
+			want:       []string{signInFailedHeading, "The sign-in response is incomplete"},
 		},
 	}
 
