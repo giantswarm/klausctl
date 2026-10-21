@@ -6,6 +6,8 @@ import (
 	"net"
 	"net/http"
 	"sync"
+
+	"github.com/giantswarm/pagekit"
 )
 
 const (
@@ -27,6 +29,11 @@ type CallbackServer struct {
 	server *http.Server
 	result chan CallbackResult
 	once   sync.Once
+
+	// status and page answer the first callback, set inside once, and every
+	// later load of the callback.
+	status int
+	page   pagekit.Page
 }
 
 // NewCallbackServer creates a callback server that validates the state
@@ -88,6 +95,8 @@ func (cs *CallbackServer) shutdown() {
 
 func (cs *CallbackServer) handleCallback(expectedState string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Only the first callback counts. Browsers and redirect pages may
+		// load the callback twice; a later load shows the same outcome.
 		cs.once.Do(func() {
 			q := r.URL.Query()
 
@@ -97,48 +106,47 @@ func (cs *CallbackServer) handleCallback(expectedState string) http.HandlerFunc 
 					desc = errParam
 				}
 				cs.result <- CallbackResult{Error: desc}
-				w.Header().Set("Content-Type", "text/html; charset=utf-8")
-				w.WriteHeader(http.StatusBadRequest)
-				_, _ = fmt.Fprintf(w, errorPage, desc) // #nosec G705 -- test scaffolding; not security sensitive
+				cs.status, cs.page = http.StatusBadRequest, failedPage("The sign-in was denied or failed", errParam)
 				return
 			}
 
 			state := q.Get("state")
 			if state != expectedState {
 				cs.result <- CallbackResult{Error: "state mismatch"}
-				w.Header().Set("Content-Type", "text/html; charset=utf-8")
-				w.WriteHeader(http.StatusBadRequest)
-				_, _ = fmt.Fprintf(w, errorPage, "state parameter mismatch")
+				cs.status, cs.page = http.StatusBadRequest, failedPage("The sign-in response could not be verified", "")
 				return
 			}
 
 			code := q.Get("code")
 			if code == "" {
 				cs.result <- CallbackResult{Error: "missing authorization code"}
-				w.Header().Set("Content-Type", "text/html; charset=utf-8")
-				w.WriteHeader(http.StatusBadRequest)
-				_, _ = fmt.Fprintf(w, errorPage, "missing authorization code")
+				cs.status, cs.page = http.StatusBadRequest, failedPage("The sign-in response is incomplete", "")
 				return
 			}
 
 			cs.result <- CallbackResult{Code: code, State: state}
-			w.Header().Set("Content-Type", "text/html; charset=utf-8")
-			_, _ = fmt.Fprint(w, successPage)
+			cs.status, cs.page = http.StatusOK, signedInPage
 		})
+		pagekit.Render(w, cs.status, cs.page)
 	}
 }
 
-const successPage = `<!DOCTYPE html>
-<html><head><title>klausctl - Login Successful</title></head>
-<body style="font-family:system-ui,sans-serif;text-align:center;padding:3em">
-<h1>Login Successful</h1>
-<p>You have been authenticated. You can close this window.</p>
-</body></html>`
+var signedInPage = pagekit.Page{
+	Title:   "Signed in with klausctl",
+	Heading: "Signed in",
+	Summary: "klausctl is now signed in",
+	Message: "You can close this tab and return to where you started the sign-in.",
+}
 
-var errorPage = `<!DOCTYPE html>
-<html><head><title>klausctl - Login Failed</title></head>
-<body style="font-family:system-ui,sans-serif;text-align:center;padding:3em">
-<h1>Login Failed</h1>
-<p>%s</p>
-<p>Please try again.</p>
-</body></html>`
+// failedPage returns the page for a failed sign-in. errorCode is shown only
+// when it is a registered OAuth error code: anyone can send the browser to
+// the local callback with an error of their choosing.
+func failedPage(summary, errorCode string) pagekit.Page {
+	return pagekit.Page{
+		Title:   "Sign-in with klausctl failed",
+		Heading: "Sign-in failed",
+		Summary: summary,
+		Message: "You can close this tab and start the sign-in again from where you started it.",
+		Detail:  pagekit.OAuthErrorCode(errorCode),
+	}
+}
