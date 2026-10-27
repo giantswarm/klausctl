@@ -10,7 +10,7 @@ require (
 	github.com/giantswarm/pagekit v0.3.1
 	github.com/giantswarm/selfupdate-cosign v0.3.15
 	github.com/google/uuid v1.6.0
-	github.com/mark3labs/mcp-go v1.3.0
+	github.com/mark3labs/mcp-go v1.4.0
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
 	golang.org/x/oauth2 v0.37.0
