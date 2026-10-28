@@ -8,7 +8,7 @@ require (
 	github.com/giantswarm/go-selfupdate v1.7.1
 	github.com/giantswarm/klaus-oci v0.0.87
 	github.com/giantswarm/pagekit v0.3.2
-	github.com/giantswarm/selfupdate-cosign v0.3.16
+	github.com/giantswarm/selfupdate-cosign v0.3.17
 	github.com/google/uuid v1.6.0
 	github.com/mark3labs/mcp-go v1.4.0
 	github.com/spf13/cobra v1.10.2
