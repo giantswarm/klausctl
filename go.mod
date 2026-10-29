@@ -92,7 +92,9 @@ require (
 	github.com/ProtonMail/go-crypto v1.5.2 // indirect
 	github.com/cloudflare/circl v1.6.3 // indirect
 	github.com/davidmz/go-pageant v1.0.2 // indirect
+	github.com/go-chi/chi/v5 v5.5.0 // indirect
 	github.com/go-fed/httpsig v1.1.0 // indirect
+	github.com/go-jose/go-jose/v4 v4.1.6 // indirect
 	github.com/google/go-github/v93 v93.0.0 // indirect
 	github.com/google/go-querystring v1.2.0 // indirect
 	github.com/google/jsonschema-go v0.4.2 // indirect
@@ -104,6 +106,7 @@ require (
 	github.com/opencontainers/image-spec v1.1.1 // indirect
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
+	github.com/tink-crypto/tink-go/v2 v2.9.0 // indirect
 	github.com/ulikunitz/xz v0.5.17 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	gitlab.com/gitlab-org/api/client-go v1.46.0 // indirect
