@@ -112,8 +112,8 @@ github.com/giantswarm/klaus-oci v0.0.90 h1:RTSSJDQAo3BwElM616WYEGuJpRjcfjr3IhHMN
 github.com/giantswarm/klaus-oci v0.0.90/go.mod h1:q9gL9weh2iV1U225gCpxTC5S2sLiBXTnLa50+g9n+x0=
 github.com/giantswarm/pagekit v0.3.2 h1:YDnxBOzBcrBrc1J8XArl3J83JrD/CdtWQ0GuDkDprBo=
 github.com/giantswarm/pagekit v0.3.2/go.mod h1:bXMRzjARa/TewLywz4naTh8YsGzbfSLUoGlEfM92oPQ=
-github.com/giantswarm/selfupdate-cosign v0.3.20 h1:rwA85XYsVeAId193DrDmQSXUmGYwQF2iNPWXoOGzfB8=
-github.com/giantswarm/selfupdate-cosign v0.3.20/go.mod h1:W2HxtRkKe62sMZJGYOOCaUM/CewbIiB+LWpxTqrPpco=
+github.com/giantswarm/selfupdate-cosign v0.3.21 h1:DhUBnG1z3D4Hi6TyV2HO6tjrvk5k6Rcw9W/Sm5sjBGs=
+github.com/giantswarm/selfupdate-cosign v0.3.21/go.mod h1:W2HxtRkKe62sMZJGYOOCaUM/CewbIiB+LWpxTqrPpco=
 github.com/go-chi/chi/v5 v5.5.0 h1:xdKQ1dJmVJsmgahrXSKhUx8NyVPzpwdlyrrQFpMPJgg=
 github.com/go-chi/chi/v5 v5.5.0/go.mod h1:d1IG7GtKPSjPyBP365PH8sAGVHk3qfB/IhjFNRH1wWM=
 github.com/go-fed/httpsig v1.1.0 h1:9M+hb0jkEICD8/cAiNqEB66R87tTINszBRTjwjQzWcI=
