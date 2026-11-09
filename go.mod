@@ -13,7 +13,7 @@ require (
 	github.com/mark3labs/mcp-go v1.5.0
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.1.0
-	golang.org/x/oauth2 v0.37.0
+	golang.org/x/oauth2 v0.38.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
