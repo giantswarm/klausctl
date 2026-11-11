@@ -6,7 +6,7 @@ toolchain go1.27.4
 
 require (
 	github.com/giantswarm/go-selfupdate v1.7.7
-	github.com/giantswarm/klaus-oci v0.0.93
+	github.com/giantswarm/klaus-oci v0.0.94
 	github.com/giantswarm/pagekit v0.3.8
 	github.com/giantswarm/selfupdate-cosign v0.3.27
 	github.com/google/uuid v1.6.0
@@ -108,7 +108,7 @@ require (
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	gitlab.com/gitlab-org/api/client-go v1.46.0 // indirect
 	golang.org/x/crypto v0.58.0 // indirect
-	golang.org/x/sync v0.24.0 // indirect
+	golang.org/x/sync v0.25.0 // indirect
 	golang.org/x/sys v0.49.0 // indirect
 	golang.org/x/text v0.43.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
