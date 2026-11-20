@@ -1,4 +1,4 @@
-// Package muster implements MCP tool handlers for muster bridge lifecycle
+// Package muster implements MCP tool handlers for muster lifecycle
 // management (start, stop, status).
 package muster
 
@@ -12,7 +12,7 @@ import (
 	"github.com/giantswarm/klausctl/pkg/musterbridge"
 )
 
-// RegisterTools registers muster bridge lifecycle tools on the MCP server.
+// RegisterTools registers muster lifecycle tools on the MCP server.
 func RegisterTools(s *mcpserver.MCPServer, sc *server.ServerContext) {
 	registerStart(s, sc)
 	registerStop(s, sc)
@@ -21,7 +21,7 @@ func RegisterTools(s *mcpserver.MCPServer, sc *server.ServerContext) {
 
 func registerStart(s *mcpserver.MCPServer, sc *server.ServerContext) {
 	tool := mcp.NewTool("klaus_muster_start",
-		mcp.WithDescription("Start the muster MCP bridge. Launches a background muster process that aggregates stdio MCP servers behind an HTTP endpoint for container access. The bridge is auto-registered as 'muster' in the MCP server store."),
+		mcp.WithDescription("Start muster. Launches a background muster process that aggregates stdio MCP servers behind an HTTP endpoint for container access. Muster is auto-registered as 'muster' in the MCP server store."),
 	)
 	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		st, err := musterbridge.Start(ctx, sc.Paths)
@@ -34,7 +34,7 @@ func registerStart(s *mcpserver.MCPServer, sc *server.ServerContext) {
 
 func registerStop(s *mcpserver.MCPServer, sc *server.ServerContext) {
 	tool := mcp.NewTool("klaus_muster_stop",
-		mcp.WithDescription("Stop the running muster MCP bridge."),
+		mcp.WithDescription("Stop the running muster process."),
 	)
 	s.AddTool(tool, func(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		if err := musterbridge.Stop(sc.Paths); err != nil {
@@ -46,7 +46,7 @@ func registerStop(s *mcpserver.MCPServer, sc *server.ServerContext) {
 
 func registerStatus(s *mcpserver.MCPServer, sc *server.ServerContext) {
 	tool := mcp.NewTool("klaus_muster_status",
-		mcp.WithDescription("Check the status of the muster MCP bridge. Returns whether it is running, the PID, port, URL, and which MCP servers are configured."),
+		mcp.WithDescription("Check the status of muster. Returns whether it is running, the PID, port, URL, and which MCP servers are configured."),
 	)
 	s.AddTool(tool, func(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		st := musterbridge.GetStatus(sc.Paths)

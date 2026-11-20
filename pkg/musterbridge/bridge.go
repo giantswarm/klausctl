@@ -36,7 +36,7 @@ type musterConfig struct {
 	} `yaml:"aggregator"`
 }
 
-// Status represents the state of the muster bridge.
+// Status represents the state of muster.
 type Status struct {
 	Running    bool             `json:"running"`
 	PID        int              `json:"pid,omitempty"`
@@ -74,7 +74,7 @@ func Start(ctx context.Context, paths *config.Paths) (*Status, error) {
 		return nil, fmt.Errorf("checking muster config: %w", err)
 	}
 	if !hasCfg {
-		return nil, fmt.Errorf("no MCP server files in %s; create at least one .yaml file before starting the bridge", paths.MusterMCPServersDir)
+		return nil, fmt.Errorf("no MCP server files in %s; create at least one .yaml file before starting muster", paths.MusterMCPServersDir)
 	}
 
 	musterBin, err := findMuster()
@@ -140,7 +140,7 @@ func Start(ctx context.Context, paths *config.Paths) (*Status, error) {
 func Stop(paths *config.Paths) error {
 	pid, err := readPID(paths.MusterPIDFile)
 	if err != nil {
-		return fmt.Errorf("muster bridge is not running (no PID file)")
+		return fmt.Errorf("muster is not running (no PID file)")
 	}
 
 	proc, err := os.FindProcess(pid)
@@ -175,7 +175,7 @@ func Stop(paths *config.Paths) error {
 	return nil
 }
 
-// GetStatus returns the current muster bridge status without modifying anything.
+// GetStatus returns the current muster status without modifying anything.
 func GetStatus(paths *config.Paths) *Status {
 	st, alive := checkRunning(paths)
 	if !alive {
@@ -184,9 +184,8 @@ func GetStatus(paths *config.Paths) *Status {
 	return st
 }
 
-// EnsureRunning starts the muster bridge if it is not already running and
-// guarantees the bridge entry exists in the MCP server store. Used by the
-// auto-start integration in the instance start flow.
+// EnsureRunning starts muster if it is not already running and
+// guarantees its entry exists in the MCP server store.
 func EnsureRunning(ctx context.Context, paths *config.Paths) error {
 	if st, alive := checkRunning(paths); alive {
 		return registerBridge(paths, st.Port)
@@ -195,7 +194,7 @@ func EnsureRunning(ctx context.Context, paths *config.Paths) error {
 	return err
 }
 
-// Restart stops and re-starts the muster bridge. Useful after config changes.
+// Restart stops and re-starts muster.
 func Restart(ctx context.Context, paths *config.Paths) (*Status, error) {
 	_ = Stop(paths)
 	return Start(ctx, paths)

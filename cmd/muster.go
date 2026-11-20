@@ -15,19 +15,19 @@ import (
 
 var musterCmd = &cobra.Command{
 	Use:   "muster",
-	Short: "Manage the muster MCP bridge",
-	Long: `Manage the shared muster process that bridges stdio MCP servers to HTTP
+	Short: "Manage muster",
+	Long: `Manage the shared muster process that exposes stdio MCP servers via HTTP
 for use by containerized klaus agents.
 
-The bridge reads MCP server definitions from ~/.config/klausctl/muster/mcpservers/
+Muster reads MCP server definitions from ~/.config/klausctl/muster/mcpservers/
 and exposes them as a single HTTP endpoint that containers can reach.`,
 }
 
 var musterStartCmd = &cobra.Command{
 	Use:   "start",
-	Short: "Start the muster bridge",
+	Short: "Start muster",
 	Long: `Start a background muster process that aggregates configured MCP servers
-and exposes them via HTTP. The bridge is registered as "muster" in the
+and exposes them via HTTP. Muster is registered as "muster" in the
 managed MCP server store so instances can reference it via --mcpserver.`,
 	Args: cobra.NoArgs,
 	RunE: runMusterStart,
@@ -35,21 +35,21 @@ managed MCP server store so instances can reference it via --mcpserver.`,
 
 var musterStopCmd = &cobra.Command{
 	Use:   "stop",
-	Short: "Stop the muster bridge",
+	Short: "Stop muster",
 	Args:  cobra.NoArgs,
 	RunE:  runMusterStop,
 }
 
 var musterStatusCmd = &cobra.Command{
 	Use:   useStatus,
-	Short: "Show muster bridge status",
+	Short: "Show muster status",
 	Args:  cobra.NoArgs,
 	RunE:  runMusterStatus,
 }
 
 var musterRestartCmd = &cobra.Command{
 	Use:   "restart",
-	Short: "Restart the muster bridge to pick up config changes",
+	Short: "Restart muster to pick up config changes",
 	Args:  cobra.NoArgs,
 	RunE:  runMusterRestart,
 }
@@ -73,14 +73,14 @@ func runMusterStart(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	_, _ = fmt.Fprintln(out, "Starting muster bridge...")
+	_, _ = fmt.Fprintln(out, "Starting muster...")
 	st, err := musterbridge.Start(ctx, paths)
 	if err != nil {
 		return err
 	}
 
 	_, _ = fmt.Fprintln(out)
-	_, _ = fmt.Fprintln(out, green("Muster bridge running."))
+	_, _ = fmt.Fprintln(out, green("Muster running."))
 	printBridgeStatus(out, st)
 	return nil
 }
@@ -97,7 +97,7 @@ func runMusterStop(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	_, _ = fmt.Fprintln(out, green("Muster bridge stopped."))
+	_, _ = fmt.Fprintln(out, green("Muster stopped."))
 	return nil
 }
 
@@ -111,11 +111,11 @@ func runMusterStatus(cmd *cobra.Command, _ []string) error {
 
 	st := musterbridge.GetStatus(paths)
 	if !st.Running {
-		_, _ = fmt.Fprintln(out, "Muster bridge: not running")
+		_, _ = fmt.Fprintln(out, "Muster: not running")
 		return nil
 	}
 
-	_, _ = fmt.Fprintln(out, "Muster bridge:", green(statusRunning))
+	_, _ = fmt.Fprintln(out, "Muster:", green(statusRunning))
 	printBridgeStatus(out, st)
 	return nil
 }
@@ -131,14 +131,14 @@ func runMusterRestart(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	_, _ = fmt.Fprintln(out, "Restarting muster bridge...")
+	_, _ = fmt.Fprintln(out, "Restarting muster...")
 	st, err := musterbridge.Restart(ctx, paths)
 	if err != nil {
 		return err
 	}
 
 	_, _ = fmt.Fprintln(out)
-	_, _ = fmt.Fprintln(out, green("Muster bridge running."))
+	_, _ = fmt.Fprintln(out, green("Muster running."))
 	printBridgeStatus(out, st)
 	return nil
 }

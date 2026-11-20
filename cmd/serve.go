@@ -98,7 +98,7 @@ func serverInstructions() string {
 Use the instance tools to create, start, stop, delete, and inspect local klaus instances.
 Use the artifact tools to discover available toolchains, personalities, and plugins.
 Use the agent tools to send prompts to and retrieve results from running instances.
-Use the muster tools to manage the muster MCP bridge that exposes stdio MCP servers to containers.
+Use the muster tools to manage muster, which exposes stdio MCP servers to containers.
 Use the workspace tools to manage the workspace registry of GitHub organizations and repos.
 
 Typical workflow:
