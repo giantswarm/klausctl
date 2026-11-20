@@ -2,7 +2,7 @@
 
 The gateway bridge is klausctl's local lifecycle manager for `klaus-gateway`
 (and optionally the upstream `agentgateway` that `klaus-gateway` can run
-behind). It mirrors the shape of [the muster bridge](musterbridge.md): it
+behind). It mirrors [muster lifecycle management](musterbridge.md): it
 spawns the process, tracks PID/port, health-checks `/healthz`, and registers
 the resulting MCP HTTP endpoint in `~/.config/klausctl/mcpservers.yaml` so
 containerized klaus instances can reach it via `host.docker.internal`.

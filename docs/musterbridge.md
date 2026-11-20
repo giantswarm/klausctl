@@ -1,16 +1,16 @@
-# Muster bridge
+# Muster
 
-The muster bridge is klausctl's local lifecycle manager for
-[muster](https://github.com/giantswarm/muster), an HTTP aggregator that
-exposes stdio MCP servers behind a single HTTP endpoint. It spawns a `muster
-serve` process, tracks PID/port, health-checks the `/mcp` endpoint, and
+klausctl manages a local [muster](https://github.com/giantswarm/muster)
+process, an MCP gateway that exposes stdio MCP servers behind a single
+HTTP endpoint. klausctl spawns a `muster serve` process, tracks PID/port,
+health-checks the `/mcp` endpoint, and
 registers the resulting URL in `~/.config/klausctl/mcpservers.yaml` so
 containerized klaus instances can reach it via `host.docker.internal`.
 
-Containerized agents cannot reach stdio MCP servers directly. The muster
-bridge solves this by aggregating the servers you configure in
-`~/.config/klausctl/muster/mcpservers/` and making them available at a
-single HTTP endpoint. Instance configs reference the bridge via
+Containerized agents cannot reach stdio MCP servers directly. Muster
+aggregates the servers you configure in
+`~/.config/klausctl/muster/mcpservers/` and makes them available at a
+single HTTP endpoint. Instance configs reference muster via
 `mcpServerRefs: [muster]`.
 
 For managing a local `klaus-gateway` process instead, see
@@ -32,7 +32,7 @@ after adding or editing files under `muster/mcpservers/`.
 
 Agents running inside `klausctl serve` see three tools:
 
-- `klaus_muster_start` -- starts the bridge; returns the status JSON.
+- `klaus_muster_start` -- starts muster; returns the status JSON.
 - `klaus_muster_stop` -- no arguments.
 - `klaus_muster_status` -- returns the same JSON shape the CLI emits.
 
@@ -42,7 +42,7 @@ directory.
 
 ## Binary resolution
 
-The bridge locates the muster binary via a PATH lookup:
+klausctl locates the muster binary via a PATH lookup:
 
 ```
 exec.LookPath("muster")
@@ -100,25 +100,25 @@ aggregator:
 
 Each `.yaml` file in `muster/mcpservers/` describes one MCP server. Muster
 reads these files directly; klausctl only checks that at least one file
-exists before starting the bridge. Refer to the
+exists before starting muster. Refer to the
 [muster documentation](https://github.com/giantswarm/muster) for the
 per-file schema.
 
 ## Bootstrap matrix
 
-The bridge has two prerequisites. Start fails fast with a descriptive error
+Starting muster has two prerequisites. Start fails fast with a descriptive error
 when either is unmet.
 
 | Condition | Outcome |
 |-----------|---------|
 | `muster` not on `$PATH` | error: binary not found |
 | `muster/mcpservers/` empty or missing | error: no MCP server files configured |
-| Both met, bridge not yet running | start succeeds; PID/port files written |
-| Both met, bridge already running | idempotent; existing process reused |
+| Both met, muster not yet running | start succeeds; PID/port files written |
+| Both met, muster already running | idempotent; existing process reused |
 
 ## Container networking
 
-The bridge listens on the port muster binds to (default `0.0.0.0:8090`).
+Muster listens on the configured port (default `0.0.0.0:8090`).
 Containers reach it at `http://host.docker.internal:<port>/mcp` via the
 `--add-host host.docker.internal:host-gateway` flag that klausctl already
 adds to `docker run` / `podman run`. On Linux, the extra-host flag is
@@ -128,10 +128,10 @@ mandatory; macOS and Windows resolve `host.docker.internal` natively.
 
 **Stale PID file after an ungraceful shutdown.** `muster status` detects a
 stale PID, removes the PID/port files, and reports `not running`. A fresh
-`muster start` brings the bridge back up.
+`muster start` brings muster back up.
 
-**Start fails because no server files exist.** klausctl refuses to start the
-bridge when `muster/mcpservers/` is empty or absent. Create at least one
+**Start fails because no server files exist.** klausctl refuses to start
+muster when `muster/mcpservers/` is empty or absent. Create at least one
 `.yaml` file there before running `muster start`.
 
 **Port collision with an existing process.** Set `aggregator.port` in

@@ -56,7 +56,7 @@ below. Where they differ from this block, they take precedence.
 | `pkg/config` | Instance config loading, path resolution (`Paths` struct) |
 | `pkg/mcpserverstore` | Read/write `mcpservers.yaml` |
 | `pkg/runtime` | Docker/Podman detection and container operations |
-| `internal/tools/muster` | MCP tool registration for the muster bridge |
+| `internal/tools/muster` | MCP tool registration for muster |
 | `internal/tools/gateway` | MCP tool registration for the gateway bridge |
 
 ## Bridge documentation
